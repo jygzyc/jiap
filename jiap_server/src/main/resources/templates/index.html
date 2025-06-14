@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="${title}">JIAP - Java 智能分析平台</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f8fafc;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            max-width: 600px;
+            width: 100%;
+            padding: 32px;
+            transition: all 0.3s ease;
+        }
+
+        .container:hover {
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+
+        h1 {
+            color: #1f2937;
+            text-align: center;
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #6b7280;
+            font-size: 1rem;
+            margin-bottom: 32px;
+        }
+
+        .drop-zone {
+            border: 2px dashed #d1d5db;
+            border-radius: 12px;
+            padding: 48px 24px;
+            text-align: center;
+            background: #f9fafb;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            position: relative;
+            min-height: 200px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .drop-zone:hover {
+            border-color: #3b82f6;
+            background: #eff6ff;
+        }
+
+        .drop-zone.drag-over {
+            border-color: #3b82f6;
+            background: #dbeafe;
+            transform: scale(1.02);
+        }
+
+        .drop-zone.processing {
+            border-color: #f59e0b;
+            background: #fef3c7;
+        }
+
+        .upload-icon {
+            width: 48px;
+            height: 48px;
+            margin-bottom: 16px;
+            color: #6b7280;
+            transition: all 0.3s ease;
+        }
+
+        .drop-zone:hover .upload-icon {
+            color: #3b82f6;
+            transform: scale(1.1);
+        }
+
+        .upload-text {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 8px;
+        }
+
+        .upload-hint {
+            color: #6b7280;
+            font-size: 0.875rem;
+            line-height: 1.5;
+        }
+
+        .file-info {
+            background: #f3f4f6;
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 16px;
+            display: none;
+        }
+
+        .file-name {
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 4px;
+        }
+
+        .file-details {
+            color: #6b7280;
+            font-size: 0.875rem;
+        }
+
+        .progress-container {
+            margin-top: 20px;
+            display: none;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e5e7eb;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #3b82f6, #1d4ed8);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+
+        .progress-text {
+            text-align: center;
+            margin-top: 8px;
+            font-size: 0.875rem;
+            color: #6b7280;
+        }
+
+        .message {
+            margin-top: 16px;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            display: none;
+        }
+
+        .message.success {
+            background: #d1fae5;
+            color: #065f46;
+            border: 1px solid #a7f3d0;
+        }
+
+        .message.error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fca5a5;
+        }
+
+        .message.info {
+            background: #dbeafe;
+            color: #1e40af;
+            border: 1px solid #93c5fd;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 12px;
+            margin-top: 24px;
+            justify-content: center;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary {
+            background: #3b82f6;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #2563eb;
+        }
+
+        .btn-secondary {
+            background: #f3f4f6;
+            color: #374151;
+        }
+
+        .btn-secondary:hover {
+            background: #e5e7eb;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        @media (max-width: 640px) {
+            .container {
+                padding: 24px;
+                margin: 16px;
+            }
+
+            h1 {
+                font-size: 1.75rem;
+            }
+
+            .drop-zone {
+                padding: 32px 16px;
+            }
+
+            .action-buttons {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 th:text="${title}">JIAP</h1>
+        <p class="subtitle">拖拽文件、粘贴文件或URL进行分析</p>
+
+        <div class="drop-zone" id="dropZone">
+            <svg class="upload-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+            </svg>
+            <div class="upload-text">拖拽文件到此处</div>
+            <div class="upload-hint">
+                支持 APK、DEX、JAR 文件<br>
+                或粘贴 HTTP/HTTPS/FTP URL<br>
+                也可以从剪切板粘贴文件 (Ctrl+V)
+            </div>
+        </div>
+
+        <input type="file" id="fileInput" accept=".apk,.dex,.jar,.aar" style="display: none;">
+
+        <div class="file-info" id="fileInfo">
+            <div class="file-name" id="fileName"></div>
+            <div class="file-details" id="fileDetails"></div>
+        </div>
+
+        <div class="progress-container" id="progressContainer">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <div class="progress-text" id="progressText">处理中...</div>
+        </div>
+
+        <div class="message" id="messageArea"></div>
+
+        <div class="action-buttons" id="actionButtons" style="display: none;">
+            <button class="btn btn-primary" id="processBtn">开始分析</button>
+            <button class="btn btn-secondary" id="clearBtn">清除</button>
+        </div>
+    </div>
+
+    <script>
+        class FileUploader {
+            constructor() {
+                this.dropZone = document.getElementById('dropZone');
+                this.fileInput = document.getElementById('fileInput');
+                this.fileInfo = document.getElementById('fileInfo');
+                this.fileName = document.getElementById('fileName');
+                this.fileDetails = document.getElementById('fileDetails');
+                this.progressContainer = document.getElementById('progressContainer');
+                this.progressFill = document.getElementById('progressFill');
+                this.progressText = document.getElementById('progressText');
+                this.messageArea = document.getElementById('messageArea');
+                this.actionButtons = document.getElementById('actionButtons');
+                this.processBtn = document.getElementById('processBtn');
+                this.clearBtn = document.getElementById('clearBtn');
+                
+                this.currentFile = null;
+                this.currentUrl = null;
+                
+                this.initEventListeners();
+            }
+
+            initEventListeners() {
+                // Drop Event
+                this.dropZone.addEventListener('dragover', this.handleDragOver.bind(this));
+                this.dropZone.addEventListener('dragleave', this.handleDragLeave.bind(this));
+                this.dropZone.addEventListener('drop', this.handleDrop.bind(this));
+                this.dropZone.addEventListener('click', () => this.fileInput.click());
+
+                // File Choice&Paste Event
+                this.fileInput.addEventListener('change', this.handleFileSelect.bind(this));
+                document.addEventListener('paste', this.handlePaste.bind(this));
+
+                // Button Event
+                this.processBtn.addEventListener('click', this.processFile.bind(this));
+                this.clearBtn.addEventListener('click', this.clearFile.bind(this));
+            }
+
+            handleDragOver(e) {
+                e.preventDefault();
+                this.dropZone.classList.add('drag-over');
+            }
+
+            handleDragLeave(e) {
+                e.preventDefault();
+                this.dropZone.classList.remove('drag-over');
+            }
+
+            handleDrop(e) {
+                e.preventDefault();
+                this.dropZone.classList.remove('drag-over');
+                
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    this.handleFile(files[0]);
+                }
+            }
+
+            handleFileSelect(e) {
+                if (e.target.files.length > 0) {
+                    this.handleFile(e.target.files[0]);
+                }
+            }
+
+            async handlePaste(e) {
+                if (e.clipboardData && e.clipboardData.files.length > 0) {
+                    e.preventDefault();
+                    this.handleFile(e.clipboardData.files[0]);
+                    return;
+                }
+
+                if (e.clipboardData && e.clipboardData.getData) {
+                    const text = e.clipboardData.getData('text/plain').trim();
+                    if (this.isValidUrl(text)) {
+                        e.preventDefault();
+                        this.handleUrl(text);
+                    }
+                }
+            }
+
+            isValidUrl(string) {
+                try {
+                    const url = new URL(string);
+                    return ['http:', 'https:', 'ftp:'].includes(url.protocol);
+                } catch (_) {
+                    return false;
+                }
+            }
+
+            handleFile(file) {
+                const validTypes = ['.apk', '.dex', '.jar', '.aar'];
+                const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
+                
+                if (!validTypes.includes(fileExtension)) {
+                    this.showMessage('不支持的文件类型。请选择 APK、DEX、JAR、AAR 文件。', 'error');
+                    return;
+                }
+
+                this.currentFile = file;
+                this.currentUrl = null;
+                this.showFileInfo(file.name, this.formatFileSize(file.size), 'file');
+            }
+
+            handleUrl(url) {
+                this.currentUrl = url;
+                this.currentFile = null;
+                
+                const urlObj = new URL(url);
+                const fileName = urlObj.pathname.split('/').pop() || 'remote-file';
+                this.showFileInfo(fileName, url, 'url');
+            }
+
+            showFileInfo(name, details, type) {
+                this.fileName.textContent = name;
+                this.fileDetails.textContent = type === 'file' ? `大小: ${details}` : `URL: ${details}`;
+                this.fileInfo.style.display = 'block';
+                this.actionButtons.style.display = 'flex';
+                this.hideMessage();
+            }
+
+            formatFileSize(bytes) {
+                if (bytes === 0) return '0 Bytes';
+                const k = 1024;
+                const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+            }
+
+            async processFile() {
+                if (!this.currentFile && !this.currentUrl) {
+                    this.showMessage('请先选择文件或输入URL', 'error');
+                    return;
+                }
+
+                this.showProgress();
+                this.processBtn.disabled = true;
+                this.dropZone.classList.add('processing');
+
+                try {
+                    let response;
+                    
+                    if (this.currentFile) {
+                        response = await this.uploadFile(this.currentFile);
+                    } else if (this.currentUrl) {
+                        response = await this.processUrl(this.currentUrl);
+                    }
+
+                    if (response.success) {
+                        this.showMessage(response.message || '文件处理成功！', 'success');
+                    } else {
+                        this.showMessage(response.message || '处理失败', 'error');
+                    }
+                } catch (error) {
+                    this.showMessage('处理过程中发生错误: ' + error.message, 'error');
+                } finally {
+                    this.hideProgress();
+                    this.processBtn.disabled = false;
+                    this.dropZone.classList.remove('processing');
+                }
+            }
+
+            async uploadFile(file) {
+                const formData = new FormData();
+                formData.append('file', file);
+
+                const response = await fetch('/api/file/local_handle', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                return await response.json();
+            }
+
+            async processUrl(url) {
+                const response = await fetch('/api/file/remote_handle', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ url: url })
+                });
+
+                return await response.json();
+            }
+
+            showProgress() {
+                this.progressContainer.style.display = 'block';
+                this.progressFill.style.width = '0%';
+                
+                // 模拟进度
+                let progress = 0;
+                const interval = setInterval(() => {
+                    progress += Math.random() * 20;
+                    if (progress > 90) progress = 90;
+                    this.progressFill.style.width = progress + '%';
+                }, 200);
+
+                this.progressInterval = interval;
+            }
+
+            hideProgress() {
+                if (this.progressInterval) {
+                    clearInterval(this.progressInterval);
+                }
+                this.progressFill.style.width = '100%';
+                setTimeout(() => {
+                    this.progressContainer.style.display = 'none';
+                }, 500);
+            }
+
+            clearFile() {
+                this.currentFile = null;
+                this.currentUrl = null;
+                this.fileInput.value = '';
+                this.fileInfo.style.display = 'none';
+                this.actionButtons.style.display = 'none';
+                this.progressContainer.style.display = 'none';
+                this.hideMessage();
+                this.dropZone.classList.remove('processing');
+            }
+
+            showMessage(text, type) {
+                this.messageArea.textContent = text;
+                this.messageArea.className = 'message ' + type;
+                this.messageArea.style.display = 'block';
+                
+                if (type === 'info') {
+                    setTimeout(() => this.hideMessage(), 3000);
+                }
+            }
+
+            hideMessage() {
+                this.messageArea.style.display = 'none';
+                this.messageArea.className = 'message';
+            }
+        }
+
+        // 初始化上传器
+        document.addEventListener('DOMContentLoaded', () => {
+            new FileUploader();
+        });
+    </script>
+</body>
+</html>

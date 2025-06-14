@@ -1,0 +1,58 @@
+# Tools
+dex-tools/
+
+# FileDump
+Source/
+Output/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+.env
+.venv
+venv/
+ENV/
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.project
+.settings
+.vscode/
+.trae/
+temp/
+
+# OS
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+logs/
+
+# Database
+*.sqlite3
+*.db

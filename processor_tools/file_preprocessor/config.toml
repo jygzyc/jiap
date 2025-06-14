@@ -1,0 +1,15 @@
+[general]
+source_dir = "./Source"
+dest_dir = "./Output"
+max_workers = 8
+file_types = ["jar", "apex"]
+search_paths = ["/system/framework", "/system/apex", "/vendor/framework"]
+need_clean=false
+
+[adb]
+path = "adb"
+
+[tools]
+dex2jar = "tool/dex-tools/d2j-dex2jar.sh"
+debugfs = "tool/executable/debugfs_static"
+fsckerofs = "tool/executable/fsck.erofs"
