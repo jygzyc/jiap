@@ -73,6 +73,10 @@ tasks.register<Copy>("dist") {
 	into(layout.projectDirectory.dir("out"))
 }
 
-tasks.register<Delete>("cleanOutDir") {
+tasks.register<Delete>("cleanDir") {
+	dependsOn(tasks.clean)
 	delete(layout.projectDirectory.dir("out"))
+	delete(layout.projectDirectory.dir("logs"))
+	delete(layout.projectDirectory.dir("jadx_output"))
+	delete(layout.projectDirectory.dir("uploads"))
 }

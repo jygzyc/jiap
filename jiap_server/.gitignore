@@ -41,6 +41,8 @@ out/
 *.log
 temp/
 uploads/
+jadx_output/
+logs/
 
 ### Logs ###
 logs/
