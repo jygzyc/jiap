@@ -39,7 +39,7 @@ class JadxCommonService @Autowired constructor(
         }
     }
 
-    fun handleRemoveAllDecompiler(): JadxResult<String> {
+    fun handleRemoveAllDecompilers(): JadxResult<String> {
         return try {
             jadxDecompilerManager.clearAllInstances()
             JadxResult.Success(Gson().toJson(mapOf(

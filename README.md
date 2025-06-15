@@ -10,7 +10,7 @@ JIAP is a modular platform that combines the power of JADX decompilation with AI
 
 ## Main Features
 
-- **Comprehensive Decompilation**: Support for APK, DEX, JAR, APEX, and other Android file formats 
+- **Comprehensive Decompilation**: Support for APK, DEX, JAR, APEX, and other Android file formats
 - **AI Integration**: Native MCP support for seamless AI assistant integration
 - **Advanced Analysis**: Cross-reference analysis, inheritance relationships, and system service mapping
 - **RESTful API**: Complete HTTP API for programmatic access
@@ -19,38 +19,12 @@ JIAP is a modular platform that combines the power of JADX decompilation with AI
 
 ## Architecture
 
-```
+```txt
 ├── processor_tools/
 │   └── file_preprocessor/     # File preprocessing module
 ├── jadx_server/              # JADX decompilation server
 └── mcp_server/              # MCP protocol server
 ```
-
-### Core Modules
-
-#### 1. File Preprocessor
-- **Purpose**: Extract and preprocess Android framework files from devices
-- **Supported Formats**: JAR, APEX, DEX files
-- **Key Features**:
-  - ADB automatic file synchronization
-  - APEX file extraction and processing
-  - DEX to JAR conversion
-  - Multi-threaded parallel processing
-
-#### 2. JADX Server
-- **Technology Stack**: Spring Boot + Kotlin
-- **Purpose**: Provides RESTful API endpoints for code decompilation and analysis
-- **Core Features**:
-  - Class and method search capabilities
-  - Source code retrieval (Java/Smali)
-  - Cross-reference analysis
-  - Inheritance relationship mapping
-  - Android system service analysis
-
-#### 3. JADX MCP Server
-- **Technology Stack**: Python + FastMCP
-- **Purpose**: Provides MCP protocol interface for AI assistants
-- **Features**: Asynchronous HTTP client, error handling, tool function encapsulation
 
 ## Requirements
 
@@ -63,26 +37,52 @@ JIAP is a modular platform that combines the power of JADX decompilation with AI
 ### Build from Source
 
 ```bash
-git clone <repository-url>
-cd android_ai_analysis
+git clone https://github.com/jygzyc/JIAP.git
+cd JIAP
 ```
 
-### 1. Start JADX Server
+### 1. Start JIAP Server
 
 ```bash
-cd jadx_server
-./gradlew bootRun
-# Or use the provided script
-./run_jadx_server.sh
+cd jiap_server
+./gradlew dist
+# Run with the provided script
+./run_jiap_server.sh
 ```
 
 ### 2. Start MCP Server
 
 ```bash
-cd jadx_mcp_server
-python jadx_mcp_server.py [JADX_SERVER_URI]
-# Default connection: http://127.0.0.1:8080/api/jadx
+cd mcp_server
+# Install dependencies
+pip install -r requirements.txt
+# Or using uv
+uv sync
 ```
+
+#### MCP Configuration
+
+Add the following configuration to your AI assistant's MCP settings:
+
+```json
+{
+   "mcpServers": {
+      "jiap-mcp-server": {
+         "command": "uv",
+         "args": [
+            "--directory",
+            "<path_to_mcp_server_directory>",
+            "run",
+            "mcp_server.py"
+         ]
+      }
+   }
+}
+```
+
+#### Environment Variables
+- `JADX_SERVER_URL`: JADX server URL (default: http://127.0.0.1:8080)
+- `LOG_LEVEL`: Logging level (default: ERROR)
 
 ### 3. File Preprocessing (Optional)
 
@@ -94,34 +94,40 @@ python extract_framework_code.py  # Process framework files
 
 ## Usage
 
-### RESTful API Endpoints
+### Available Restful APIs
 
-The JADX server provides comprehensive REST API endpoints for Android code analysis:
+**File Management Services:**
 
-| Endpoint | Method | Description | Parameters |
-|----------|--------|-------------|------------|
-| `/api/jadx/get_all_classes` | POST | Get all class list | None |
-| `/api/jadx/search_class_by_name` | POST | Search class by name | `{"class": "className"}` |
-| `/api/jadx/search_method_by_name` | POST | Search methods by name | `{"method": "methodName"}` |
-| `/api/jadx/list_methods_of_class` | POST | List all methods of a class | `{"class": "className"}` |
-| `/api/jadx/list_fields_of_class` | POST | List all fields of a class | `{"class": "className"}` |
-| `/api/jadx/get_class_source` | POST | Get class source code | `{"class": "className", "smali": false}` |
-| `/api/jadx/get_method_source` | POST | Get method source code | `{"method": "methodInfo", "smali": false}` |
-| `/api/jadx/get_method_xref` | POST | Get method cross-references | `{"method": "methodInfo"}` |
-| `/api/jadx/get_class_xref` | POST | Get class cross-references | `{"class": "className"}` |
-| `/api/jadx/get_field_xref` | POST | Get field cross-references | `{"field": "fieldInfo"}` |
-| `/api/jadx/get_interface_impl` | POST | Get interface implementations | `{"interface": "interfaceName"}` |
-| `/api/jadx/get_subclass` | POST | Get subclasses | `{"class": "className"}` |
-| `/api/jadx/get_system_service_impl` | POST | Get system service implementations | `{"class": "serviceName"}` |
-| `/api/jadx/test` | POST | Test endpoint | None |
+- `local_handle` - Upload local file
+- `remote_handle` - Download and process files from remote URLs
+- `list` - List all uploaded files
+- `delete` - Delete uploaded files
 
-### MCP Integration
+**Jadx Common Services:**
 
-The MCP server provides seamless integration with AI assistants, offering the same functionality through the Model Context Protocol. Refer to the [MCP Server Documentation](jadx_mcp_server/README.md) for detailed usage instructions.
+- `remove_decompiler` - Remove specific decompiler instances
+- `remove_all_decompilers` - Remove all decompiler instances
+- `get_all_classes` - Get complete list of classes
+- `search_class_by_name` - Search classes by class full name
+- `search_method_by_name` - Search methods by method short name
+- `list_methods_of_class` - List all methods in a class
+- `list_fields_of_class` - List all fields in a class
+- `get_class_source` - Get decompiled source code of a class whether is smali or not
+- `get_method_source` - Get decompiled source code of a method whether is smali or not
+- `get_method_xref` - Find method cross-references
+- `get_class_xref` - Find class cross-references
+- `get_field_xref` - Find field cross-references
+- `get_interface_impl` - Find the interface implements
+- `get_subclasses` - Find subclasses of a class
 
-### File Upload
+**Advanced Code Analysis Services:**
 
-The platform supports file upload through the web interface at `http://localhost:8080` when the JADX server is running. Supported file formats include APK, DEX, JAR, and other Android-related files.
+- `get_app_manifest` - Get AndroidManifest.xml content
+- `get_system_service_impl` - Get Android System service implement of the interface
+
+**Testing Services:**
+
+- `test` - Test server connectivity
 
 ## License
 
@@ -129,6 +135,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Acknowledgments
 
-- [JADX](https://github.com/skylot/jadx) - The core decompilation engine <mcreference link="https://github.com/skylot/jadx/blob/master/README.md" index="5">5</mcreference>
+- [JADX](https://github.com/skylot/jadx) - The core decompilation engine
 - [Spring Boot](https://spring.io/projects/spring-boot) - Web framework for the server component
 - [Model Context Protocol](https://modelcontextprotocol.io/) - AI assistant integration protocol

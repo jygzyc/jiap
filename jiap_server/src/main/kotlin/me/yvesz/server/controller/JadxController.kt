@@ -41,12 +41,12 @@ class JadxController(
     }
 
     /**
-     * Removes JADX decompiler instance and releases memory.
+     * Removes all JADX decompiler instances and releases memory.
      */
-    @PostMapping("/remove_all_decompiler")
-    fun removeAllDecompiler(@RequestBody(required = false) payload: Map<String, Any>): ResponseEntity<Any> {
-        log.info("Request received: removeAllDecompiler")
-        return handleServiceResult(jadxCommonService.handleRemoveAllDecompiler())
+    @PostMapping("/remove_all_decompilers")
+    fun removeAllDecompilers(@RequestBody(required = false) payload: Map<String, Any>): ResponseEntity<Any> {
+        log.info("Request received: removeAllDecompilers")
+        return handleServiceResult(jadxCommonService.handleRemoveAllDecompilers())
     }
 
     /**
