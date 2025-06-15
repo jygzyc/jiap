@@ -12,7 +12,6 @@ Part of JIAP - Java Intelligence Analysis Platform
 Repository: https://github.com/jygzyc/jiap
 """
 
-from symbol import parameters
 import json
 import sys
 import httpx
@@ -105,7 +104,7 @@ async def remove_decompiler(file_id: str) -> str:
 
 @mcp.tool(name="remove_all_decompilers", description="Removes all JADX decompiler instances and releases all memory.")
 async def remove_all_decompilers() -> str:
-    return await request_to_jadx("remove_all_decompiler")
+    return await request_to_jadx("remove_all_decompilers")
 
 
 # JADX Decompiler Core Analysis Tools
