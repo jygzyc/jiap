@@ -22,7 +22,7 @@ JIAP is a modular platform that combines the power of JADX decompilation with AI
 ```txt
 ├── processor_tools/
 │   └── file_preprocessor/     # File preprocessing module
-├── jadx_server/              # JADX decompilation server
+├── jiap_server/              # JADX decompilation server
 └── mcp_server/              # MCP protocol server
 ```
 
@@ -81,6 +81,7 @@ Add the following configuration to your AI assistant's MCP settings:
 ```
 
 #### Environment Variables
+
 - `JADX_SERVER_URL`: JADX server URL (default: http://127.0.0.1:8080)
 - `LOG_LEVEL`: Logging level (default: ERROR)
 
