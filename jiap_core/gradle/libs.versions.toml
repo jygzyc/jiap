@@ -1,0 +1,12 @@
+[versions]
+kotlin = "2.2.0"
+
+[plugins]
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+shadow = { id = "com.gradleup.shadow", version = "9.0.0-beta10" }
+use-latest-versions = { id = "se.patrikerdes.use-latest-versions", version = "0.2.18" }
+ben-manes-versions = { id = "com.github.ben-manes.versions", version = "0.51.0" }
+
+[libraries]
+jadx-core = { group = "io.github.skylot", name = "jadx-core", version = "1.5.2" }
+jadx-gui = { group = "io.github.skylot", name = "jadx-gui", version = "1.5.2" }

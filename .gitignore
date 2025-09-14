@@ -27,7 +27,7 @@ var/
 
 # Virtual Environment
 .env
-.venv
+.venv/
 venv/
 ENV/
 
@@ -56,3 +56,7 @@ logs/
 # Database
 *.sqlite3
 *.db
+
+# Temp
+quark-engine/
+jiap_core_backup
