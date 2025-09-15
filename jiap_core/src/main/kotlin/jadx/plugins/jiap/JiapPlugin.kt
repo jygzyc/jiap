@@ -17,30 +17,30 @@ class JiapPlugin : JadxPlugin {
     companion object {
         const val PLUGIN_NAME = "jiap"
         const val PLUGIN_ID = "jadx-jiap-plugin"
-
         private val logger = LoggerFactory.getLogger(JiapPlugin::class.java)
-        lateinit var scheduler: ScheduledExecutorService
-        lateinit var server: JiapServer
-        lateinit var pluginContext: JadxPluginContext
     }
+
+    private lateinit var scheduler: ScheduledExecutorService
+    lateinit var server: JiapServer
 
     override fun init(ctx: JadxPluginContext) {
         if (ctx.decompiler != null) {
             PreferencesManager.initializeJadxArgs(ctx.decompiler)
         }
-        if (ctx.guiContext != null) {
-            val uiManager = JiapUIManager(pluginContext)
-            ctx.guiContext?.let { uiManager.initializeGuiComponents(it) }
-        }
         try {
-            server = JiapServer(ctx)
             scheduler = Executors.newSingleThreadScheduledExecutor { r ->
                 val thread = Thread(r)
                 thread.isDaemon = true
                 thread.name = "JiapPlugin-Scheduler"
                 thread
             }
+            server = JiapServer(ctx, scheduler)
             server.delayedInitialization()
+            
+            if (ctx.guiContext != null) {
+                val uiManager = JiapUIManager(ctx, server)
+                ctx.guiContext?.let { uiManager.initializeGuiComponents(it) }
+            }
         } catch (e: Exception){
             logger.error("Jiap Plugin: Failed to initialize", e)
         }

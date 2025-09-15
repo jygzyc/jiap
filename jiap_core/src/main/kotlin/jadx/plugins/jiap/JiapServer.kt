@@ -9,6 +9,7 @@ import jadx.gui.ui.MainWindow
 import org.slf4j.LoggerFactory
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.collections.mapOf
 
 import jadx.plugins.jiap.service.CommonService
@@ -17,9 +18,11 @@ import jadx.plugins.jiap.service.AndroidAppService
 import jadx.plugins.jiap.model.JiapResult
 import jadx.plugins.jiap.utils.ErrorMessages
 import jadx.plugins.jiap.utils.JiapConstants
+import jadx.plugins.jiap.utils.PreferencesManager
 
 class JiapServer(
-    private val pluginContext: JadxPluginContext
+    private val pluginContext: JadxPluginContext,
+    private val scheduler: ScheduledExecutorService
 ) {
     
     companion object {
@@ -28,8 +31,8 @@ class JiapServer(
 
     private var started = false
     private lateinit var app: Javalin
+    private var currentPort = AtomicInteger(PreferencesManager.getPort())
 
-    private val scheduler: ScheduledExecutorService = JiapPlugin.scheduler
     private val commonService: CommonService = CommonService(pluginContext)
     private val androidFrameworkService: AndroidFrameworkService = AndroidFrameworkService(pluginContext)
     private val androidAppService: AndroidAppService = AndroidAppService(pluginContext)
@@ -37,7 +40,10 @@ class JiapServer(
     fun start(port: Int = JiapConstants.DEFAULT_PORT) {
         try {
             app = Javalin.create().start(port)
+            currentPort.set(port)
+            PreferencesManager.setPort(port)
             configureRoutes()
+            started = true
             logger.info("JIAP server started on port $port")
         } catch (e: Exception) {
             logger.error("Failed to start JIAP server", e)
@@ -55,17 +61,35 @@ class JiapServer(
         }
     }
 
+    fun restart() {
+        logger.info("Restarting JIAP server...")
+        stop()
+        started = false 
+        try {
+            start(currentPort.get()) 
+            started = true 
+        } catch (e: Exception) {
+            logger.error("Failed to restart JIAP server", e)
+            started = false 
+        }
+    }
+
+    fun getCurrentPort(): Int {
+        return currentPort.get()
+    }
+
+    fun isRunning(): Boolean {
+        return started && this::app.isInitialized
+    }
+
     fun delayedInitialization() {
-        scheduler.scheduleAtFixedRate({
+        val periodicTask = scheduler.scheduleAtFixedRate({
             try {
                 if(started) {
-                    scheduler.shutdown()
                     return@scheduleAtFixedRate
                 }
                 if(isJadxDecompilerAvailable()) {
                     start()
-                    started = true
-                    scheduler.shutdown()
                 } else {
                     logger.info("JIAP: Waiting for JADX decompiler to be available...")
                 }
@@ -73,28 +97,33 @@ class JiapServer(
                 logger.error("JIAP: Error during delayed initialization", e)
             }
         }, 2, 1, TimeUnit.SECONDS)
+        
         scheduler.schedule({
             if (!started) {
                 logger.warn("JIAP: Delayed initialization did not complete in time, forcing start")
                 try {
                     start()
-                    started = true
                 } catch (e: Exception) {
                     logger.error("JIAP: Failed to start server during forced initialization", e)
                 }
             }
+            periodicTask.cancel(false)
         }, 30, TimeUnit.SECONDS)
     }
 
     private fun isJadxDecompilerAvailable(): Boolean {
         try{
             if (pluginContext.guiContext != null) {
-                val mainWindow = pluginContext.guiContext?.mainFrame as MainWindow
-                val wrapper = mainWindow.wrapper
-                val classes = wrapper.includedClassesWithInners
-                if (classes == null){
-                    logger.debug("JIAP: No classes to be available")
-                    return false
+                val mainFrame = pluginContext.guiContext?.mainFrame
+                if (mainFrame is MainWindow) {
+                    val wrapper = mainFrame.wrapper
+                    val classes = wrapper.includedClassesWithInners
+                    if (classes == null){
+                        logger.debug("JIAP: No classes to be available")
+                        return false
+                    }
+                } else {
+                    logger.debug("JIAP: Main frame is not MainWindow instance")
                 }
             }
             val isDecompilerLoaded = pluginContext.decompiler != null
@@ -333,7 +362,13 @@ class JiapServer(
 
     fun handleHealthCheck(ctx: Context) {
         try{
-            ctx.status(200).json(mapOf("status" to "OK"))
+            val status = if(isRunning) "Running" else "Stopped"
+            val url = if(isRunning) "http://127.0.0.1:" + currentPort.get() + "/" else "N/A"
+            val result = hashMapOf(
+                "status" to status,
+                "url" to url
+            )
+            ctx.status(200).json(result)
         }catch (e: Exception){
             logger.error("Jiap Server error: {}", e.message, e)
             ctx.status(500).json(mapOf("error" to "Internal server error: ${e.message}"))

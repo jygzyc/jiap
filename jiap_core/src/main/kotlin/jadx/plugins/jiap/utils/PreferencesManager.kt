@@ -5,7 +5,7 @@ import jadx.api.JadxDecompiler
 
 object PreferencesManager {
 
-    const val JIAP_DEFAULT_PORT: String = "jiap.port"
+    const val JIAP_PORT: String = "jiap.port"
     lateinit var jadxArgs: JadxArgs
 
     fun initializeJadxArgs(decompiler: JadxDecompiler){
@@ -21,10 +21,10 @@ object PreferencesManager {
     }
 
     fun setPort(port: Int){
-        setPreference(JIAP_DEFAULT_PORT, port.toString())
+        setPreference(JIAP_PORT, port.toString())
     }
 
     fun getPort(): Int{
-        return getPreference(JIAP_DEFAULT_PORT, JiapConstants.DEFAULT_PORT.toString()).toInt()
+        return getPreference(JIAP_PORT, JiapConstants.DEFAULT_PORT.toString()).toInt()
     }
 }

@@ -8,10 +8,10 @@ plugins {
 }
 
 kotlin {
-    jvmToolchain(11)
+    jvmToolchain(17)
 }
 
-val jadxVersion = "1.5.2"
+val jadxVersion = "1.5.3"
 val isJadxSnapshot = jadxVersion.endsWith("-SNAPSHOT")
 
 dependencies {
