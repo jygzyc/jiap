@@ -14,6 +14,9 @@ import jadx.plugins.jiap.model.JiapResult
 import jadx.plugins.jiap.model.JiapServiceInterface
 import jadx.plugins.jiap.utils.CodeUtils
 import kotlin.collections.forEach
+import java.awt.Component
+import java.awt.Container
+import javax.swing.JTextArea
 
 class CommonService(override val pluginContext: JadxPluginContext) : JiapServiceInterface {
 
@@ -99,7 +102,8 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
             val clazz = decompiler.searchJavaClassOrItsParentByOrigFullName(className)
             if (clazz != null) {
                 val result = hashMapOf(
-                    "type" to "class",
+                    "type" to "class-info",
+                    "name" to clazz.fullName,
                     "methods" to clazz.methods.map { it.toString() },
                     "fields" to clazz.fields.map { it.toString() }
                 )
@@ -159,6 +163,37 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
         }
     }
 
+    fun handleGetClassXref(className: String): JiapResult {
+        try {
+            val clazz = decompiler.classesWithInners.find { it.fullName == className }
+                ?: return JiapResult(success = false, data = hashMapOf("error" to "getClassXref: $className not found"))
+            val xrefNodes = mutableListOf<JavaNode>()
+            clazz.decompile()
+            val classUseIn = clazz.useIn
+            if(classUseIn.isNotEmpty()){
+                xrefNodes.addAll(classUseIn)
+            }
+            clazz.methods.forEach { method ->
+                if(method.isConstructor){
+                    val constructorUseIn = method.useIn
+                    if(constructorUseIn.isNotEmpty()){
+                        xrefNodes.addAll(constructorUseIn)
+                    }
+                } 
+            }
+            val references = processUsage(clazz, xrefNodes)
+            val result = hashMapOf<String, Any>(
+                "type" to "class-xref",
+                "count" to xrefNodes.size,
+                "references" to references
+            )
+            return JiapResult(success = true, data = result)
+        } catch (e: Exception) {
+            logger.error("JIAP Error: get class xref", e)
+            return JiapResult(success = false, data = hashMapOf("error" to "getClassXref: ${e.message}"))
+        }
+    }
+
     private fun processUsage(searchNode: JavaNode, xrefNodes: MutableList<JavaNode>): HashMap<String, Any> {
         val usageHashMap = hashMapOf<String, Any>()
         xrefNodes.groupBy(JavaNode::getTopParentClass).forEach classLoop@{ (topUseClass, nodesInClass) ->
@@ -184,5 +219,86 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
             }
         }
         return usageHashMap
+    }
+
+    fun handleGetImplementOfInterface(interfaceName: String): JiapResult {
+        try {
+            val interfaceClazz = decompiler.classesWithInners.find { 
+                it.fullName == interfaceName 
+            } ?: return JiapResult(success = false, data = hashMapOf("error" to "getImplementOfInterface: $interfaceName not found"))
+
+            if (!interfaceClazz.accessInfo.isInterface) {
+                return JiapResult(success = false, data = hashMapOf("error" to "getImplementOfInterface: $interfaceName is not a interface"))
+            }
+
+            val implementingClasses = decompiler.classesWithInners.filter{
+                it.smali.contains(".implements ${interfaceClazz.fullName.replace(".", "/")}")
+            }
+            val result = hashMapOf(
+                "type" to "class-list"
+                "class" to implementingClasses.map { it.fullName }
+            )
+            return JiapResult(success = true, data = result)            
+        } catch (e: Exception) {
+            logger.error("JIAP Error: get implement of interface", e)
+            return JiapResult(success = false, data = hashMapOf("error" to "getImplementOfInterface: ${e.message}"))
+        }
+    }
+
+    fun handleGetSubclasses(className: String): JiapResult {
+        try {
+            val clazz = decompiler.classesWithInners.find { 
+                it.fullName == className 
+            } ?: return JiapResult(success = false, data = hashMapOf("error" to "getSubclasses: $className not found"))
+            val subClasses = decompiler.classesWithInners.filter {
+                it.smali.contains(".super ${clazz.fullName.replace(".", "/")}")
+            }
+            val result = hashMapOf(
+                "type" to "class-list",
+                "class" to subClasses.map { it.fullName }
+            )
+            return JiapResult(success = true, data = result)            
+        } catch (e: Exception) {
+            logger.error("JIAP Error: get implement of interface", e)
+            return JiapResult(success = false, data = hashMapOf("error" to "getImplementOfInterface: ${e.message}"))
+        }
+    }
+
+    // UI Mode
+    fun handleGetSelectedText(): JiapResult {
+        try {
+            val mainWindow = pluginContext.guiContext?.mainFrame
+            if (mainWindow !is MainWindow) {
+                return JiapResult(success = false, data = hashMapOf("error" to "GetSelectedText: Not Gui Mode"))
+            }
+
+            val selectedComponent = mainWindow.tabbedPane?.selectedComponent
+                ?: return JiapResult(success = false, data = hashMapOf("error" to "GetSelectedText: No selected component"))
+
+            val textArea = findTextArea(selectedComponent)
+            val selectedText = textArea?.selectedText
+
+            val result = hashMapOf<String, Any>(
+                "type" to "selected-text",
+                "selectedText" to (selectedText ?: "")
+            )
+            return JiapResult(success = true, data = result)
+        } catch (e: Exception) {
+            logger.error("JIAP Error: get selected text", e)
+            return JiapResult(success = false, data = hashMapOf("error" to "GetSelectedText: ${e.message}"))
+        }
+    }
+
+    private fun findTextArea(component: Component): JTextArea? {
+        return when (component) {
+            is JTextArea -> component
+            is Container -> {
+                component.components.forEach { child ->
+                    findTextArea(child)?.let { return it }
+                }
+                null
+            }
+            else -> null
+        }
     }
 }

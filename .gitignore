@@ -60,5 +60,4 @@ logs/
 # Temp
 quark-engine/
 jiap_core_backup/
-jadx/
 cmd.txt

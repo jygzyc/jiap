@@ -247,6 +247,48 @@ class JiapServer(
             handleServiceResult(result, ctx)
         }
 
+        app.post("/api/jiap/get_class_xref") { ctx ->
+            logger.info("JIAP Plugin: Get Class Xref")
+            val payload = ctx.bodyAsClass<Map<String, Any>>()
+            val className = extractStringParam(payload, "class")
+                ?: run {
+                    ctx.status(400).json(mapOf("error" to ErrorMessages.MISSING_CLASS_PARAM))
+                    return@post
+                }
+            val result = commonService.handleGetClassXref(className)
+            handleServiceResult(result, ctx)
+        }
+
+        app.post("/api/jiap/get_implement") { ctx ->
+            logger.info("JIAP Plugin: Get Implement of Interface")
+            val payload = ctx.bodyAsClass<Map<String, Any>>()
+            val interfaceName = extractStringParam(payload, "interface")
+                ?: run {
+                    ctx.status(400).json(mapOf("error" to ErrorMessages.MISSING_INTERFACE_PARAM))
+                    return@post
+                }
+            val result = commonService.handleGetImplementOfInterface(interfaceName)
+            handleServiceResult(result, ctx)
+        }
+
+        app.post("/api/jiap/get_sub_classes") { ctx ->
+            logger.info("JIAP Plugin: Get Subclasses")
+            val payload = ctx.bodyAsClass<Map<String, Any>>()
+            val className = extractStringParam(payload, "class")
+                ?: run {
+                    ctx.status(400).json(mapOf("error" to ErrorMessages.MISSING_CLASS_PARAM))
+                    return@post
+                }
+            val result = commonService.handleGetSubclasses(className)
+            handleServiceResult(result, ctx)
+        }
+
+        app.post("/api/jiap/selected_text"){ ctx ->
+            logger.info("JIAP Plugin: Get Selected Text")
+            val result = commonService.handleGetSelectedText()
+            handleServiceResult(result, ctx)
+        }
+
         // Android App specific endpoints
         app.post("/api/jiap/get_app_manifest") { ctx ->
             logger.info("JIAP Plugin: Get App Manifest")
