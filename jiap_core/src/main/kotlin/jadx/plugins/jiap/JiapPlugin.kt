@@ -16,7 +16,7 @@ import java.util.concurrent.TimeUnit
 class JiapPlugin : JadxPlugin {
 
     companion object {
-        const val PLUGIN_NAME = "jiap"
+        const val PLUGIN_NAME = "JIAP"
         const val PLUGIN_ID = "jadx-jiap-plugin"
         private val logger = LoggerFactory.getLogger(JiapPlugin::class.java)
     }
@@ -50,10 +50,10 @@ class JiapPlugin : JadxPlugin {
 
     override fun getPluginInfo(): JadxPluginInfo? {
         return JadxPluginInfoBuilder.pluginId(PLUGIN_ID)
-            .name("JIAP Plugin")
+            .name(PLUGIN_NAME)
             .description("JIAP plugin for jadx")
             .homepage("https://github.com/jygzyc/jiap")
-            .requiredJadxVersion("1.5.2, r2507")
+            .requiredJadxVersion("1.5.1, r2333")
             .build()
     }
 

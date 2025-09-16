@@ -146,7 +146,7 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
                 }
             }
             xrefNodes.addAll(method.useIn)
-            val references = processUsage(methodName, method, xrefNodes)
+            val references = processUsage(method, xrefNodes)
             val result = hashMapOf<String, Any>(
                 "type" to "method-xref",
                 "count" to xrefNodes.size,
@@ -159,7 +159,7 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
         }
     }
 
-    private fun processUsage(searchName: String, searchNode: JavaNode, xrefNodes: MutableList<JavaNode>): HashMap<String, Any> {
+    private fun processUsage(searchNode: JavaNode, xrefNodes: MutableList<JavaNode>): HashMap<String, Any> {
         val usageHashMap = hashMapOf<String, Any>()
         xrefNodes.groupBy(JavaNode::getTopParentClass).forEach classLoop@{ (topUseClass, nodesInClass) ->
             val codeInfo = topUseClass.codeInfo
@@ -174,10 +174,11 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
                     return@positionLoop
                 }
                 val correspondingNode = nodesInClass.firstOrNull() ?: nodesInClass.first()
-                usageHashMap[correspondingNode.fullName.hashCode().toString()] = hashMapOf(
+                val codeLineNumber = CodeUtils.getLineNumberForPos(code, pos)
+                usageHashMap["${correspondingNode.fullName.hashCode().toString()}${codeLineNumber.toString()}"] = hashMapOf(
                     "fullName" to correspondingNode.fullName,
                     "className" to topUseClass.fullName,
-                    "codeLineNumber" to CodeUtils.getLineNumberForPos(code, pos),
+                    "codeLineNumber" to codeLineNumber,
                     "codeLine" to line.trim()
                 )
             }
