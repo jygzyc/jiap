@@ -11,6 +11,7 @@ import jadx.plugins.jiap.utils.PreferencesManager
 
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.TimeUnit
 
 class JiapPlugin : JadxPlugin {
 
@@ -29,9 +30,10 @@ class JiapPlugin : JadxPlugin {
         }
         try {
             scheduler = Executors.newSingleThreadScheduledExecutor { r ->
-                val thread = Thread(r)
-                thread.isDaemon = true
-                thread.name = "JiapPlugin-Scheduler"
+                val thread = Thread(r).apply {
+                    isDaemon = true
+                    name = "JiapPlugin-Scheduler"
+                }
                 thread
             }
             server = JiapServer(ctx, scheduler)
@@ -48,9 +50,36 @@ class JiapPlugin : JadxPlugin {
 
     override fun getPluginInfo(): JadxPluginInfo? {
         return JadxPluginInfoBuilder.pluginId(PLUGIN_ID)
-            .name("Java Intelligence Analysis Platform Plugin")
+            .name("JIAP Plugin")
             .description("JIAP plugin for jadx")
             .homepage("https://github.com/jygzyc/jiap")
+            .requiredJadxVersion("1.5.2, r2507")
             .build()
+    }
+
+    override fun unload() {
+        try {
+            logger.info("JIAP: Cleaning up plugin resources...")
+
+            // Stop the server to release port
+            if (this::server.isInitialized) {
+                server.stop()
+                logger.info("JIAP: Server stopped")
+            }
+
+            // Shutdown the scheduler thread pool
+            if (this::scheduler.isInitialized) {
+                scheduler.shutdown()
+                if (!scheduler.awaitTermination(5, TimeUnit.SECONDS)) {
+                    logger.warn("JIAP: Scheduler did not terminate gracefully, forcing shutdown")
+                    scheduler.shutdownNow()
+                }
+                logger.info("JIAP: Scheduler shutdown completed")
+            }
+
+            logger.info("JIAP: Plugin cleanup completed")
+        } catch (e: Exception) {
+            logger.error("JIAP: Error during plugin cleanup", e)
+        }
     }
 }

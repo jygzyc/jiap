@@ -5,11 +5,15 @@ import org.slf4j.LoggerFactory
 
 import jadx.api.plugins.JadxPluginContext
 import jadx.core.utils.android.AndroidManifestParser
+import jadx.core.utils.android.AppAttribute
+import jadx.core.utils.android.ApplicationParams
 import jadx.api.ResourceFile
 import jadx.api.ResourceType
 import jadx.gui.JadxWrapper
 import jadx.gui.ui.MainWindow
 import jadx.plugins.jiap.model.JiapServiceInterface
+
+import java.util.*
 
 class AndroidAppService(override val pluginContext: JadxPluginContext) : JiapServiceInterface{
     
@@ -34,7 +38,7 @@ class AndroidAppService(override val pluginContext: JadxPluginContext) : JiapSer
                     ?.orElse(null)
             }
             if (manifest == null){
-                logger.error("JIAP Error: AndroidManifest.xml not found.")
+                logger.error("JIAP Error: AndroidManifest not found.")
                 return JiapResult(success = false, data = hashMapOf("error" to "getAppManifest: AndroidManifest not found."))
             }
             val manifestContent = manifest.loadContent()?.text?.codeStr
@@ -46,56 +50,57 @@ class AndroidAppService(override val pluginContext: JadxPluginContext) : JiapSer
             return JiapResult(success = true, data = result)
 
         } catch (e: Exception) {
-            logger.error("JIAP Error: load AndroidManifest.xml", e)
+            logger.error("JIAP Error: load AndroidManifest", e)
             return JiapResult(success = false, data = hashMapOf("error" to "getAppManifest: ${e.message}"))
         }
     }
 
-    // fun handleGetMainActivity(): JiapResult {
-    //     try{
-    //         if(isGui){
-    //             val wrapper: JadxWrapper = mainWindow.getWrapper()
-    //             val resources: List<ResourceFile> = wrapper.getResources()
-    //             val parser = AndroidManifestParser(
-    //                 AndroidMainifestParser.getAndroidManifest(resources),
-    //                 EnumSet.of(AppAttribute.MAIN_ACTIVITY),
-    //                 wrapper.args.security
-    //             )
-    //             if(!parser.isManifestFound()){
-    //                 logger.error("[x]JIAP Error: AndroidManifest.xml not found.")
-    //                 return JiapResult(success = false, data = hashMapOf("error" to "AndroidManifest.xml not found."))
-    //             }
-    //             val results = parser.parse()
-    //             if(results.mainActivity == null){
-    //                 logger.error("[x]JIAP Error: Main activity not found from AndroidManifest.")
-    //                 return JiapResult(success = false, data = hashMapOf("error" to "Main activity not found from AndroidManifest."))
-    //             }
-    //             val mainActivity = results.getMainActivityJavaClass(wrapper.decompiler)
-    //         } else {
-    //             val manifest = decompiler.resources
-    //                 ?.stream()
-    //                 ?.filter { resourceFile -> resourceFile.type == ResourceType.MANIFEST }
-    //                 ?.findFirst()
-    //                 ?.orElse(null)
-    //             if (manifest == null){
-    //                 logger.error("[x]JIAP Error: AndroidManifest.xml not found.")
-    //                 return JiapResult(success = false, data = hashMapOf("error" to "AndroidManifest.xml not found."))
-    //             }
-    //             val mainActivity = AndroidManifestParser.getMainActivity(manifest)
-    //             if (mainActivity == null) {
-    //                 logger.error("[x]JIAP Error: Main activity not found in AndroidManifest.xml.")
-    //                 return JiapResult(success = false, data = hashMapOf("error" to "Main activity not found in AndroidManifest.xml."))
-    //             }
-    //         }
-    //         val result = hashMapOf<String, Any>(
-    //             "type" to "main-activity",
-    //             "mainActivity" to ""
-    //         )
-    //         return JiapResult(success = true, data = result)
-
-    //     } catch (e: Exception) {
-    //         logger.error("[x]JIAP Error:load main activity", e)
-    //         return JiapResult(success = false, data = hashMapOf("error" to "getMainActivity: ${e.message}"))
-    //     }
-    // }
+    fun handleGetMainActivity(): JiapResult {
+        try{
+            var result = HashMap<String, Any>()
+            if(this.gui){
+                val mainWindow = pluginContext.guiContext?.mainFrame
+                if(mainWindow is MainWindow){
+                    val jadxWrapper = mainWindow.wrapper
+                    val resources = jadxWrapper.resources
+                    val manifest = AndroidManifestParser.getAndroidManifest(resources)
+                    if (manifest == null) {
+                        logger.error("JIAP Error: AndroidManifest not found.")
+                        return JiapResult(success = false, data = hashMapOf("error" to "getMainActivity: AndroidManifest not found."))
+                    }
+                    
+                    val parser = AndroidManifestParser(
+                        manifest,
+                        EnumSet.of(AppAttribute.MAIN_ACTIVITY),
+                        jadxWrapper.args.security
+                    )
+                    
+                    val appParams = parser.parse()
+                    val mainActivityName = appParams.mainActivity
+                    if (mainActivityName == null) {
+                        return JiapResult(success = false, data = hashMapOf("error" to "getMainActivity: Main activity not found in manifest."))
+                    }
+                    
+                    val mainActivityClass = appParams.getMainActivityJavaClass(decompiler)
+                    if (mainActivityClass == null) {
+                        return JiapResult(success = false, data = hashMapOf("error" to "getMainActivity: Failed to get main activity class."))
+                    }
+                    
+                    result = hashMapOf(
+                        "type" to "mainActivity",
+                        "name" to mainActivityClass.fullName,
+                        "code" to mainActivityClass.code
+                    )
+                } else {
+                    logger.debug("JIAP: Main frame is not MainWindow instance")
+                }
+                return JiapResult(success = true, data = result)
+            } else {
+                return JiapResult(success = false, data = hashMapOf("error" to "getMainActivity: command mode not support"))
+            }
+        }catch(e: Exception){
+            logger.error("JIAP Error:load main activity", e)
+            return JiapResult(success = false, data = hashMapOf("error" to "getMainActivity: ${e.message}"))
+        }
+    }
 }

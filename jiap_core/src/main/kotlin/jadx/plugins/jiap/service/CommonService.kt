@@ -7,21 +7,24 @@ import jadx.gui.JadxWrapper
 import jadx.api.JadxDecompiler
 import jadx.api.JavaClass
 import jadx.api.JavaMethod
+import jadx.api.JavaNode
 import jadx.api.plugins.JadxPluginContext
 
 import jadx.plugins.jiap.model.JiapResult
 import jadx.plugins.jiap.model.JiapServiceInterface
 import jadx.plugins.jiap.utils.CodeUtils
+import kotlin.collections.forEach
 
 class CommonService(override val pluginContext: JadxPluginContext) : JiapServiceInterface {
-    
+
     companion object {
         private val logger = LoggerFactory.getLogger(CommonService::class.java)
     }
+
     val decompiler: JadxDecompiler = pluginContext.decompiler
-    
-    fun handleGetAllClasses(): JiapResult{
-        try{
+
+    fun handleGetAllClasses(): JiapResult {
+        try {
             val classes = decompiler.classesWithInners.map { it.fullName }
             val result = hashMapOf(
                 "type" to "class-list",
@@ -49,7 +52,7 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
                 "code" to code
             )
             return JiapResult(success = true, data = result)
-        }catch (e: Exception){
+        } catch (e: Exception) {
             logger.error("JIAP Error: get class source", e)
             return JiapResult(success = false, data = hashMapOf("error" to "getClassSource: ${e.message}"))
         }
@@ -64,16 +67,19 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
                 clazz = tmpResult.first
                 method = tmpResult.second
             }
-            if (clazz == null || method == null){
-                return JiapResult(success = false, data = hashMapOf("error" to "getMethodSource: $methodName not found"))
+            if (clazz == null || method == null) {
+                return JiapResult(
+                    success = false,
+                    data = hashMapOf("error" to "getMethodSource: $methodName not found")
+                )
             }
-            val code = if (isSmali) CodeUtils.extractMethodSmaliCode(clazz, method ) else method.codeStr
+            val code = if (isSmali) CodeUtils.extractMethodSmaliCode(clazz, method) else method.codeStr
             val result: HashMap<String, Any> = hashMapOf(
                 "type" to "method",
                 "code" to code
             )
             return JiapResult(success = true, data = result)
-        }catch (e: Exception){
+        } catch (e: Exception) {
             logger.error("JIAP Error: get method source", e)
             return JiapResult(success = false, data = hashMapOf("error" to "getMethodSource: ${e.message}"))
         }
@@ -88,9 +94,9 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
         return null
     }
 
-    fun handleSearchClassByName(classFullName: String): JiapResult {
+    fun handleSearchClassByName(className: String): JiapResult {
         return try {
-            val clazz = decompiler.searchJavaClassOrItsParentByOrigFullName(classFullName)
+            val clazz = decompiler.searchJavaClassOrItsParentByOrigFullName(className)
             if (clazz != null) {
                 val result = hashMapOf(
                     "type" to "class",
@@ -99,7 +105,7 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
                 )
                 JiapResult(success = true, data = result)
             } else {
-                JiapResult(success = false, data = hashMapOf("error" to "searchClassByName: $classFullName not found"))
+                JiapResult(success = false, data = hashMapOf("error" to "searchClassByName: $className not found"))
             }
         } catch (e: Exception) {
             logger.error("JIAP Error: search class by name", e)
@@ -108,49 +114,74 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
     }
 
     fun handleListMethodsOfClass(className: String): JiapResult {
-        try{
-            return JiapResult(success = true, data = hashMapOf())
-        }catch (e: Exception){
+        try {
+            val methods = decompiler.classesWithInners?.find {
+                it.fullName == className
+            }?.methods?.map {
+                it.toString()
+            } ?: emptyList()
+            val result = hashMapOf(
+                "type" to "method-list",
+                "count" to methods.size,
+                "methods" to methods
+            )
+            return JiapResult(success = true, data = result)
+        } catch (e: Exception) {
             logger.error("JIAP Error: list methods of class", e)
             return JiapResult(success = false, data = hashMapOf("error" to "listMethodsOfClass: ${e.message}"))
         }
     }
 
-    // fun handleListFieldsOfClass(fileId: String, className: String): JadxResult<List<String>> {
-    //     logger.info("Listing fields of class: $className")
-    //     return JadxResult(success = true, data = emptyList())
-    // }
+    fun handleGetMethodXref(methodName: String): JiapResult {
+        try {
+            val method = decompiler.classesWithInners.firstNotNullOfOrNull { clazz ->
+                clazz.methods.find { it.toString() == methodName }
+            } ?: return JiapResult(success = false, data = hashMapOf("error" to "getMethodXref: $methodName not found"))
+            val xrefNodes = mutableListOf<JavaNode>()
+            method.declaringClass.decompile()
+            method.overrideRelatedMethods.forEach { relatedMethod ->
+                val relatedUseIn = relatedMethod.useIn
+                if (relatedUseIn.isNotEmpty()) {
+                    xrefNodes.addAll(relatedUseIn)
+                }
+            }
+            xrefNodes.addAll(method.useIn)
+            val references = processUsage(methodName, method, xrefNodes)
+            val result = hashMapOf<String, Any>(
+                "type" to "method-xref",
+                "count" to xrefNodes.size,
+                "references" to references
+            )
+            return JiapResult(success = true, data = result)
+        } catch (e: Exception) {
+            logger.error("JIAP Error: get method xref", e)
+            return JiapResult(success = false, data = hashMapOf("error" to "getMethodXref: ${e.message}"))
+        }
+    }
 
-    
-    // fun handleSearchMethodByName(fileId: String, methodName: String): JadxResult<String> {
-    //     logger.info("Searching method by name: $methodName")
-    //     return JadxResult(success = true, data = "Method not found")
-    // }
-    
-    // fun handleGetMethodXref(fileId: String, methodInfo: String): JadxResult<List<String>> {
-    //     logger.info("Getting method xref for: $methodInfo")
-    //     return JadxResult(success = true, data = emptyList())
-    // }
-    
-    // fun handleGetClassXref(fileId: String, className: String): JadxResult<List<String>> {
-    //     logger.info("Getting class xref for: $className")
-    //     return JadxResult(success = true, data = emptyList())
-    // }
-    
-    // fun handleGetFieldXref(fileId: String, fieldInfo: String): JadxResult<List<String>> {
-    //     logger.info("Getting field xref for: $fieldInfo")
-    //     return JadxResult(success = true, data = emptyList())
-    // }
-    
-    // fun handleGetImplementOfInterface(fileId: String, interfaceName: String): JadxResult<List<String>> {
-    //     logger.info("Getting interface implementations for: $interfaceName")
-    //     return JadxResult(success = true, data = emptyList())
-    // }
-    
-    // fun handleGetSubclasses(fileId: String, className: String): JadxResult<List<String>> {
-    //     logger.info("Getting subclasses for: $className")
-    //     return JadxResult(success = true, data = emptyList())
-    // }
-    
-
+    private fun processUsage(searchName: String, searchNode: JavaNode, xrefNodes: MutableList<JavaNode>): HashMap<String, Any> {
+        val usageHashMap = hashMapOf<String, Any>()
+        xrefNodes.groupBy(JavaNode::getTopParentClass).forEach classLoop@{ (topUseClass, nodesInClass) ->
+            val codeInfo = topUseClass.codeInfo
+            val usePositions = topUseClass.getUsePlacesFor(codeInfo, searchNode)
+            if (usePositions.isEmpty()) {
+                return@classLoop
+            }
+            val code = codeInfo.codeStr
+            usePositions.forEach positionLoop@{ pos ->
+                val line = CodeUtils.getLineForPos(code, pos)
+                if (line.startsWith("import ")) {
+                    return@positionLoop
+                }
+                val correspondingNode = nodesInClass.firstOrNull() ?: nodesInClass.first()
+                usageHashMap[correspondingNode.fullName.hashCode().toString()] = hashMapOf(
+                    "fullName" to correspondingNode.fullName,
+                    "className" to topUseClass.fullName,
+                    "codeLineNumber" to CodeUtils.getLineNumberForPos(code, pos),
+                    "codeLine" to line.trim()
+                )
+            }
+        }
+        return usageHashMap
+    }
 }

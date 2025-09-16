@@ -12,6 +12,8 @@ import java.awt.Dimension
 import java.awt.FlowLayout
 import java.awt.event.ActionEvent
 import java.awt.event.ActionListener
+import java.awt.event.MouseAdapter
+import java.awt.event.MouseEvent
 import javax.swing.BorderFactory
 import javax.swing.JButton
 import javax.swing.JFrame
@@ -19,6 +21,10 @@ import javax.swing.JPanel
 import javax.swing.JOptionPane
 import javax.swing.JTextField
 import javax.swing.JLabel
+import javax.swing.JMenu
+import javax.swing.JMenuItem
+import javax.swing.JPopupMenu
+import java.awt.MouseInfo
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.function.Predicate
@@ -36,25 +42,17 @@ class JiapUIManager(
     }
 
     fun initializeGuiComponents(guiContext: JadxGuiContext) {
-        guiContext.addTreePopupMenuEntry(
-            "Restart Server",
-            { true },
-            { node ->
-                restartServer() 
-            }
-        )
-        guiContext.addTreePopupMenuEntry(
-            "Server Status",
-            { true }, { node ->
-                showServerStatus() 
-            })
+        guiContext.addMenuAction("JIAP Server Status") {
+            showServerStatus()
+        }
+        guiContext.addMenuAction("JIAP Server Restart") {
+            restartServer()
+        }
     }
 
     private fun restartServer() {
         if (server.isRunning()) {
-            Thread {
-                server.restart()
-            }.start()
+            server.restart()
         } else {
             server.start()
         }
@@ -64,7 +62,7 @@ class JiapUIManager(
         val isRunning = server.isRunning()
         val status = if (isRunning) "Running" else "Stopped"
         val currentPort = server.getCurrentPort()
-        val url = if(isRunning) "http://127.0.0.1:" + currentPort + "/" else "N/A"
+        val url = if(isRunning) "http://127.0.0.1:$currentPort/" else "N/A"
 
         val message = """
             Server Status: $status

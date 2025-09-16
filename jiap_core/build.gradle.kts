@@ -1,6 +1,7 @@
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 
 plugins {
+	`java-library`
 	alias(libs.plugins.kotlin.jvm)
 	alias(libs.plugins.shadow)
 	alias(libs.plugins.use.latest.versions)
@@ -11,7 +12,7 @@ kotlin {
     jvmToolchain(17)
 }
 
-val jadxVersion = "1.5.3"
+val jadxVersion = "1.5.2"
 val isJadxSnapshot = jadxVersion.endsWith("-SNAPSHOT")
 
 dependencies {
@@ -24,7 +25,9 @@ dependencies {
     compileOnly("io.github.skylot:jadx-cli:$jadxVersion"){
         isChanging = false
     }
+    implementation("com.google.code.gson:gson:2.10.1")
     implementation("io.javalin:javalin:6.7.0")
+    implementation("com.fasterxml.jackson.core:jackson-databind:2.17.2")
 
 	testImplementation("io.github.skylot:jadx-smali-input:$jadxVersion") {
         isChanging = isJadxSnapshot
@@ -51,7 +54,8 @@ tasks {
     }
     val shadowJar = withType(ShadowJar::class) {
         archiveClassifier = ""
-        minimize()
+        // Don't minimize to preserve Jetty WebSocket service files
+        // minimize()
     }
 
     // copy result jar into "build/dist" directory
