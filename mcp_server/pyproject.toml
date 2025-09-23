@@ -1,10 +1,10 @@
 [project]
-name = "mcp-server"
+name = "jiap-mcp-server"
 version = "0.1.0"
-description = "JIAP MCP Protocol Server"
+description = "JIAP MCP Server for Java Intelligence Analysis Platform"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "fastmcp>=2.5.1",
-    "httpx>=0.28.1"
+    "requests>=2.31.0"
 ]
