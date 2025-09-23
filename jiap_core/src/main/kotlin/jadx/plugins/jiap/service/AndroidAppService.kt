@@ -43,9 +43,9 @@ class AndroidAppService(override val pluginContext: JadxPluginContext) : JiapSer
             }
             val manifestContent = manifest.loadContent()?.text?.codeStr
             val result = hashMapOf<String, Any>(
+                "type" to "code"
                 "name" to manifest.originalName,
-                "type" to "manifest/xml",
-                "content" to manifestContent as Any
+                "code" to manifestContent as Any
             )
             return JiapResult(success = true, data = result)
 
@@ -87,7 +87,7 @@ class AndroidAppService(override val pluginContext: JadxPluginContext) : JiapSer
                     }
                     
                     result = hashMapOf(
-                        "type" to "mainActivity",
+                        "type" to "code",
                         "name" to mainActivityClass.fullName,
                         "code" to mainActivityClass.code
                     )

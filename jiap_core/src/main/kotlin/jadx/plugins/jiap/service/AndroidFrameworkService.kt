@@ -21,7 +21,7 @@ class AndroidFrameworkService(override val pluginContext: JadxPluginContext) : J
                 ".super ${interfaceName.replace(".", "/")}\$Stub" in it.smali
             } ?: return JiapResult(success = false, data = hashMapOf("error" to "getSystemService: $interfaceName not found"))
             val result = hashMapOf<String, Any>(
-                "type" to "class",
+                "type" to "code",
                 "name" to serviceClazz.fullName,
                 "code" to serviceClazz.code
             )

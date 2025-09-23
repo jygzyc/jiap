@@ -30,9 +30,9 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
         try {
             val classes = decompiler.classesWithInners.map { it.fullName }
             val result = hashMapOf(
-                "type" to "class-list",
+                "type" to "list",
                 "count" to classes.size,
-                "classes" to classes
+                "classes-list" to classes
             )
             return JiapResult(success = true, data = result)
         } catch (e: Exception) {
@@ -51,7 +51,8 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
             )
             val code = if (isSmali) clazz.smali else clazz.code
             val result: HashMap<String, Any> = hashMapOf(
-                "type" to "class",
+                "type" to "code",
+                "name" to clazz.fullName,
                 "code" to code
             )
             return JiapResult(success = true, data = result)
@@ -78,7 +79,8 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
             }
             val code = if (isSmali) CodeUtils.extractMethodSmaliCode(clazz, method) else method.codeStr
             val result: HashMap<String, Any> = hashMapOf(
-                "type" to "method",
+                "type" to "code",
+                "name" to method.toString(),
                 "code" to code
             )
             return JiapResult(success = true, data = result)
@@ -102,10 +104,10 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
             val clazz = decompiler.searchJavaClassOrItsParentByOrigFullName(className)
             if (clazz != null) {
                 val result = hashMapOf(
-                    "type" to "class-info",
+                    "type" to "list",
                     "name" to clazz.fullName,
-                    "methods" to clazz.methods.map { it.toString() },
-                    "fields" to clazz.fields.map { it.toString() }
+                    "methods-list" to clazz.methods.map { it.toString() },
+                    "fields-list" to clazz.fields.map { it.toString() }
                 )
                 JiapResult(success = true, data = result)
             } else {
@@ -119,15 +121,15 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
 
     fun handleListMethodsOfClass(className: String): JiapResult {
         try {
-            val methods = decompiler.classesWithInners?.find {
+            val methodsList = decompiler.classesWithInners?.find {
                 it.fullName == className
             }?.methods?.map {
                 it.toString()
             } ?: emptyList()
             val result = hashMapOf(
-                "type" to "method-list",
-                "count" to methods.size,
-                "methods" to methods
+                "type" to "list",
+                "count" to methodsList.size,
+                "methods-list" to methodsList
             )
             return JiapResult(success = true, data = result)
         } catch (e: Exception) {
@@ -152,9 +154,9 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
             xrefNodes.addAll(method.useIn)
             val references = processUsage(method, xrefNodes)
             val result = hashMapOf<String, Any>(
-                "type" to "method-xref",
+                "type" to "list",
                 "count" to xrefNodes.size,
-                "references" to references
+                "references-list" to references
             )
             return JiapResult(success = true, data = result)
         } catch (e: Exception) {
@@ -183,9 +185,9 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
             }
             val references = processUsage(clazz, xrefNodes)
             val result = hashMapOf<String, Any>(
-                "type" to "class-xref",
+                "type" to "list",
                 "count" to xrefNodes.size,
-                "references" to references
+                "references-list" to references
             )
             return JiapResult(success = true, data = result)
         } catch (e: Exception) {
@@ -235,8 +237,8 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
                 it.smali.contains(".implements ${interfaceClazz.fullName.replace(".", "/")}")
             }
             val result = hashMapOf(
-                "type" to "class-list"
-                "class" to implementingClasses.map { it.fullName }
+                "type" to "list"
+                "classes-list" to implementingClasses.map { it.fullName }
             )
             return JiapResult(success = true, data = result)            
         } catch (e: Exception) {
@@ -254,8 +256,8 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
                 it.smali.contains(".super ${clazz.fullName.replace(".", "/")}")
             }
             val result = hashMapOf(
-                "type" to "class-list",
-                "class" to subClasses.map { it.fullName }
+                "type" to "list",
+                "classes-list" to subClasses.map { it.fullName }
             )
             return JiapResult(success = true, data = result)            
         } catch (e: Exception) {
@@ -279,7 +281,7 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
             val selectedText = textArea?.selectedText
 
             val result = hashMapOf<String, Any>(
-                "type" to "selected-text",
+                "type" to "code",
                 "selectedText" to (selectedText ?: "")
             )
             return JiapResult(success = true, data = result)
