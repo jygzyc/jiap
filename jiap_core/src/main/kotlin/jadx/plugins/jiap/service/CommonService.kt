@@ -237,7 +237,7 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
                 it.smali.contains(".implements ${interfaceClazz.fullName.replace(".", "/")}")
             }
             val result = hashMapOf(
-                "type" to "list"
+                "type" to "list",
                 "classes-list" to implementingClasses.map { it.fullName }
             )
             return JiapResult(success = true, data = result)            

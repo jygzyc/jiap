@@ -43,7 +43,7 @@ class AndroidAppService(override val pluginContext: JadxPluginContext) : JiapSer
             }
             val manifestContent = manifest.loadContent()?.text?.codeStr
             val result = hashMapOf<String, Any>(
-                "type" to "code"
+                "type" to "code",
                 "name" to manifest.originalName,
                 "code" to manifestContent as Any
             )

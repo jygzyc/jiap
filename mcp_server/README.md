@@ -8,11 +8,10 @@ MCP server for JIAP (Java Intelligence Analysis Platform), providing AI assistan
 {
    "mcpServers": {
       "jiap-mcp-server": {
-         "command": "uv",
+         "command": "uvx",
          "args": [
             "--directory",
             "<directory to mcp server>",
-            "run",
             "mcp_server.py"
          ]
       }

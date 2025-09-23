@@ -8,3 +8,9 @@ dependencies = [
     "fastmcp>=2.5.1",
     "requests>=2.31.0"
 ]
+
+[tool.setuptools]
+py-modules = ["jiap_mcp_server"]
+
+[project.scripts]
+jadx_mcp_server = "jiap_mcp_server:main"

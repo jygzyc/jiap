@@ -204,7 +204,9 @@ async def request_to_jiap(
     if cache is None:
         try:
             url = f"{JIAP_BASE_SERVER}/api/{api_type}/{endpoint.lstrip('/')}"
+            logger.debug(f"Making request to: {url}")
             resp = requests.post(url, json=json_data or {}, timeout=60)
+            logger.debug(f"Response status: {resp.status_code}")
             resp.raise_for_status()
             json_response = resp.json()
 
@@ -228,6 +230,12 @@ async def request_to_jiap(
                     code_max_chars=code_max_chars
                 )
 
+        except requests.exceptions.ConnectionError as e:
+            logger.error(f"Connection error - JIAP server may not be running on {JIAP_BASE_SERVER}: {e}")
+            return None
+        except requests.exceptions.Timeout as e:
+            logger.error(f"Request timeout for key '{cache_key}': {e}")
+            return None
         except Exception as e:
             logger.error(f"Request failed for key '{cache_key}': {e}")
             return None
@@ -333,5 +341,11 @@ async def health_check() -> Union[Dict[str, Any], str, None]:
         return {"status": "Error", "url": "N/A", "error": str(e)}
 
 if __name__ == "__main__":
-    logger.info("JIAP MCP Server")
-    mcp.run(transport="stdio")
+    try:
+        logger.info("JIAP MCP Server starting...")
+        mcp.run(transport="streamable-http")
+    except KeyboardInterrupt:
+        logger.info("MCP Server stopped by user")
+    except Exception as e:
+        logger.error(f"MCP Server error: {e}")
+        raise
