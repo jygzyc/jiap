@@ -18,7 +18,7 @@ class AndroidFrameworkService(override val pluginContext: JadxPluginContext) : J
     fun handleGetSystemServiceImpl(interfaceName: String): JiapResult {
         try {
             val serviceClazz = decompiler.classesWithInners.firstOrNull {
-                ".super ${interfaceName.replace(".", "/")}\$Stub" in it.smali
+                ".super L${interfaceName.replace(".", "/")}\$Stub;" in it.smali
             } ?: return JiapResult(success = false, data = hashMapOf("error" to "getSystemService: $interfaceName not found"))
             val result = hashMapOf<String, Any>(
                 "type" to "code",
