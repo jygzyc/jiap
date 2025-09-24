@@ -35,7 +35,7 @@ def _get_cache_key(endpoint: str, json_data: Optional[Dict[str, Any]]) -> str:
     data_str = json.dumps(json_data or {}, sort_keys=True)
     return f"{endpoint}::{data_str}"
 
-def _get_slice(data: Any, slice_number: int, list_slice_size: int = 500, code_max_chars: int = 60000) -> Any:
+def _get_slice(data: Any, slice_number: int, list_slice_size: int = 1000, code_max_chars: int = 60000) -> Any:
     if not isinstance(data, dict):
         return data
 
@@ -49,8 +49,8 @@ def _get_slice(data: Any, slice_number: int, list_slice_size: int = 500, code_ma
     if 'code' in data:
         text = str(data['code'])
         lines = text.split('\n')
-        start_line = (slice_number - 1) * 100
-        end_line = start_line + 100
+        start_line = (slice_number - 1) * 1000
+        end_line = start_line + 1000
         if start_line >= len(lines):
             result['code'] = ""
         else:
