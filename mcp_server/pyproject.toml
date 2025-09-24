@@ -5,7 +5,7 @@ description = "JIAP MCP Server for Java Intelligence Analysis Platform"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "fastmcp>=2.5.1",
+    "fastmcp>=2.12.3",
     "requests>=2.31.0"
 ]
 

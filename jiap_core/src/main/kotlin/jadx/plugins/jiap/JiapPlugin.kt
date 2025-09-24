@@ -53,7 +53,7 @@ class JiapPlugin : JadxPlugin {
             .name(PLUGIN_NAME)
             .description("JIAP plugin for jadx")
             .homepage("https://github.com/jygzyc/jiap")
-            .requiredJadxVersion("1.5.1, r2333")
+            .requiredJadxVersion("1.5.2, r2472")
             .build()
     }
 

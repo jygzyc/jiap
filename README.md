@@ -8,6 +8,7 @@ A comprehensive platform for Java bytecode analysis and Android application reve
 - Java 17+ for JIAP Core
 - Python 3.10+ for MCP Server
 - JADX decompiler with plugin support
+- Python dependencies: `requests`, `fastmcp`
 
 ### Build from Source
 
@@ -15,12 +16,11 @@ A comprehensive platform for Java bytecode analysis and Android application reve
 # Build JIAP Core
 cd jiap_core
 chmod +x gradlew
-./gradlew build
+./gradlew dist
 
-# Build MCP Server
+# Install MCP Server dependencies
 cd mcp_server
-uv sync --all-extras
-uv build
+pip install requests fastmcp
 ```
 
 ## Usage
@@ -29,26 +29,18 @@ uv build
 - Launch JADX with JIAP plugin enabled
 - Verify the server runs on `http://127.0.0.1:25419`
 
-### 2. Configure MCP Client
-Add to your MCP client configuration:
-
-```json
-{
-   "mcpServers": {
-      "jiap-mcp-server": {
-         "command": "uv",
-         "args": [
-            "--directory",
-            "/path/to/mcp_server",
-            "run",
-            "mcp_server.py"
-         ]
-      }
-   }
-}
+### 2. Start MCP Server
+```bash
+cd mcp_server
+python mcp_server.py
 ```
 
-### 3. Available Tools
+The MCP server will start on `http://0.0.0.0:25420`.
+
+### 3. Verify Connection
+Use `health_check()` to verify the connection between MCP server and JIAP plugin.
+
+### 4. Available Tools
 
 #### Basic Analysis
 - `get_all_classes(page)` - Retrieve all available classes
@@ -76,16 +68,16 @@ Add to your MCP client configuration:
 
 ### Building
 ```bash
-# Build both components
-./gradlew build          # JIAP Core
-cd mcp_server && uv build # MCP Server
+# Build JIAP Core
+./gradlew dist
+
+# MCP Server is ready to run (no build required)
 ```
 
 ### Testing
 ```bash
-# Run tests
-./gradlew test           # JIAP Core tests
-cd mcp_server && uv run pytest # MCP Server tests
+# Run JIAP Core tests
+./gradlew test
 ```
 
 ## Contributing

@@ -1,4 +1,1 @@
-plugins {
-    id("org.gradle.toolchains.foojay-resolver-convention") version "0.8.0"
-}
-rootProject.name = "jiap_core_plugin"
+rootProject.name = "jadx_jiap_plugin"

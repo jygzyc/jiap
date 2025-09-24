@@ -4,20 +4,13 @@ MCP server for JIAP (Java Intelligence Analysis Platform), providing AI assistan
 
 ## Setup
 
-```json
-{
-   "mcpServers": {
-      "jiap-mcp-server": {
-         "command": "uvx",
-         "args": [
-            "--directory",
-            "<directory to mcp server>",
-            "mcp_server.py"
-         ]
-      }
-   }
-}
+Start the MCP server directly:
+
+```bash
+python mcp_server.py
 ```
+
+The server will start on `http://0.0.0.0:25420` and connect to JIAP plugin on `http://127.0.0.1:25419`.
 
 ## Requirements
 
@@ -60,11 +53,12 @@ MCP server for JIAP (Java Intelligence Analysis Platform), providing AI assistan
 
 1. Start JADX with JIAP plugin enabled
 2. Verify JIAP server runs on `http://127.0.0.1:25419`
-3. Configure MCP client with the server settings
+3. Start MCP server: `python mcp_server.py`
 4. Use `health_check()` to verify connection
 
 ## Notes
 
 - All tools support pagination via `page` parameter
 - Server operates on currently loaded JADX project
-- Port 25419 is fixed and required
+- Port 25419 is for JIAP plugin (fixed)
+- Port 25420 is for MCP server (fixed)
