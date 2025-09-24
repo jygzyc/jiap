@@ -26,6 +26,25 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
 
     val decompiler: JadxDecompiler = pluginContext.decompiler
 
+    // Performance optimizations: Pre-built indexes
+    private val classNameIndex: Map<String, JavaClass> by lazy {
+        buildClassNameIndex()
+    }
+
+    private val methodIndex: Map<String, Pair<JavaClass, JavaMethod>> by lazy {
+        buildMethodIndex()
+    }
+
+    private fun buildClassNameIndex(): Map<String, JavaClass> {
+        return decompiler.classesWithInners?.associateBy { it.fullName } ?: emptyMap()
+    }
+
+    private fun buildMethodIndex(): Map<String, Pair<JavaClass, JavaMethod>> {
+        return decompiler.classesWithInners?.flatMap { clazz ->
+            clazz.methods.map { method -> method.toString() to (clazz to method) }
+        }?.toMap() ?: emptyMap()
+    }
+
     fun handleGetAllClasses(): JiapResult {
         try {
             val classes = decompiler.classesWithInners.map { it.fullName }
@@ -43,12 +62,13 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
 
     fun handleGetClassSource(className: String, isSmali: Boolean): JiapResult {
         try {
-            val clazz = decompiler.classesWithInners?.find {
-                it.fullName == className
-            } ?: return JiapResult(
-                success = false,
-                data = hashMapOf("error" to "getClassSource: $className not found")
-            )
+            // Use index for O(1) lookup
+            val clazz = classNameIndex[className]
+                ?: return JiapResult(
+                    success = false,
+                    data = hashMapOf("error" to "getClassSource: $className not found")
+                )
+            clazz.decompile()
             val code = if (isSmali) clazz.smali else clazz.code
             val result: HashMap<String, Any> = hashMapOf(
                 "type" to "code",
@@ -64,19 +84,14 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
 
     fun handleGetMethodSource(methodName: String, isSmali: Boolean): JiapResult {
         try {
-            var method: JavaMethod? = null
-            var clazz: JavaClass? = null
-            val tmpResult = findMethodInAllClasses(methodName)
-            if (tmpResult != null) {
-                clazz = tmpResult.first
-                method = tmpResult.second
-            }
-            if (clazz == null || method == null) {
-                return JiapResult(
+            // Use index for O(1) lookup
+            val (clazz, method) = methodIndex[methodName]
+                ?: return JiapResult(
                     success = false,
                     data = hashMapOf("error" to "getMethodSource: $methodName not found")
                 )
-            }
+            clazz.decompile()
+
             val code = if (isSmali) CodeUtils.extractMethodSmaliCode(clazz, method) else method.codeStr
             val result: HashMap<String, Any> = hashMapOf(
                 "type" to "code",
@@ -90,13 +105,9 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
         }
     }
 
+    // Legacy method - kept for compatibility but now uses index
     private fun findMethodInAllClasses(methodName: String): Pair<JavaClass, JavaMethod>? {
-        decompiler.classesWithInners?.forEach { clazz ->
-            clazz.methods.find { it.toString() == methodName }?.let { method ->
-                return clazz to method
-            }
-        }
-        return null
+        return methodIndex[methodName]
     }
 
     fun handleSearchClassByName(className: String): JiapResult {
@@ -121,11 +132,10 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
 
     fun handleListMethodsOfClass(className: String): JiapResult {
         try {
-            val methodsList = decompiler.classesWithInners?.find {
-                it.fullName == className
-            }?.methods?.map {
-                it.toString()
-            } ?: emptyList()
+            // Use index for O(1) lookup
+            val clazz = classNameIndex[className]
+            val methodsList = clazz?.methods?.map { it.toString() } ?: emptyList()
+
             val result = hashMapOf(
                 "type" to "list",
                 "count" to methodsList.size,
@@ -140,9 +150,9 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
 
     fun handleGetMethodXref(methodName: String): JiapResult {
         try {
-            val method = decompiler.classesWithInners.firstNotNullOfOrNull { clazz ->
-                clazz.methods.find { it.toString() == methodName }
-            } ?: return JiapResult(success = false, data = hashMapOf("error" to "getMethodXref: $methodName not found"))
+            // Use index for O(1) lookup
+            val (clazz, method) = methodIndex[methodName]
+                ?: return JiapResult(success = false, data = hashMapOf("error" to "getMethodXref: $methodName not found"))
             val xrefNodes = mutableListOf<JavaNode>()
             method.declaringClass.decompile()
             method.overrideRelatedMethods.forEach { relatedMethod ->
@@ -167,7 +177,8 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
 
     fun handleGetClassXref(className: String): JiapResult {
         try {
-            val clazz = decompiler.classesWithInners.find { it.fullName == className }
+            // Use index for O(1) lookup
+            val clazz = classNameIndex[className]
                 ?: return JiapResult(success = false, data = hashMapOf("error" to "getClassXref: $className not found"))
             val xrefNodes = mutableListOf<JavaNode>()
             clazz.decompile()
@@ -225,9 +236,9 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
 
     fun handleGetImplementOfInterface(interfaceName: String): JiapResult {
         try {
-            val interfaceClazz = decompiler.classesWithInners.find { 
-                it.fullName == interfaceName 
-            } ?: return JiapResult(success = false, data = hashMapOf("error" to "getImplementOfInterface: $interfaceName not found"))
+            // Use index for O(1) lookup
+            val interfaceClazz = classNameIndex[interfaceName]
+                ?: return JiapResult(success = false, data = hashMapOf("error" to "getImplementOfInterface: $interfaceName not found"))
 
             if (!interfaceClazz.accessInfo.isInterface) {
                 return JiapResult(success = false, data = hashMapOf("error" to "getImplementOfInterface: $interfaceName is not a interface"))
@@ -249,9 +260,9 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
 
     fun handleGetSubclasses(className: String): JiapResult {
         try {
-            val clazz = decompiler.classesWithInners.find { 
-                it.fullName == className 
-            } ?: return JiapResult(success = false, data = hashMapOf("error" to "getSubclasses: $className not found"))
+            // Use index for O(1) lookup
+            val clazz = classNameIndex[className]
+                ?: return JiapResult(success = false, data = hashMapOf("error" to "getSubclasses: $className not found"))
             val subClasses = decompiler.classesWithInners.filter {
                 it.smali.contains(".super ${clazz.fullName.replace(".", "/")}")
             }

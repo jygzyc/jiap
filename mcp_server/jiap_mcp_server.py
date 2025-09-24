@@ -93,7 +93,7 @@ async def request_to_jiap(
         return ToolResult(_get_slice(cached_data, slice_number, list_slice_size, code_max_chars))
     try:
         url = f"{JIAP_BASE_SERVER}/api/{api_type}/{endpoint.lstrip('/')}"
-        resp = requests.post(url, json=json_data or {}, timeout=60)
+        resp = requests.post(url, json=json_data or {}, timeout=120)
         resp.raise_for_status()
         json_response = resp.json()
 
@@ -191,9 +191,12 @@ async def get_sub_classes(ctx: Context,class_name: str, page: int = 1) -> ToolRe
 
 # UI Integration
 
-@mcp.tool
+@mcp.tool(
+    name="selected_text",
+    description="Retrieves the currently selected text in the JADX GUI. Supports pagination via the page parameter (default: 1)."
+)
 async def selected_text(ctx: Context, page: int = 1) -> ToolResult:
-    """Retrieves the currently selected text in the JADX GUI. Supports pagination via the page parameter (default: 1)."""
+    await ctx.info("Fetching selected text from JIAP Plugin...")
     return await request_to_jiap("selected_text", slice_number=page)
 
 
