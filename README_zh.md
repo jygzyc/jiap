@@ -191,18 +191,17 @@ class FastMCP("JIAP MCP Server")
 ```bash
 # 编译核心插件
 cd jiap_core
-./gradlew build
+./gradlew dist
 
 # 安装MCP服务器依赖
 cd mcp_server
-pip install -r requirements.txt
+uv sync
 ```
 
 #### 2. 安装到JADX
 
 ```bash
-# 复制插件到JADX插件目录
-cp jiap_core/build/libs/jiap-plugin-*.jar ~/.config/jadx/plugins/
+jadx plugins --install-jar <path-to-jiap.jar>
 
 # 或者直接在JADX中安装
 # JADX -> Plugins -> Install from JAR
@@ -213,20 +212,6 @@ cp jiap_core/build/libs/jiap-plugin-*.jar ~/.config/jadx/plugins/
 ```bash
 cd mcp_server
 python jiap_mcp_server.py
-```
-
-### 配置说明
-
-#### 端口配置
-- **JIAP Server**: 25419 (默认)
-- **MCP Server**: 25420 (默认)
-
-#### 环境变量
-```bash
-export JIAP_SERVER_PORT=25419
-export JIAP_MCP_PORT=25420
-export JIAP_CACHE_SIZE=10
-export JIAP_TIMEOUT=120
 ```
 
 ---
@@ -398,51 +383,6 @@ app.post("/api/jiap/custom_endpoint") { ctx ->
 )
 async def custom_analysis(ctx: Context, param: str) -> ToolResult:
     return await request_to_jiap("custom_endpoint", json_data={"param": param})
-```
-
-### 性能优化
-
-#### 1. 缓存策略
-```kotlin
-// 内存缓存
-private val cache = ConcurrentHashMap<String, JiapResult>()
-
-// 分页处理
-fun getPaginatedResult(data: List<Any>, page: Int, pageSize: Int = 1000): List<Any> {
-    return data.drop((page - 1) * pageSize).take(pageSize)
-}
-```
-
-#### 2. 异步处理
-```kotlin
-// 异步任务处理
-GlobalScope.launch {
-    val result = withContext(Dispatchers.IO) {
-        // IO密集型操作
-        performAnalysis()
-    }
-    // 处理结果
-}
-```
-
-### 测试指南
-
-#### 1. 单元测试
-```kotlin
-@Test
-fun testGetClassSource() {
-    val service = CommonService(mockContext)
-    val result = service.handleGetClassSource("com.example.TestClass", false)
-    assertTrue(result.success)
-}
-```
-
-#### 2. 集成测试
-```python
-async def test_mcp_server():
-    async with ClientSession() as session:
-        async with session.post("http://localhost:25420", json={}) as resp:
-            assert resp.status == 200
 ```
 
 ---
