@@ -11,6 +11,7 @@ import tempfile
 import subprocess
 import zipfile
 import shlex
+import argparse
 from multiprocessing import Pool
 from typing import Dict, Optional, List, Set
 from abc import ABC, abstractmethod
@@ -756,21 +757,39 @@ Created-By: jiap
         return False
 
 
+def parse_arguments():
+    parser = argparse.ArgumentParser(description="Collect Android framework files from OEM devices")
+    parser.add_argument("oem",
+                       help="OEM manufacturer (vivo, oppo, xiaomi, honor, google)")
+    parser.add_argument("--source-dir",
+                       default="./source",
+                       help="Source directory for collected files")
+    parser.add_argument("--out-dir",
+                       default="./out",
+                       help="Output directory for processed files")
+    parser.add_argument("--adb-path",
+                       default="adb",
+                       help="Path to ADB executable")
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
-    device_file = FileCollector(oem="vivo",
+    args = parse_arguments()
+
+    device_file = FileCollector(oem=args.oem,
                                 file_types=FILE_TYPES,
-                                source_dir="./source",
-                                adb_path="adb")
+                                source_dir=args.source_dir,
+                                adb_path=args.adb_path)
     device_file.run()
 
     tool_paths = {
         "fsckerofs": "fsck.erofs",
         "debugfs": "debugfs"
-    }   
-    frameworkProcessor = FrameworkProcessor(oem="vivo",
-                                           source_dir="./source",
-                                           out_dir="./out",
+    }
+    frameworkProcessor = FrameworkProcessor(oem=args.oem,
+                                           source_dir=args.source_dir,
+                                           out_dir=args.out_dir,
                                            tool_paths=tool_paths,
                                            need_clean=False)
     frameworkProcessor.run()
-    pack_jar("./out")
+    pack_jar(args.out_dir)

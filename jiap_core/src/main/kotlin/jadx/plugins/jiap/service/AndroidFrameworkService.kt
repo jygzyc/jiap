@@ -23,12 +23,13 @@ class AndroidFrameworkService(override val pluginContext: JadxPluginContext) : J
     private fun buildServiceStubIndex(): Map<String, JavaClass> {
         return decompiler.classesWithInners
             .filter { it.smali != null }
-            .associateBy { clazz ->
+            .mapNotNull { clazz ->
                 val smali = clazz.smali
                 val stubMatch = ".super L(.*)\$Stub;".toRegex().find(smali)
-                stubMatch?.groupValues?.get(1)?.replace("/", ".") ?: ""
+                val interfaceName = stubMatch?.groupValues?.get(1)?.replace("/", ".")
+                if (interfaceName != null) interfaceName to clazz else null
             }
-            .filterKeys { it.isNotEmpty() }
+            .toMap()
     }
 
     fun handleGetSystemServiceImpl(interfaceName: String): JiapResult {

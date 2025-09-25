@@ -2,6 +2,27 @@
 
 A tool for collecting and processing Android framework files from different OEM devices for security research and analysis.
 
+## Environment
+
+### Darwin
+
+```bash
+# debugfs installation
+brew install e2fsprogs
+echo 'export PATH="/opt/homebrew/opt/e2fsprogs/bin:$PATH"' >> ~/.zshrc
+
+# fsck.erofs installation
+brew install erofs-utils
+```
+
+### Linux
+
+`debugfs` and `fsck.erofs` in `bin` directory
+
+### Windows
+
+Windows support is not currently available. This is a temporary limitation that may be addressed in future updates.
+
 ## Usage
 
 ### Command Line Usage

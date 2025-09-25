@@ -76,16 +76,11 @@ class AndroidAppService(override val pluginContext: JadxPluginContext) : JiapSer
                     )
                     
                     val appParams = parser.parse()
-                    val mainActivityName = appParams.mainActivity
-                    if (mainActivityName == null) {
-                        return JiapResult(success = false, data = hashMapOf("error" to "getMainActivity: Main activity not found in manifest."))
-                    }
-                    
-                    val mainActivityClass = appParams.getMainActivityJavaClass(decompiler)
-                    if (mainActivityClass == null) {
-                        return JiapResult(success = false, data = hashMapOf("error" to "getMainActivity: Failed to get main activity class."))
-                    }
-                    
+                    val mainActivityClass = appParams.getMainActivityJavaClass(decompiler) ?: return JiapResult(
+                        success = false,
+                        data = hashMapOf("error" to "getMainActivity: Failed to get main activity class.")
+                    )
+
                     result = hashMapOf(
                         "type" to "code",
                         "name" to mainActivityClass.fullName,

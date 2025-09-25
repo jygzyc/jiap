@@ -3,7 +3,6 @@ package jadx.plugins.jiap.service
 import org.slf4j.LoggerFactory
 
 import jadx.gui.ui.MainWindow
-import jadx.gui.JadxWrapper
 import jadx.api.JadxDecompiler
 import jadx.api.JavaClass
 import jadx.api.JavaMethod
@@ -26,13 +25,19 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
 
     val decompiler: JadxDecompiler = pluginContext.decompiler
 
-    // Performance optimizations: Pre-built indexes
     private val classNameIndex: Map<String, JavaClass> by lazy {
         buildClassNameIndex()
     }
-
     private val methodIndex: Map<String, Pair<JavaClass, JavaMethod>> by lazy {
         buildMethodIndex()
+    }
+
+    private val interfaceImplementationIndex: Map<String, List<JavaClass>> by lazy {
+        buildInterfaceImplementationIndex()
+    }
+
+    private val subclassIndex: Map<String, List<JavaClass>> by lazy {
+        buildSubclassIndex()
     }
 
     private fun buildClassNameIndex(): Map<String, JavaClass> {
@@ -43,6 +48,34 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
         return decompiler.classesWithInners?.flatMap { clazz ->
             clazz.methods.map { method -> method.toString() to (clazz to method) }
         }?.toMap() ?: emptyMap()
+    }
+
+    private fun buildInterfaceImplementationIndex(): Map<String, List<JavaClass>> {
+        return decompiler.classesWithInners
+            .filter { it.smali != null }
+            .flatMap { clazz ->
+                val smali = clazz.smali
+                val implementsMatches = ".implements L(.*);".toRegex().findAll(smali)
+                implementsMatches.map { match ->
+                    val interfaceName = match.groupValues[1].replace("/", ".")
+                    interfaceName to clazz
+                }
+            }
+            .groupBy({ it.first }, { it.second })
+    }
+
+    private fun buildSubclassIndex(): Map<String, List<JavaClass>> {
+        return decompiler.classesWithInners
+            .filter { it.smali != null }
+            .flatMap { clazz ->
+                val smali = clazz.smali
+                val superMatch = ".super L(.*);".toRegex().find(smali)
+                superMatch?.let { match ->
+                    val superClassName = match.groupValues[1].replace("/", ".")
+                    listOf(superClassName to clazz)
+                } ?: emptyList()
+            }
+            .groupBy({ it.first }, { it.second })
     }
 
     fun handleGetAllClasses(): JiapResult {
@@ -84,7 +117,6 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
 
     fun handleGetMethodSource(methodName: String, isSmali: Boolean): JiapResult {
         try {
-            // Use index for O(1) lookup
             val (clazz, method) = methodIndex[methodName]
                 ?: return JiapResult(
                     success = false,
@@ -103,11 +135,6 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
             logger.error("JIAP Error: get method source", e)
             return JiapResult(success = false, data = hashMapOf("error" to "getMethodSource: ${e.message}"))
         }
-    }
-
-    // Legacy method - kept for compatibility but now uses index
-    private fun findMethodInAllClasses(methodName: String): Pair<JavaClass, JavaMethod>? {
-        return methodIndex[methodName]
     }
 
     fun handleSearchClassByName(className: String): JiapResult {
@@ -132,7 +159,6 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
 
     fun handleListMethodsOfClass(className: String): JiapResult {
         try {
-            // Use index for O(1) lookup
             val clazz = classNameIndex[className]
             val methodsList = clazz?.methods?.map { it.toString() } ?: emptyList()
 
@@ -150,7 +176,6 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
 
     fun handleGetMethodXref(methodName: String): JiapResult {
         try {
-            // Use index for O(1) lookup
             val (clazz, method) = methodIndex[methodName]
                 ?: return JiapResult(success = false, data = hashMapOf("error" to "getMethodXref: $methodName not found"))
             val xrefNodes = mutableListOf<JavaNode>()
@@ -177,7 +202,6 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
 
     fun handleGetClassXref(className: String): JiapResult {
         try {
-            // Use index for O(1) lookup
             val clazz = classNameIndex[className]
                 ?: return JiapResult(success = false, data = hashMapOf("error" to "getClassXref: $className not found"))
             val xrefNodes = mutableListOf<JavaNode>()
@@ -218,7 +242,7 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
             val code = codeInfo.codeStr
             usePositions.forEach positionLoop@{ pos ->
                 val line = CodeUtils.getLineForPos(code, pos)
-                if (line.startsWith("import ")) {
+                if (line.trim().startsWith("import ")) {
                     return@positionLoop
                 }
                 val correspondingNode = nodesInClass.firstOrNull() ?: nodesInClass.first()
@@ -235,45 +259,33 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
     }
 
     fun handleGetImplementOfInterface(interfaceName: String): JiapResult {
-        try {
-            // Use index for O(1) lookup
-            val interfaceClazz = classNameIndex[interfaceName]
-                ?: return JiapResult(success = false, data = hashMapOf("error" to "getImplementOfInterface: $interfaceName not found"))
-
-            if (!interfaceClazz.accessInfo.isInterface) {
-                return JiapResult(success = false, data = hashMapOf("error" to "getImplementOfInterface: $interfaceName is not a interface"))
-            }
-
-            val implementingClasses = decompiler.classesWithInners.filter{
-                it.smali.contains(".implements ${interfaceClazz.fullName.replace(".", "/")}")
-            }
+        return try {
+            val implementingClasses = interfaceImplementationIndex[interfaceName] ?: emptyList()
             val result = hashMapOf(
                 "type" to "list",
                 "classes-list" to implementingClasses.map { it.fullName }
             )
-            return JiapResult(success = true, data = result)            
+            JiapResult(success = true, data = result)
         } catch (e: Exception) {
             logger.error("JIAP Error: get implement of interface", e)
-            return JiapResult(success = false, data = hashMapOf("error" to "getImplementOfInterface: ${e.message}"))
+            JiapResult(success = false, data = hashMapOf("error" to "getImplementOfInterface: ${e.message}"))
         }
     }
 
     fun handleGetSubclasses(className: String): JiapResult {
-        try {
-            // Use index for O(1) lookup
+        return try {
             val clazz = classNameIndex[className]
                 ?: return JiapResult(success = false, data = hashMapOf("error" to "getSubclasses: $className not found"))
-            val subClasses = decompiler.classesWithInners.filter {
-                it.smali.contains(".super ${clazz.fullName.replace(".", "/")}")
-            }
+
+            val subClasses = subclassIndex[className] ?: emptyList()
             val result = hashMapOf(
                 "type" to "list",
                 "classes-list" to subClasses.map { it.fullName }
             )
-            return JiapResult(success = true, data = result)            
+            JiapResult(success = true, data = result)
         } catch (e: Exception) {
-            logger.error("JIAP Error: get implement of interface", e)
-            return JiapResult(success = false, data = hashMapOf("error" to "getImplementOfInterface: ${e.message}"))
+            logger.error("JIAP Error: get subclasses", e)
+            JiapResult(success = false, data = hashMapOf("error" to "getSubclasses: ${e.message}"))
         }
     }
 
