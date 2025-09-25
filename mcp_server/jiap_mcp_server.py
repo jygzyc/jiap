@@ -142,20 +142,12 @@ async def get_method_source(ctx: Context,method_name: str, smali: bool = False, 
     return await request_to_jiap("get_method_source", json_data={"method": method_name, "smali": smali}, slice_number=page)
 
 @mcp.tool(
-    name="list_methods",
-    description="Lists all methods within a specific class (eg: com.example.Myclass$Innerclass). Supports pagination via the page parameter (default: 1)."
+    name="get_class_info",
+    description="Get a specific class information, such as fields and methods, by its full name in the decompiled project, eg: com.example.myclass. Supports pagination via the page parameter (default: 1)."
 )
-async def list_methods(ctx: Context,class_name: str, page: int = 1) -> ToolResult:
-    await ctx.info(f"Listing methods for class {class_name} from JIAP Plugin...")
-    return await request_to_jiap("list_methods", json_data={"class": class_name}, slice_number=page)
-
-@mcp.tool(
-    name="search_class",
-    description="Searches for a specific class by its full name in the decompiled project, eg: com.example.myclass. Supports pagination via the page parameter (default: 1)."
-)
-async def search_class(ctx: Context,class_name: str, page: int = 1) -> ToolResult:
-    await ctx.info(f"Searching for class {class_name} in JIAP Plugin...")
-    return await request_to_jiap("search_class", json_data={"class": class_name}, slice_number=page)
+async def get_class_info(ctx: Context, class_name: str, page: int = 1) -> ToolResult:
+    await ctx.info(f"Getting for class {class_name} in JIAP Plugin...")
+    return await request_to_jiap("get_class_info", json_data={"class": class_name}, slice_number=page)
 
 @mcp.tool(
     name="get_method_xref",

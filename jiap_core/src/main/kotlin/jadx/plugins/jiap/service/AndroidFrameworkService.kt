@@ -15,28 +15,17 @@ class AndroidFrameworkService(override val pluginContext: JadxPluginContext) : J
     }
 
     val decompiler: JadxDecompiler = pluginContext.decompiler
-    
-    private val serviceStubIndex: Map<String, JavaClass> by lazy {
-        buildServiceStubIndex()
-    }
-
-    private fun buildServiceStubIndex(): Map<String, JavaClass> {
-        return decompiler.classesWithInners
-            .filter { it.smali != null }
-            .mapNotNull { clazz ->
-                val smali = clazz.smali
-                val stubMatch = ".super L(.*)\$Stub;".toRegex().find(smali)
-                val interfaceName = stubMatch?.groupValues?.get(1)?.replace("/", ".")
-                if (interfaceName != null) interfaceName to clazz else null
-            }
-            .toMap()
-    }
 
     fun handleGetSystemServiceImpl(interfaceName: String): JiapResult {
         try {
-            val serviceClazz = serviceStubIndex[interfaceName]
-                ?: return JiapResult(success = false, data = hashMapOf("error" to "getSystemService: $interfaceName not found"))
-            serviceClazz.decompile()
+            val interfaceClazz = decompiler.searchJavaClassOrItsParentByOrigFullName(interfaceName)
+                ?: return JiapResult(success = false, data = hashMapOf("error" to "getSystemServiceImpl: $interfaceName not found"))
+            val stubClazz = interfaceClazz.innerClasses
+                .firstOrNull { it.fullName.endsWith("Stub") }
+                ?: return JiapResult(success = false, data = hashMapOf("error" to "getSystemServiceImpl: Stub class for $interfaceName not found"))
+            val serviceClazz = stubClazz.useIn.firstOrNull {
+                it.smali.contains(".super L${stubClazz.fullName.replace('.', '/')};")
+            }
             val result = hashMapOf<String, Any>(
                 "type" to "code",
                 "name" to serviceClazz.fullName,

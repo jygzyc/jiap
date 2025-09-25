@@ -211,27 +211,15 @@ class JiapServer(
             handleServiceResult(result, ctx)
         }
 
-        app.post("/api/jiap/list_methods")  { ctx ->
-            logger.info("JIAP Plugin: List Methods of Class")
+        app.post("/api/jiap/get_class_info") { ctx ->
+            logger.info("JIAP Plugin: Get Class Info")
             val payload = ctx.bodyAsClass<Map<String, Any>>()
             val className = extractStringParam(payload, "class")
                 ?: run {
                     ctx.status(400).json(mapOf("error" to ErrorMessages.MISSING_CLASS_PARAM))
                     return@post
                 }
-            val result = commonService.handleListMethodsOfClass(className)
-            handleServiceResult(result, ctx)
-        }
-
-        app.post("/api/jiap/search_class") { ctx ->
-            logger.info("JIAP Plugin: Search Class by Name")
-            val payload = ctx.bodyAsClass<Map<String, Any>>()
-            val className = extractStringParam(payload, "class")
-                ?: run {
-                    ctx.status(400).json(mapOf("error" to ErrorMessages.MISSING_CLASS_PARAM))
-                    return@post
-                }
-            val result = commonService.handleSearchClassByName(className)
+            val result = commonService.handleGetClassInfo(className)
             handleServiceResult(result, ctx)
         }
 
