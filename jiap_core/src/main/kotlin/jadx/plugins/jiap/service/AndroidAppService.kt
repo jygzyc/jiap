@@ -21,8 +21,6 @@ class AndroidAppService(override val pluginContext: JadxPluginContext) : JiapSer
         private val logger = LoggerFactory.getLogger(AndroidAppService::class.java)
     }
 
-    private val decompiler = pluginContext.decompiler
-    
     fun handleGetAppManifest(): JiapResult {
         try{
             var manifest: ResourceFile?

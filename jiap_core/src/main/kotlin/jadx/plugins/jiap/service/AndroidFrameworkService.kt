@@ -13,19 +13,15 @@ class AndroidFrameworkService(override val pluginContext: JadxPluginContext) : J
     companion object {
         private val logger = LoggerFactory.getLogger(AndroidFrameworkService::class.java)
     }
-
-    val decompiler: JadxDecompiler = pluginContext.decompiler
-
+    
     fun handleGetSystemServiceImpl(interfaceName: String): JiapResult {
         try {
             val interfaceClazz = decompiler.searchJavaClassOrItsParentByOrigFullName(interfaceName)
                 ?: return JiapResult(success = false, data = hashMapOf("error" to "getSystemServiceImpl: $interfaceName not found"))
-            val stubClazz = interfaceClazz.innerClasses
-                .firstOrNull { it.fullName.endsWith("Stub") }
-                ?: return JiapResult(success = false, data = hashMapOf("error" to "getSystemServiceImpl: Stub class for $interfaceName not found"))
-            val serviceClazz = stubClazz.useIn.firstOrNull {
-                it.smali.contains(".super L${stubClazz.fullName.replace('.', '/')};")
-            }
+            val serviceClazz = decompiler.classes.firstOrNull {
+                it.smali.contains(".super L${interfaceClazz.fullName.replace('.', '/')}\$Stub;") 
+            } ?: return JiapResult(success = false, data = hashMapOf("error" to "getSystemServiceImpl: Service implementation not found"))
+
             val result = hashMapOf<String, Any>(
                 "type" to "code",
                 "name" to serviceClazz.fullName,

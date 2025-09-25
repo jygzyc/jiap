@@ -22,15 +22,14 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
     companion object {
         private val logger = LoggerFactory.getLogger(CommonService::class.java)
     }
-
-    val decompiler: JadxDecompiler = pluginContext.decompiler
-
+    
     private fun findMethod(mthSig: String): Pair<JavaClass, JavaMethod>? {
-        return decompiler.classesWithInners?.forEach { clazz ->
+        decompiler.classesWithInners?.forEach { clazz ->
             clazz.methods.find { it.toString() == mthSig }?.let { method ->
-                clazz to method
+                return clazz to method
             }
         }
+        return null
     }
 
     fun handleGetAllClasses(): JiapResult {
@@ -50,7 +49,6 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
 
     fun handleGetClassSource(className: String, isSmali: Boolean): JiapResult {
         try {
-
             val clazz = decompiler.classesWithInners?.find {
                 it.fullName == className
             } ?: return JiapResult(
@@ -118,7 +116,7 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
         try {
             val mthPair = findMethod(methodName)
             ?: return JiapResult(success = false, data = hashMapOf("error" to "getMethodXref: $methodName not found"))
-            val method = mthPair?.second
+            val method = mthPair.second
             val xrefNodes = mutableListOf<JavaNode>()
             method.declaringClass.decompile()
             method.overrideRelatedMethods.forEach { relatedMethod ->
@@ -203,8 +201,8 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
         return try {
             val interfaceClazz = decompiler.searchJavaClassOrItsParentByOrigFullName(interfaceName)
             ?: return JiapResult(success = false, data = hashMapOf("error" to "getImplementOfInterface: $interfaceName not found"))
-            val implementingClasses = interfaceClazz.useIn.map { clz ->
-                clz.smali.contains(".super L${interfaceClazz.fullName.replace('.', '/')};")
+            val implementingClasses = decompiler.classesWithInners.filter {
+                it.smali.contains(".super L${interfaceClazz.fullName.replace('.', '/')};") ?: false
             }
             val result = hashMapOf(
                 "type" to "list",
