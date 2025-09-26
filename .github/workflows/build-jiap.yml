@@ -60,12 +60,6 @@ jobs:
       env:
         JIAP_VERSION: ${{ needs.version.outputs.version }}
 
-    - name: Upload build artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        path: jiap_core/build/dist
-
-    
     - name: Upload release artifacts
       if: needs.version.outputs.is-tag == 'true'
       uses: actions/upload-artifact@v4
