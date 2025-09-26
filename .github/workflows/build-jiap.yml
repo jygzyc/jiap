@@ -1,0 +1,100 @@
+name: Build JIAP
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'jiap_core/**'
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'jiap_core/**'
+  workflow_dispatch:
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      is-tag: ${{ steps.version.outputs.is-tag }}
+    steps:
+    - uses: actions/checkout@v5
+      with:
+        fetch-depth: 0
+
+    - name: Extract version from git tag
+      id: version
+      run: |
+        if [[ "${{ github.ref_type }}" == "tag" && "${{ github.ref }}" =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "is-tag=true" >> $GITHUB_OUTPUT
+          echo "Found version from tag: $VERSION"
+        else
+          VERSION="0.1.0"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "is-tag=false" >> $GITHUB_OUTPUT
+          echo "Using default version: $VERSION"
+        fi
+
+  build-jiap-core:
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v5
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v5
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v4
+
+    - name: Build with Gradle
+      run: ./gradlew dist
+      working-directory: jiap_core
+      env:
+        JIAP_VERSION: ${{ needs.version.outputs.version }}
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        path: jiap_core/build/dist
+
+    
+    - name: Upload release artifacts
+      if: needs.version.outputs.is-tag == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        path: jiap_core/build/dist/*.jar
+
+  release:
+    needs: [version, build-jiap-core]
+    runs-on: ubuntu-latest
+    if: needs.version.outputs.is-tag == 'true'
+    permissions:
+      contents: write
+    steps:
+    - name: Download release artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: artifact
+        path: .
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ github.ref_name }}
+        name: v${{ needs.version.outputs.version }}
+        files: |
+          jiap_core/build/dist/*.jar
+          LICENSE
+        draft: false
+        prerelease: false
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

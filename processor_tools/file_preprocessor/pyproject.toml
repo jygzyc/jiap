@@ -1,7 +1,0 @@
-[project]
-name = "file_preprocessor"
-version = "0.1.0"
-description = "Combine files into a jar file"
-readme = "README.md"
-requires-python = ">=3.13"
-dependencies = []
