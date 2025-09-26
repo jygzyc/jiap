@@ -72,6 +72,27 @@ jobs:
     permissions:
       contents: write
     steps:
+    - uses: actions/checkout@v5
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v5
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v4
+
+    - name: Build with Gradle
+      run: ./gradlew dist
+      working-directory: jiap_core
+      env:
+        JIAP_VERSION: ${{ needs.version.outputs.version }}
+
+    - name: Prepare release files
+      run: |
+        cp jiap_core/build/dist/*.jar ./
+
     - name: Create Release
       uses: softprops/action-gh-release@v2
       with:
