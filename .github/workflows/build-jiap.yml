@@ -64,7 +64,6 @@ jobs:
       if: needs.version.outputs.is-tag == 'true'
       run: |
         cp jiap_core/build/dist/*.jar ./
-        cp LICENSE ./
 
   release:
     needs: [version, build-jiap-core]
