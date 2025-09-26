@@ -60,14 +60,11 @@ jobs:
       env:
         JIAP_VERSION: ${{ needs.version.outputs.version }}
 
-    - name: Upload release artifacts
+    - name: Prepare release files
       if: needs.version.outputs.is-tag == 'true'
-      uses: actions/upload-artifact@v4
-      with:
-        name: release-files
-        path: |
-          jiap_core/build/dist/*.jar
-          LICENSE
+      run: |
+        cp jiap_core/build/dist/*.jar ./
+        cp LICENSE ./
 
   release:
     needs: [version, build-jiap-core]
@@ -76,12 +73,6 @@ jobs:
     permissions:
       contents: write
     steps:
-    - name: Download release artifacts
-      uses: actions/download-artifact@v5
-      with:
-        name: release-files
-        path: .
-
     - name: Create Release
       uses: softprops/action-gh-release@v2
       with:
