@@ -3,7 +3,7 @@
 <div align="center">
 
 ![JIAP Logo](https://img.shields.io/badge/JIAP-Java%20Intelligence%20Analysis%20Platform-blue?style=for-the-badge&logo=java&logoColor=white)
-![Version](https://img.shields.io/badge/version-1.0.0-green?style=for-the-badge)
+![Version](https://img.shields.io/badge/version-0.0.1-green?style=for-the-badge)
 ![License](https://img.shields.io/badge/license-MIT-orange?style=for-the-badge)
 
 **基于JADX的Java智能分析平台 - 为AI辅助代码分析而设计**
@@ -20,13 +20,12 @@ JIAP (Java Intelligence Analysis Platform) 是一个基于JADX反编译器的智
 
 ### ✨ 核心特性
 
-- 🔍 **智能代码分析**: 基于JADX的深度代码解析和反编译
-- 🌐 **HTTP RESTful API**: 提供完整的REST API接口
-- 🤖 **MCP协议支持**: 原生支持Model Context Protocol，与AI助手无缝集成
-- 📱 **Android专项**: 支持Android应用分析和框架层安全审计
-- 🎯 **跨引用分析**: 强大的代码引用关系追踪能力
-- 🔄 **实时同步**: 与JADX GUI实时同步，支持选中文本分析
-- ⚡ **高性能**: 智能缓存机制，支持大数据量分页处理
+- 🔍 **基于JADX的代码分析**: 深度Java代码解析和反编译
+- 🌐 **REST API**: 提供HTTP接口和MCP协议支持
+- 📱 **Android专项**: 应用分析和框架层安全审计
+- 🎯 **交叉引用**: 代码引用关系追踪
+- 🔄 **GUI集成**: 与JADX界面实时同步
+- ⚡ **分页处理**: 支持大规模代码库分析
 
 ### 🎯 应用场景
 
@@ -222,25 +221,31 @@ python jiap_mcp_server.py
 
 #### 基础代码分析
 ```http
-POST /api/jiap/get_all_classes
-POST /api/jiap/get_class_source
-POST /api/jiap/get_method_source
-POST /api/jiap/get_class_info
+POST /api/jiap/get_all_classes          # 获取所有类列表
+POST /api/jiap/get_class_source         # 获取类源码
+POST /api/jiap/search_method            # 搜索方法
+POST /api/jiap/get_method_source        # 获取方法源码
+POST /api/jiap/get_class_info           # 获取类信息
 ```
 
 #### 高级分析功能
 ```http
-POST /api/jiap/get_method_xref
-POST /api/jiap/get_class_xref
-POST /api/jiap/get_implement
-POST /api/jiap/get_sub_classes
+POST /api/jiap/get_method_xref          # 方法交叉引用
+POST /api/jiap/get_class_xref           # 类交叉引用
+POST /api/jiap/get_implement            # 接口实现类
+POST /api/jiap/get_sub_classes          # 子类查找
 ```
 
 #### Android专项
 ```http
-POST /api/jiap/get_app_manifest
-POST /api/jiap/get_main_activity
-POST /api/jiap/get_system_service_impl
+POST /api/jiap/get_app_manifest         # 应用清单
+POST /api/jiap/get_main_activity        # 主Activity
+POST /api/jiap/get_system_service_impl  # 系统服务实现
+```
+
+#### UI集成功能
+```http
+POST /api/jiap/selected_text            # 获取选中文本
 ```
 
 ### MCP工具集
@@ -250,25 +255,28 @@ POST /api/jiap/get_system_service_impl
 # 获取所有类
 get_all_classes(page: int = 1)
 
-# 获取类源码
+# 获取类源码（支持内部类）
 get_class_source(class_name: str, smali: bool = False, page: int = 1)
 
-# 获取方法源码
+# 搜索方法（支持模糊匹配）
+search_method(method_name: str, page: int = 1)
+
+# 获取方法源码（需完整方法签名）
 get_method_source(method_name: str, smali: bool = False, page: int = 1)
 
-# 获取类信息
+# 获取类信息（字段和方法列表）
 get_class_info(class_name: str, page: int = 1)
 ```
 
 #### 高级分析工具
 ```python
-# 方法交叉引用
+# 方法交叉引用（使用位置追踪）
 get_method_xref(method_name: str, page: int = 1)
 
-# 类交叉引用
+# 类交叉引用（使用位置追踪）
 get_class_xref(class_name: str, page: int = 1)
 
-# 接口实现类
+# 接口实现类查找
 get_implement(interface_name: str, page: int = 1)
 
 # 子类查找
@@ -285,6 +293,12 @@ get_main_activity(page: int = 1)
 
 # 获取系统服务实现
 get_system_service_impl(interface_name: str, page: int = 1)
+```
+
+#### UI集成工具
+```python
+# 获取JADX GUI选中文本
+selected_text(page: int = 1)
 ```
 
 ### 请求/响应格式
@@ -331,27 +345,8 @@ jiap/
 │   │       └── utils/            # 工具类
 │   └── build.gradle.kts         # 构建配置
 ├── mcp_server/                   # MCP服务器模块
-│   ├── jiap_mcp_server.py        # MCP服务器实现
-│   └── requirements.txt          # Python依赖
+│   └── jiap_mcp_server.py        # MCP服务器实现
 └── README_zh.md                 # 项目文档
-```
-
-### 开发环境搭建
-
-#### 1. IDE配置
-- **IntelliJ IDEA**: 推荐使用
-- **Kotlin Plugin**: 确保Kotlin插件已安装
-- **Gradle**: 配置Gradle构建环境
-
-#### 2. 调试配置
-```kotlin
-// JVM调试参数
--Djiap.debug=true
--Djiap.log.level=DEBUG
-
-// 端口配置
--Djiap.server.port=25419
--Djiap.mcp.port=25420
 ```
 
 ### 扩展开发
@@ -440,44 +435,6 @@ for class_name in target_classes:
     # 分析类信息
 ```
 
----
-
-## 🤝 贡献指南
-
-我们欢迎所有形式的贡献！请遵循以下步骤：
-
-### 1. Fork项目
-```bash
-git clone https://github.com/your-username/jiap.git
-cd jiap
-```
-
-### 2. 创建分支
-```bash
-git checkout -b feature/your-feature-name
-```
-
-### 3. 提交更改
-```bash
-git commit -m "Add your feature description"
-```
-
-### 4. 推送分支
-```bash
-git push origin feature/your-feature-name
-```
-
-### 5. 创建Pull Request
-在GitHub上创建PR，我们将尽快审核。
-
-### 开发规范
-
-- **代码风格**: 遵循Kotlin官方代码规范
-- **注释规范**: 使用KDoc进行代码注释
-- **测试覆盖**: 新功能需要包含相应的单元测试
-- **文档更新**: 更新相关文档和示例
-
----
 
 ## 📄 许可证
 
@@ -490,6 +447,7 @@ git push origin feature/your-feature-name
 - **[JADX](https://github.com/skylot/jadx)**: 强大的Android反编译器
 - **[FastMCP](https://github.com/modelcontextprotocol/servers)**: MCP协议实现
 - **[Javalin](https://javalin.io/)**: 轻量级Web框架
+- **[jadx-ai-mcp](https://github.com/zinja-coder/jadx-ai-mcp/)**：Jadx AI 插件
 
 ---
 

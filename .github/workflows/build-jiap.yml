@@ -64,7 +64,10 @@ jobs:
       if: needs.version.outputs.is-tag == 'true'
       uses: actions/upload-artifact@v4
       with:
-        path: jiap_core/build/dist/*.jar
+        name: release-files
+        path: |
+          jiap_core/build/dist/*.jar
+          LICENSE
 
   release:
     needs: [version, build-jiap-core]
@@ -76,7 +79,7 @@ jobs:
     - name: Download release artifacts
       uses: actions/download-artifact@v5
       with:
-        name: artifact
+        name: release-files
         path: .
 
     - name: Create Release
@@ -85,7 +88,7 @@ jobs:
         tag_name: ${{ github.ref_name }}
         name: v${{ needs.version.outputs.version }}
         files: |
-          jiap_core/build/dist/*.jar
+          *.jar
           LICENSE
         draft: false
         prerelease: false

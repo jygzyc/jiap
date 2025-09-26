@@ -53,6 +53,7 @@ Use `health_check()` to verify the connection between MCP server and JIAP plugin
 
 - `get_all_classes(page=1)` - Retrieve all available classes with pagination
 - `get_class_source(class_name, smali=False, page=1)` - Get class source code in Java or Smali format
+- `search_method(method_name, page=1)` - Search for methods matching the given method name
 - `get_method_source(method_name, smali=False, page=1)` - Get method source code
 - `get_class_info(class_name, page=1)` - Get class information including fields and methods
 - `get_method_xref(method_name, page=1)` - Find method usage locations
