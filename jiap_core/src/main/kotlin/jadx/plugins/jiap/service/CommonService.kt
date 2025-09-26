@@ -69,6 +69,26 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
         }
     }
 
+    fun handleSearchMethod(methodName: String): JiapResult {
+        try {
+            val lowerMethodName = methodName.lowercase()
+            val methods = decompiler.classesWithInners?.flatMap { clazz ->
+                clazz.methods.filter { mth ->
+                    mth.fullName.lowercase().contains(lowerMethodName)
+                }
+            } ?: emptyList()
+            val result = hashMapOf(
+                "type" to "list",
+                "count" to methods.size,
+                "methods-list" to methods.map { it.toString() }
+            )
+            return JiapResult(success = true, data = result)
+        } catch (e: Exception) {
+            logger.error("JIAP Error: search method", e)
+            return JiapResult(success = false, data = hashMapOf("error" to "searchMethod: ${e.message}"))
+        }
+    }
+
     fun handleGetMethodSource(methodName: String, isSmali: Boolean): JiapResult {
         try {
             val mthPair = findMethod(methodName) ?: return JiapResult(

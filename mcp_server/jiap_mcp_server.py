@@ -134,6 +134,14 @@ async def get_class_source(ctx: Context, class_name: str, smali: bool = False, p
     return await request_to_jiap("get_class_source", json_data={"class": class_name, "smali": smali}, slice_number=page)
 
 @mcp.tool(
+    name="search_method",
+    description="Searches for methods matching the given method_name string, eg: doSomething matches com.example.Myservice.doSomething(java.lang.String, int):int. Supports pagination via the page parameter (default: 1)."
+)
+async def search_method(ctx: Context, method_name: str, page: int = 1) -> ToolResult:
+    await ctx.info(f"Searching for methods matching '{method_name}' in JIAP Plugin...")
+    return await request_to_jiap("search_method", json_data={"method": method_name}, slice_number=page)
+
+@mcp.tool(
     name="get_method_source",
     description="Retrieves the source code of a specific method in Java or Smali format. Provide method_name as 'className.methodName(paramType):returnType', eg: com.example.Myclass$Innerclass.myMethod(java.lang.String, int):java.lang.String. Supports pagination via the page parameter (default: 1)."
 )

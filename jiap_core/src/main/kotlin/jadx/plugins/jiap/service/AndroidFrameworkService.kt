@@ -23,9 +23,10 @@ class AndroidFrameworkService(override val pluginContext: JadxPluginContext) : J
             } ?: return JiapResult(success = false, data = hashMapOf("error" to "getSystemServiceImpl: Service implementation not found"))
 
             val result = hashMapOf<String, Any>(
-                "type" to "code",
+                "type" to "list",
                 "name" to serviceClazz.fullName,
-                "code" to serviceClazz.code
+                "methods-list" to serviceClazz.methods.map { it.toString() },
+                "fields-list" to serviceClazz.fields.map { it.toString() }
             )
             return JiapResult(success = true, data = result)
         } catch (e: Exception) {

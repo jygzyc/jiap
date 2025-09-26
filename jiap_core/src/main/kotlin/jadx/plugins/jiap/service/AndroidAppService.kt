@@ -1,6 +1,5 @@
 package jadx.plugins.jiap.service
 
-import jadx.plugins.jiap.model.JiapResult
 import org.slf4j.LoggerFactory
 
 import jadx.api.plugins.JadxPluginContext
@@ -12,6 +11,7 @@ import jadx.api.ResourceType
 import jadx.gui.JadxWrapper
 import jadx.gui.ui.MainWindow
 import jadx.plugins.jiap.model.JiapServiceInterface
+import jadx.plugins.jiap.model.JiapResult
 
 import java.util.*
 
@@ -60,8 +60,7 @@ class AndroidAppService(override val pluginContext: JadxPluginContext) : JiapSer
                 val mainWindow = pluginContext.guiContext?.mainFrame
                 if(mainWindow is MainWindow){
                     val jadxWrapper = mainWindow.wrapper
-                    val resources = jadxWrapper.resources
-                    val manifest = AndroidManifestParser.getAndroidManifest(resources)
+                    val manifest = AndroidManifestParser.getAndroidManifest(jadxWrapper.resources)
                     if (manifest == null) {
                         logger.error("JIAP Error: AndroidManifest not found.")
                         return JiapResult(success = false, data = hashMapOf("error" to "getMainActivity: AndroidManifest not found."))
@@ -85,7 +84,7 @@ class AndroidAppService(override val pluginContext: JadxPluginContext) : JiapSer
                         "code" to mainActivityClass.code
                     )
                 } else {
-                    logger.debug("JIAP: Main frame is not MainWindow instance")
+                    logger.warn("JIAP: Main frame is not MainWindow instance")
                 }
                 return JiapResult(success = true, data = result)
             } else {

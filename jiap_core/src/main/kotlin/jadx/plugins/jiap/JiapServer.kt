@@ -46,7 +46,6 @@ class JiapServer(
             started = true
             logger.info("JIAP: Server started on port $port")
 
-            // Add shutdown hook to clean up port when JVM exits
             Runtime.getRuntime().addShutdownHook(Thread {
                 try {
                     logger.info("JIAP: Shutdown hook triggered, stopping server...")
@@ -194,12 +193,24 @@ class JiapServer(
             handleServiceResult(result, ctx)
         }
 
+        app.post("/api/jiap/search_method") { ctx ->
+            logger.info("JIAP Plugin: Search Method")
+            val payload = ctx.bodyAsClass<Map<String, Any>>()
+            val methodName = extractStringParam(payload, "method")
+                ?: run {
+                    ctx.status(400).json(mapOf("error" to ErrorMessages.MISSING_METHOD_PARAM))
+                    return@post
+                }
+            val result = commonService.handleSearchMethod(methodName)
+            handleServiceResult(result, ctx)
+        }
+
         app.post("/api/jiap/get_method_source") { ctx ->
             logger.info("JIAP Plugin: Get Method Source")
             val payload = ctx.bodyAsClass<Map<String, Any>>()
             val methodName = extractStringParam(payload, "method")
                 ?: run {
-                    ctx.status(400).json(mapOf("error" to ErrorMessages.MISSING_CLASS_PARAM))
+                    ctx.status(400).json(mapOf("error" to ErrorMessages.MISSING_METHOD_PARAM))
                     return@post
                 }
             val isSmali = extractBooleanParam(payload, "smali")

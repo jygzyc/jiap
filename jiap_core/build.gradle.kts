@@ -12,7 +12,7 @@ kotlin {
     jvmToolchain(17)
 }
 
-val jadxVersion = "1.5.2"
+val jadxVersion = "1.5.3"
 val isJadxSnapshot = jadxVersion.endsWith("-SNAPSHOT")
 
 dependencies {
@@ -46,7 +46,7 @@ repositories {
     maven(url = "https://jitpack.io")
 }
 
-version = System.getenv("VERSION") ?: "dev"
+version = System.getenv("JIAP_VERSION") ?: "dev"
 
 tasks {
     withType(Test::class) {
