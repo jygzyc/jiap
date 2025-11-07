@@ -14,6 +14,7 @@ Repository: https://github.com/jygzyc/jiap
 import json
 import requests
 import logging
+from pydantic import Field
 from typing import Optional, Dict, Any
 from fastmcp import FastMCP, Context
 from fastmcp.tools.tool import ToolResult
@@ -121,71 +122,116 @@ async def request_to_jiap(
     name="get_all_classes",
     description="Retrieves all available classes in the decompiled project. Supports pagination via the page parameter (default: 1)."
 )
-async def get_all_classes(ctx: Context, page: int = 1) -> ToolResult:
+async def get_all_classes(
+    ctx: Context, 
+    page: int = Field(1, description="Page number for pagination, default is 1")
+) -> ToolResult:
     await ctx.info("Fetching all classes from JIAP Plugin...")
     return await request_to_jiap("get_all_classes", slice_number=page)
 
+
 @mcp.tool(
     name="get_class_source",
-    description="Retrieves the source code of a specific class (eg: com.example.Myclass$Innerclass) in Smali or Java format. Supports pagination via the page parameter (default: 1)."
+    description="Retrieves the source code of a specific class (e.g., com.example.Myclass$Innerclass) in Smali or Java format. Supports pagination via the page parameter (default: 1)."
 )
-async def get_class_source(ctx: Context, class_name: str, smali: bool = False, page: int = 1) -> ToolResult:
+async def get_class_source(
+    ctx: Context, 
+    class_name: str = Field(description="Full name of the class, e.g., com.example.Myclass$Innerclass"),
+    smali: bool = Field(False, description="Whether to retrieve the source in Smali format (True) or Java format (False), default is False"),
+    page: int = Field(1, description="Page number for pagination, default is 1")
+) -> ToolResult:
     await ctx.info(f"Fetching source for class {class_name} from JIAP Plugin...")
     return await request_to_jiap("get_class_source", json_data={"class": class_name, "smali": smali}, slice_number=page)
 
+
 @mcp.tool(
     name="search_method",
-    description="Searches for methods matching the given method_name string, eg: doSomething matches com.example.Myservice.doSomething(java.lang.String, int):int. Supports pagination via the page parameter (default: 1)."
+    description="Searches for methods matching the given method_name string, e.g., doSomething matches com.example.Myservice.doSomething(java.lang.String, int):int. Supports pagination via the page parameter (default: 1)."
 )
-async def search_method(ctx: Context, method_name: str, page: int = 1) -> ToolResult:
+async def search_method(
+    ctx: Context, 
+    method_name: str = Field(description="Method name or partial name to search for"), 
+    page: int = Field(1, description="Page number for pagination, default is 1")
+) -> ToolResult:
     await ctx.info(f"Searching for methods matching '{method_name}' in JIAP Plugin...")
     return await request_to_jiap("search_method", json_data={"method": method_name}, slice_number=page)
 
+
 @mcp.tool(
     name="get_method_source",
-    description="Retrieves the source code of a specific method in Java or Smali format. Provide method_name as 'className.methodName(paramType):returnType', eg: com.example.Myclass$Innerclass.myMethod(java.lang.String, int):java.lang.String. Supports pagination via the page parameter (default: 1)."
+    description="Retrieves the source code of a specific method in Java or Smali format. Provide method_name as 'className.methodName(paramType):returnType', e.g., com.example.Myclass$Innerclass.myMethod(java.lang.String, int):java.lang.String. Supports pagination via the page parameter (default: 1)."
 )
-async def get_method_source(ctx: Context,method_name: str, smali: bool = False, page: int = 1) -> ToolResult:
+async def get_method_source(
+    ctx: Context,
+    method_name: str = Field(description="Full method signature, e.g., com.example.Myclass$Innerclass.myMethod(java.lang.String, int):java.lang.String"),
+    smali: bool = Field(False, description="Whether to retrieve the source in Smali format (True) or Java format (False), default is False"),
+    page: int = Field(1, description="Page number for pagination, default is 1")
+) -> ToolResult:
     await ctx.info(f"Fetching source for method {method_name} from JIAP Plugin...")
     return await request_to_jiap("get_method_source", json_data={"method": method_name, "smali": smali}, slice_number=page)
 
+
 @mcp.tool(
     name="get_class_info",
-    description="Get a specific class information, such as fields and methods, by its full name in the decompiled project, eg: com.example.myclass. Supports pagination via the page parameter (default: 1)."
+    description="Get a specific class information, such as fields and methods, by its full name in the decompiled project, e.g., com.example.myclass. Supports pagination via the page parameter (default: 1)."
 )
-async def get_class_info(ctx: Context, class_name: str, page: int = 1) -> ToolResult:
+async def get_class_info(
+    ctx: Context, 
+    class_name: str = Field(description="Full name of the class, e.g., com.example.Myclass$Innerclass"),
+    page: int = Field(1, description="Page number for pagination, default is 1")
+) -> ToolResult:
     await ctx.info(f"Getting for class {class_name} in JIAP Plugin...")
     return await request_to_jiap("get_class_info", json_data={"class": class_name}, slice_number=page)
 
+
 @mcp.tool(
     name="get_method_xref",
-    description="Retrieves cross-references (usage locations) for a specific method. Provide method_name as 'className.methodName(paramType):returnType', eg: com.example.Myclass$Innerclass.myMethod(java.lang.String, int):java.lang.String. Supports pagination via the page parameter (default: 1)."
+    description="Retrieves cross-references (usage locations) for a specific method. Provide method_name as 'className.methodName(paramType):returnType', e.g., com.example.Myclass$Innerclass.myMethod(java.lang.String, int):java.lang.String. Supports pagination via the page parameter (default: 1)."
 )
-async def get_method_xref(ctx: Context,method_name: str, page: int = 1) -> ToolResult:
+async def get_method_xref(
+    ctx: Context,
+    method_name: str = Field(description="Full method signature, e.g., com.example.Myclass$Innerclass.myMethod(java.lang.String, int):java.lang.String"),
+    page: int = Field(1, description="Page number for pagination, default is 1")
+) -> ToolResult:
     await ctx.info(f"Fetching method xref for {method_name} from JIAP Plugin...")
     return await request_to_jiap("get_method_xref", json_data={"method": method_name}, slice_number=page)
 
+
 @mcp.tool(
     name="get_class_xref",
-    description="Retrieves cross-references (usage locations) for a specific class. Provide class_name as 'com.example.Myclass$Innerclass', eg: com.example.Myclass$Innerclass. Supports pagination via the page parameter (default: 1)."
+    description="Retrieves cross-references (usage locations) for a specific class. Provide class_name as 'com.example.Myclass$Innerclass', e.g., com.example.Myclass$Innerclass. Supports pagination via the page parameter (default: 1)."
 )
-async def get_class_xref(ctx: Context,class_name: str, page: int = 1) -> ToolResult:
+async def get_class_xref(
+    ctx: Context,
+    class_name: str = Field(description="Full name of the class, e.g., com.example.Myclass$Innerclass"),
+    page: int = Field(1, description="Page number for pagination, default is 1")
+) -> ToolResult:
     await ctx.info(f"Fetching class xref for {class_name} from JIAP Plugin...")
     return await request_to_jiap("get_class_xref", json_data={"class": class_name}, slice_number=page)
 
+
 @mcp.tool(
     name="get_implement",
-    description="Retrieves implementing classes for a specific interface, eg: com.example.IInterface. Supports pagination via the page parameter (default: 1)."
+    description="Retrieves implementing classes for a specific interface, e.g., com.example.IInterface. Supports pagination via the page parameter (default: 1)."
 )
-async def get_implement(ctx: Context,interface_name: str, page: int = 1) -> ToolResult:
+async def get_implement(
+    ctx: Context,
+    interface_name: str = Field(description="Full name of the interface, e.g., com.example.IInterface"),
+    page: int = Field(1, description="Page number for pagination, default is 1")
+) -> ToolResult:
     await ctx.info(f"Fetching implementations for {interface_name} from JIAP Plugin...")
     return await request_to_jiap("get_implement", json_data={"interface": interface_name}, slice_number=page)
 
+
 @mcp.tool(
     name="get_sub_classes",
-    description="Retrieves subclasses for a specific superclass, eg: com.example.MySuperClass. Supports pagination via the page parameter (default: 1)."
+    description="Retrieves subclasses for a specific superclass, e.g., com.example.MySuperClass. Supports pagination via the page parameter (default: 1)."
 )
-async def get_sub_classes(ctx: Context,class_name: str, page: int = 1) -> ToolResult:
+async def get_sub_classes(
+    ctx: Context,
+    class_name: str = Field(description="Full name of the superclass, e.g., com.example.MySuperClass"),
+    page: int = Field(1, description="Page number for pagination, default is 1")
+) -> ToolResult:
     await ctx.info(f"Fetching subclasses for {class_name} from JIAP Plugin...")
     return await request_to_jiap("get_sub_classes", json_data={"class": class_name}, slice_number=page)
 
@@ -195,7 +241,10 @@ async def get_sub_classes(ctx: Context,class_name: str, page: int = 1) -> ToolRe
     name="selected_text",
     description="Retrieves the currently selected text in the JADX GUI. Supports pagination via the page parameter (default: 1)."
 )
-async def selected_text(ctx: Context, page: int = 1) -> ToolResult:
+async def selected_text(
+    ctx: Context, 
+    page: int = Field(1, description="Page number for pagination, default is 1")
+) -> ToolResult:
     await ctx.info("Fetching selected text from JIAP Plugin...")
     return await request_to_jiap("selected_text", slice_number=page)
 
@@ -205,15 +254,22 @@ async def selected_text(ctx: Context, page: int = 1) -> ToolResult:
     name="get_app_manifest",
     description="Retrieves the Android application manifest (AndroidManifest.xml) content. Supports pagination via the page parameter (default: 1)."
 )
-async def get_app_manifest(ctx: Context, page: int = 1) -> ToolResult:
+async def get_app_manifest(
+    ctx: Context, 
+    page: int = Field(1, description="Page number for pagination, default is 1")
+) -> ToolResult:
     await ctx.info("Fetching AndroidManifest.xml from JIAP Plugin...")
     return await request_to_jiap("get_app_manifest", slice_number=page)
+
 
 @mcp.tool(
     name="get_main_activity",
     description="Retrieves the main activity of the Android application. Supports pagination via the page parameter (default: 1)."
 )
-async def get_main_activity(ctx: Context, page: int = 1) -> ToolResult:
+async def get_main_activity(
+    ctx: Context, 
+    page: int = Field(1, description="Page number for pagination, default is 1")
+) -> ToolResult:
     await ctx.info("Fetching main activity from JIAP Plugin...")
     return await request_to_jiap("get_main_activity", slice_number=page)
 
@@ -221,51 +277,15 @@ async def get_main_activity(ctx: Context, page: int = 1) -> ToolResult:
 # Android Framework specific endpoints
 @mcp.tool(
     name="get_system_service_impl",
-    description="Retrieves system service implementation details of an interface, eg: android.os.IMyService. Supports pagination via the page parameter (default: 1)."
+    description="Retrieves system service implementation details of an interface, e.g., android.os.IMyService. Supports pagination via the page parameter (default: 1)."
 )
-async def get_system_service_impl(ctx: Context,interface_name: str, page: int = 1) -> ToolResult:
+async def get_system_service_impl(
+    ctx: Context,
+    interface_name: str = Field(description="Full name of the system service interface, e.g., android.os.IMyService"),
+    page: int = Field(1, description="Page number for pagination, default is 1")
+) -> ToolResult:
     await ctx.info(f"Fetching system service implementation for {interface_name} from JIAP Plugin...")
     return await request_to_jiap("get_system_service_impl", json_data={"interface": interface_name}, slice_number=page)
-
-
-#######################################################
-# MCP Prompt Definitions
-#######################################################
-
-# Android Framework Security Analysis Prompt
-@mcp.prompt(
-    name="android_framework_security_audit",
-    description="Perform comprehensive security analysis on Android framework layer APIs. Check for permission validation, UID/PID verification, and potential bypass vulnerabilities. Use get_system_service_impl tool to retrieve system service interface implementations."
-)
-async def android_framework_security_audit(ctx: Context, api_method: str) -> str:
-    return f"""
-    You are an Android security engineer specializing in framework layer API security analysis.
-    Your task is to conduct a comprehensive security assessment of the specified Android framework API method.
-
-    Available Tools:
-    - Use get_system_service_impl to retrieve system service interface implementations (e.g., android.os.IMyService)
-    - Use get_method_source to analyze specific method implementations
-    - Use get_class_source to examine class-level security controls
-
-    Analysis Requirements:
-    1. Permission Validation: Check if the API properly validates caller permissions
-    2. UID Verification: Verify if User ID validation is implemented and secure
-    3. PID Verification: Check if Process ID validation is properly implemented
-    4. Security Logic Assessment: Evaluate the reasonableness and effectiveness of security implementation
-    5. Vulnerability Identification: Identify potential security bypass methods
-
-    Output Format:
-    - Security Assessment Summary
-    - Permission Validation Analysis
-    - UID/PID Validation Analysis
-    - Security Implementation Evaluation
-    - Identified Vulnerabilities
-    - Proof of Concept (PoC) for any bypass methods
-    - Security Recommendations
-
-    Target API Method: {api_method}
-
-    Provide detailed analysis including any identified vulnerabilities and proof-of-concept exploit code if applicable."""
 
 # Health check
 @mcp.tool(
