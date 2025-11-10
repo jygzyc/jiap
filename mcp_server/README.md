@@ -12,6 +12,23 @@ python mcp_server.py
 
 The server will start on `http://0.0.0.0:25420` and connect to JIAP plugin on `http://127.0.0.1:25419`.
 
+### Configuration Options
+
+The JIAP server URL can be configured using:
+
+**1. Environment Variable:**
+```bash
+export JIAP_BASE_SERVER="http://192.168.1.100:25419"
+python mcp_server.py
+```
+
+**2. Command Line Arguments:**
+```bash
+python mcp_server.py --server 192.168.1.100
+```
+
+**Priority:** Command line arguments > Environment variables > Default values
+
 ## Requirements
 
 - Python 3.10+
@@ -46,5 +63,7 @@ The server will start on `http://0.0.0.0:25420` and connect to JIAP plugin on `h
 
 - All tools support pagination via `page` parameter
 - Server operates on currently loaded JADX project
+- Intelligent caching system with per-page caching for optimal performance
 - Port 25419 is for JIAP plugin (fixed)
 - Port 25420 is for MCP server (fixed)
+- No logging output for clean operation
