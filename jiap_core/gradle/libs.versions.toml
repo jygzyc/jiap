@@ -8,5 +8,5 @@ use-latest-versions = { id = "se.patrikerdes.use-latest-versions", version = "0.
 ben-manes-versions = { id = "com.github.ben-manes.versions", version = "0.51.0" }
 
 [libraries]
-jadx-core = { group = "io.github.skylot", name = "jadx-core", version = "1.5.2" }
-jadx-gui = { group = "io.github.skylot", name = "jadx-gui", version = "1.5.2" }
+jadx-core = { group = "io.github.skylot", name = "jadx-core", version = "1.5.3" }
+jadx-gui = { group = "io.github.skylot", name = "jadx-gui", version = "1.5.3" }

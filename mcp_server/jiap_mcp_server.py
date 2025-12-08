@@ -15,6 +15,8 @@ import json
 import requests
 import os
 import argparse
+import time
+from collections import OrderedDict
 from pydantic import Field
 from typing import Optional, Dict, Any
 from fastmcp import FastMCP
@@ -27,8 +29,48 @@ DEFAULT_JIAP_BASE_SERVER = f"{DEFAULT_JIAP_BASE_SERVER_IP}:{JIAP_PORT}"
 JIAP_BASE_SERVER = os.getenv("JIAP_BASE_SERVER", DEFAULT_JIAP_BASE_SERVER)
 mcp = FastMCP("JIAP MCP Server")
 
-_global_cache = {}
-MAX_CACHE_SIZE = 5  # Maximum number of cached items
+# LRU cache with TTL implementation
+JIAP_CACHE_MAX_SIZE = int(os.getenv("JIAP_CACHE_MAX_SIZE", "5"))
+JIAP_CACHE_TTL = int(os.getenv("JIAP_CACHE_TTL", "300"))  # seconds
+
+
+class LRUCacheTTL:
+    def __init__(self, max_size: int = 5, ttl: Optional[int] = 300):
+        self.max_size = max_size
+        self.ttl = ttl
+        self._data: "OrderedDict[str, tuple]" = OrderedDict()
+
+    def get(self, key: str):
+        item = self._data.get(key)
+        if not item:
+            return None
+        value, expiry = item
+        if expiry is not None and time.time() > expiry:
+            try:
+                del self._data[key]
+            except KeyError:
+                pass
+            return None
+        # mark as recently used
+        try:
+            self._data.move_to_end(key)
+        except Exception:
+            pass
+        return value
+
+    def set(self, key: str, value: Any):
+        expiry = (time.time() + self.ttl) if self.ttl is not None else None
+        self._data[key] = (value, expiry)
+        try:
+            self._data.move_to_end(key)
+        except Exception:
+            pass
+        # evict oldest if over capacity
+        while len(self._data) > self.max_size:
+            self._data.popitem(last=False)
+
+
+_cache = LRUCacheTTL(JIAP_CACHE_MAX_SIZE, JIAP_CACHE_TTL)
 
 def _get_cache_key(endpoint: str, json_data: Optional[Dict[str, Any]], slice_number: int = 1) -> str:
     data_str = json.dumps(json_data or {}, sort_keys=True)
@@ -87,8 +129,10 @@ async def request_to_jiap(
 
     cache_key = _get_cache_key(endpoint=endpoint, json_data=json_data, slice_number=slice_number)
 
-    if not force_refresh and cache_key in _global_cache:
-        return ToolResult(_global_cache[cache_key])
+    if not force_refresh:
+        cached = _cache.get(cache_key)
+        if cached is not None:
+            return ToolResult(cached)
     try:
         url = f"{JIAP_BASE_SERVER}/api/{api_type}/{endpoint.lstrip('/')}"
         resp = requests.post(url, json=json_data or {}, timeout=120)
@@ -100,10 +144,7 @@ async def request_to_jiap(
 
         response_data = json_response.get('data', json_response)
         sliced_data = _get_slice(response_data, slice_number, list_slice_size, code_max_chars)
-        _global_cache[cache_key] = sliced_data
-        if len(_global_cache) > MAX_CACHE_SIZE:
-            oldest_key = next(iter(_global_cache))
-            del _global_cache[oldest_key]
+        _cache.set(cache_key, sliced_data)
         return ToolResult(sliced_data)
 
     except Exception as e:

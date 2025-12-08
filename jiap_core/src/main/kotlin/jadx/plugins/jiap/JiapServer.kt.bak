@@ -80,7 +80,7 @@ class JiapServer(
     @Synchronized
     fun stop() {
         if (!started) {
-            LogUtils.debug(LogUtils.Msg.SERVER_ALREADY_STOPPED)
+            LogUtils.serverAlreadyStopped()
             return
         }
 
@@ -91,9 +91,9 @@ class JiapServer(
                 app.stop()
                 Thread.sleep(SHUTDOWN_TIMEOUT_MS)
             }
-            LogUtils.info(LogUtils.Msg.SERVER_STOPPED)
+            LogUtils.serverStopped()
         } catch (e: Exception) {
-            LogUtils.error(LogUtils.Msg.SERVER_STOP_FAILED, e)
+            LogUtils.serverStopFailed(e)
         }
     }
 
@@ -103,10 +103,10 @@ class JiapServer(
     private fun setupShutdownHook() {
         Runtime.getRuntime().addShutdownHook(Thread({
             try {
-                LogUtils.info(LogUtils.Msg.SHUTDOWN_HOOK_TRIGGERED)
+                LogUtils.shutdownHookTriggered()
                 stop()
             } catch (e: Exception) {
-                LogUtils.error(LogUtils.Msg.SHUTDOWN_ERROR, e)
+                LogUtils.shutdownError(e)
             }
         }, "JiapServer-ShutdownHook"))
     }
@@ -114,7 +114,7 @@ class JiapServer(
     fun restart() {
         // 如果未运行，直接启动
         if (!started) {
-            LogUtils.info(LogUtils.Msg.SERVER_NOT_RUNNING)
+            LogUtils.serverNotRunning()
             start(PreferencesManager.getPort())
             return
         }
@@ -122,12 +122,12 @@ class JiapServer(
         // 异步重启，避免阻塞
         Thread({
             try {
-                LogUtils.info(LogUtils.Msg.SERVER_RESTARTING)
+                LogUtils.serverRestarting()
                 stop()
                 Thread.sleep(RESTART_DELAY_MS)
                 start(PreferencesManager.getPort())
             } catch (e: Exception) {
-                LogUtils.error(LogUtils.Msg.SERVER_RESTART_FAILED, e)
+                LogUtils.serverRestartFailed(e)
                 started = false
             }
         }, "JiapServer-Restart").apply {
@@ -146,12 +146,12 @@ class JiapServer(
     @Synchronized
     fun delayedInitialization() {
         if (initializationScheduled) {
-            LogUtils.debug(LogUtils.Msg.INITIALIZATION_SCHEDULED)
+            LogUtils.debug("JIAP: Initialization already scheduled")
             return
         }
         initializationScheduled = true
 
-        LogUtils.info(LogUtils.Msg.INITIALIZATION_STARTING)
+        LogUtils.info("JIAP: Starting delayed initialization")
 
         scheduleInitializationTask()
         scheduleInitializationTimeout()
@@ -162,7 +162,7 @@ class JiapServer(
             try {
                 performInitializationCheck()
             } catch (e: Exception) {
-                LogUtils.error(LogUtils.Msg.INITIALIZATION_CHECK_ERROR, e)
+                LogUtils.error("JIAP: Error during initialization check", e)
             }
         }, INITIAL_DELAY_SECONDS, INIT_CHECK_INTERVAL_SECONDS, TimeUnit.SECONDS)
     }
@@ -170,16 +170,16 @@ class JiapServer(
     private fun performInitializationCheck() {
         when {
             started -> {
-                LogUtils.info(LogUtils.Msg.INITIALIZATION_STOPPED)
+                LogUtils.info("JIAP: Server started, stopping initialization checker")
                 shutdownSchedulerSafely()
             }
             isJadxDecompilerAvailable() -> {
-                LogUtils.info(LogUtils.Msg.JADX_READY)
+                LogUtils.info("JIAP: JADX decompiler ready, starting server...")
                 restart()
                 shutdownSchedulerSafely()
             }
             else -> {
-                LogUtils.debug(LogUtils.Msg.WAITING_FOR_JADX)
+                LogUtils.debug("JIAP: Waiting for JADX decompiler...")
             }
         }
     }
@@ -187,7 +187,7 @@ class JiapServer(
     private fun scheduleInitializationTimeout() {
         scheduler.schedule({
             if (!started) {
-                LogUtils.warn(LogUtils.Msg.JADX_INIT_TIMEOUT, 30)
+                LogUtils.warn("JIAP: ${ErrorMessages.JADX_INIT_TIMEOUT}")
             }
         }, MAX_INIT_WAIT_SECONDS, TimeUnit.SECONDS)
     }
@@ -205,7 +205,7 @@ class JiapServer(
             Thread.currentThread().interrupt()
             scheduler.shutdownNow()
         } catch (e: Exception) {
-            LogUtils.error(LogUtils.Msg.SCHEDULER_SHUTDOWN_ERROR, e)
+            LogUtils.error("JIAP: Error shutting down scheduler", e)
         }
     }
 
@@ -219,31 +219,31 @@ class JiapServer(
                     val wrapper = mainFrame.wrapper
                     val classes = wrapper.includedClassesWithInners
                     if (classes == null) {
-                        LogUtils.debug(LogUtils.Msg.NO_CLASSES_AVAILABLE)
+                        LogUtils.debug("JIAP: No classes available")
                         return false
                     }
                 } else {
-                    LogUtils.debug(LogUtils.Msg.MAIN_FRAME_NOT_MAIN_WINDOW)
+                    LogUtils.debug("JIAP: Main frame is not MainWindow instance")
                 }
             }
 
             // 检查反编译器
             val decompiler = pluginContext.decompiler
             if (decompiler == null) {
-                LogUtils.debug(LogUtils.Msg.DECOMPILER_NOT_LOADED)
+                LogUtils.debug("JIAP: Decompiler not loaded")
                 return false
             }
 
             val classCount = decompiler.classesWithInners.size
             if (classCount > 0) {
-                LogUtils.debug(LogUtils.Msg.FOUND_CLASSES, classCount)
+                LogUtils.debug("JIAP: Found $classCount classes, JADX ready")
                 true
             } else {
-                LogUtils.debug(LogUtils.Msg.NO_CLASSES_LOADED)
+                LogUtils.debug("JIAP: No classes loaded")
                 false
             }
         } catch (e: Exception) {
-            LogUtils.debug(LogUtils.Msg.JADX_CHECK_FAILED, e.message ?: "Unknown error")
+            LogUtils.debug("JIAP: JADX availability check failed: ${e.message}")
             false
         }
     }
@@ -361,9 +361,9 @@ class JiapServer(
     private fun handleRoute(ctx: Context, path: String) {
         try{
             val operation = path.substringAfterLast("/")
-            LogUtils.debug(LogUtils.Msg.PROCESSING_REQUEST, operation)
+            LogUtils.debug("JIAP: Processing request: $operation")
             val routeTarget = routeMap[path]
-                ?: throw IllegalArgumentException(LogUtils.Msg.UNKNOWN_ENDPOINT.format(path))
+                ?: throw IllegalArgumentException(ErrorMessages.UNKNOWN_ENDPOINT.format(path))
             val payload = ctx.bodyAsClass<Map<String, Any>>()
             val isValid = validateRequiredParams(payload, routeTarget.params, ctx)
             if (isValid == false) return
@@ -382,7 +382,7 @@ class JiapServer(
         for (param in requiredParams) {
             if (payload[param] == null || payload[param].toString().isBlank()) {
                 ctx.status(400).json(mapOf(
-                    "error" to LogUtils.Msg.MISSING_PARAMETER.format(param)
+                    "error" to ErrorMessages.missingParameter(param)
                 ))
                 return false
             }
@@ -412,7 +412,7 @@ class JiapServer(
         val message = when (e) {
             is IllegalArgumentException -> e.message ?: "Invalid request"
             is NoSuchMethodException -> e.message ?: "Method not found"
-            else -> "${LogUtils.Msg.SERVICE_CALL_FAILED}: ${e.message}"
+            else -> "${ErrorMessages.INTERNAL_SERVER_ERROR}: ${e.message}"
         }
 
         ctx.status(500).json(mapOf(
@@ -437,9 +437,9 @@ class JiapServer(
 
             ctx.status(200).json(result)
         } catch (e: Exception) {
-            LogUtils.error(LogUtils.Msg.HEALTH_CHECK_FAILED, e)
+            LogUtils.error("JIAP: Health check failed", e)
             ctx.status(500).json(mapOf(
-                "error" to LogUtils.Msg.SERVICE_CALL_FAILED,
+                "error" to ErrorMessages.INTERNAL_SERVER_ERROR,
                 "message" to e.message
             ))
         }
@@ -447,10 +447,10 @@ class JiapServer(
 
     private fun handleServiceResult(result: JiapResult, ctx: Context) {
         if (result.success) {
-            LogUtils.debug(LogUtils.Msg.SERVICE_CALL_SUCCESS)
+            LogUtils.debug("JIAP: Service call completed successfully")
             ctx.json(result.data)
         } else {
-            LogUtils.error(LogUtils.Msg.SERVICE_CALL_FAILED)
+            LogUtils.error("JIAP: ${ErrorMessages.SERVICE_CALL_FAILED}")
             ctx.status(500).json(result.data)
         }
     }
