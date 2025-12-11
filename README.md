@@ -32,7 +32,7 @@ pip install requests fastmcp
 jadx plugins --install-jar <path-to-jiap.jar>
 
 # JADX GUI 
-# JADX -> Plugins -> Install from JAR
+# JADX -> Settings -> Plugins
 ```
 
 - Launch JADX with JIAP plugin enabled

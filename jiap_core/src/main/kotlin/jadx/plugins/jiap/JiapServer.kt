@@ -181,13 +181,13 @@ class JiapServer(
 
     fun restart(): Boolean {
         if (!started) {
-            LogUtils.info(Messages.SERVER_STARTING, PreferencesManager.getPort())
+            LogUtils.info(Messages.SERVER_STARTING)
             return start(PreferencesManager.getPort())
         }
 
         Thread({
             try {
-                LogUtils.info(Messages.SERVER_RESTARTING, PreferencesManager.getPort())
+                LogUtils.info(Messages.SERVER_RESTARTING)
                 stop()
                 Thread.sleep(RESTART_DELAY_MS)
                 start(PreferencesManager.getPort())
@@ -291,7 +291,6 @@ class JiapServer(
                 return
             }
 
-            // Extract page parameter if present (default to 1)
             val page = (payload["page"] as? Int) ?: 1
 
             // Check cache first
@@ -348,6 +347,7 @@ class JiapServer(
     ): JiapResult {
         val method = routeTarget.getMethod()
         val params = method.parameters
+        LogUtils.info("Service call %s".format(routeTarget.methodName))
 
         if (params.isEmpty()) {
             @Suppress("UNCHECKED_CAST")
