@@ -1,6 +1,6 @@
 package jadx.plugins.jiap.utils
 
-object ParameterConverter {
+object PluginUtils {
 
     private val trueValues = setOf("true", "1", "yes", "on")
     private val falseValues = setOf("false", "0", "no", "off")
@@ -69,5 +69,24 @@ object ParameterConverter {
             }
             else -> 0
         }
+    }
+
+    private fun getLocalIpAddress(): String {
+        var socket: java.net.Socket? = null
+        try {
+            socket = java.net.Socket()
+            socket.connect(java.net.InetSocketAddress("8.8.8.8", 53), 1000)
+            return socket.localAddress.hostAddress ?: "127.0.0.1"
+        } catch (e: Exception) {
+            return "127.0.0.1"
+        } finally {
+            socket?.close()
+        }
+    }
+
+    fun buildServerUrl(ipAddress: String = getLocalIpAddress(),
+                       port: Int = PreferencesManager.getPort(),
+                       running: Boolean = true): String {
+        return if (running) "http://$ipAddress:$port/" else "N/A"
     }
 }

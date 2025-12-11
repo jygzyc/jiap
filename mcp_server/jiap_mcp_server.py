@@ -22,15 +22,20 @@ from typing import Optional, Dict, Any
 from fastmcp import FastMCP
 from fastmcp.tools.tool import ToolResult
 
-# Default JIAP server URL, can be overridden via environment variable or command line argument
-JIAP_PORT = 25419
-DEFAULT_JIAP_BASE_SERVER_IP = "http://127.0.0.1"
-DEFAULT_JIAP_BASE_SERVER = f"{DEFAULT_JIAP_BASE_SERVER_IP}:{JIAP_PORT}"
-JIAP_BASE_SERVER = os.getenv("JIAP_BASE_SERVER", DEFAULT_JIAP_BASE_SERVER)
+# Default JIAP server configuration
+DEFAULT_JIAP_HOST = "127.0.0.1"
+DEFAULT_JIAP_PORT = 25419
+MCP_SERVER_PORT = 25420
+
+# Global variables (will be set in main)
+JIAP_HOST = DEFAULT_JIAP_HOST
+JIAP_PORT = DEFAULT_JIAP_PORT
+JIAP_BASE_URL = None  # Will be constructed after parsing arguments
+
 mcp = FastMCP("JIAP MCP Server")
 
 # LRU cache with TTL implementation
-JIAP_CACHE_MAX_SIZE = int(os.getenv("JIAP_CACHE_MAX_SIZE", "5"))
+JIAP_CACHE_MAX_SIZE = int(os.getenv("JIAP_CACHE_MAX_SIZE", "7"))
 JIAP_CACHE_TTL = int(os.getenv("JIAP_CACHE_TTL", "300"))  # seconds
 
 
@@ -70,11 +75,13 @@ class LRUCacheTTL:
             self._data.popitem(last=False)
 
 
-_cache = LRUCacheTTL(JIAP_CACHE_MAX_SIZE, JIAP_CACHE_TTL)
+# Main cache for full API responses
+_response_cache = LRUCacheTTL(JIAP_CACHE_MAX_SIZE, JIAP_CACHE_TTL)
 
-def _get_cache_key(endpoint: str, json_data: Optional[Dict[str, Any]], slice_number: int = 1) -> str:
+def _get_cache_key(endpoint: str, json_data: Optional[Dict[str, Any]]) -> str:
+    """Generate cache key for full response"""
     data_str = json.dumps(json_data or {}, sort_keys=True)
-    return f"{endpoint}::{data_str}::page_{slice_number}"
+    return f"{endpoint}::{data_str}"
 
 def _get_slice(data: Any, slice_number: int, list_slice_size: int = 1000, code_max_chars: int = 60000) -> Any:
     if not isinstance(data, dict):
@@ -127,14 +134,20 @@ async def request_to_jiap(
     force_refresh: bool = False,
 ) -> ToolResult:
 
-    cache_key = _get_cache_key(endpoint=endpoint, json_data=json_data, slice_number=slice_number)
+    # Generate cache key for the full response (without slice number)
+    cache_key = _get_cache_key(endpoint=endpoint, json_data=json_data)
 
-    if not force_refresh:
-        cached = _cache.get(cache_key)
-        if cached is not None:
-            return ToolResult(cached)
     try:
-        url = f"{JIAP_BASE_SERVER}/api/{api_type}/{endpoint.lstrip('/')}"
+        # Check if we have the full response cached
+        if not force_refresh:
+            cached_full_response = _response_cache.get(cache_key)
+            if cached_full_response is not None:
+                # Return the requested slice from cached data
+                sliced_data = _get_slice(cached_full_response, slice_number, list_slice_size, code_max_chars)
+                return ToolResult(sliced_data)
+
+        # Cache miss or force refresh - fetch from server
+        url = f"{JIAP_BASE_URL}/api/{api_type}/{endpoint.lstrip('/')}"
         resp = requests.post(url, json=json_data or {}, timeout=120)
         resp.raise_for_status()
         json_response = resp.json()
@@ -142,9 +155,14 @@ async def request_to_jiap(
         if isinstance(json_response, dict) and "error" in json_response:
             return ToolResult({"error": json_response["error"], "endpoint": endpoint})
 
-        response_data = json_response.get('data', json_response)
-        sliced_data = _get_slice(response_data, slice_number, list_slice_size, code_max_chars)
-        _cache.set(cache_key, sliced_data)
+        # Get the full response data
+        full_response_data = json_response.get('data', json_response)
+
+        # Cache the full response for future requests
+        _response_cache.set(cache_key, full_response_data)
+
+        # Return the requested slice
+        sliced_data = _get_slice(full_response_data, slice_number, list_slice_size, code_max_chars)
         return ToolResult(sliced_data)
 
     except Exception as e:
@@ -306,11 +324,11 @@ async def get_system_service_impl(
 async def health_check() -> ToolResult:
     """Checks if the JIAP server is running and returns its status."""
     try:
-        resp = requests.get(f"{JIAP_BASE_SERVER}/health", timeout=10)
+        resp = requests.get(f"{JIAP_BASE_URL}/health", timeout=10)
         resp.raise_for_status()
         return ToolResult(resp.json())
     except Exception as e:
-        return ToolResult({"status": "Error", "url": JIAP_BASE_SERVER, "error": str(e)})
+        return ToolResult({"status": "Error", "url": JIAP_BASE_URL, "error": str(e)})
 
 def parse_arguments():
     """Parse command line arguments."""
@@ -318,19 +336,59 @@ def parse_arguments():
         description="JIAP MCP Server - Model Context Protocol Server for Java Intelligence Analysis Platform"
     )
     parser.add_argument(
-        "--server",
+        "--jiap-host",
         type=str,
-        default=DEFAULT_JIAP_BASE_SERVER_IP,
-        help=f"JIAP server IP (default: {DEFAULT_JIAP_BASE_SERVER_IP}, can also be set via JIAP_BASE_SERVER env var)"
+        help=f"JIAP server host (default: {DEFAULT_JIAP_HOST})"
+    )
+    parser.add_argument(
+        "--jiap-port",
+        type=int,
+        help=f"JIAP server port (default: {DEFAULT_JIAP_PORT})"
+    )
+    parser.add_argument(
+        "--jiap-url",
+        type=str,
+        help=f"Full JIAP server URL (overrides --jiap-host and --jiap-port)"
     )
     return parser.parse_args()
 
 if __name__ == "__main__":
     args = parse_arguments()
 
-    # Override JIAP_BASE_SERVER if command line argument is provided
-    if args.server != DEFAULT_JIAP_BASE_SERVER_IP:
-        JIAP_BASE_SERVER = f"{args.server}:{JIAP_PORT}"
+    # Priority 1: Full URL from command line
+    if args.jiap_url:
+        JIAP_BASE_URL = args.jiap_url
 
-    mcp.run(transport="http", host="0.0.0.0", port=25420)
+    # Priority 2: Full URL from environment variable
+    elif os.getenv("JIAP_URL"):
+        JIAP_BASE_URL = os.getenv("JIAP_URL")
+
+    else:
+        # Build URL from host and port
+
+        # Set host (command line > environment > default)
+        JIAP_HOST = args.jiap_host or os.getenv("JIAP_HOST") or DEFAULT_JIAP_HOST
+
+        # Set port (command line > environment > default)
+        env_port = os.getenv("JIAP_PORT")
+        if env_port:
+            try:
+                JIAP_PORT = int(env_port)
+            except ValueError:
+                print(f"Warning: Invalid JIAP_PORT '{env_port}', using default {DEFAULT_JIAP_PORT}")
+                JIAP_PORT = DEFAULT_JIAP_PORT
+        else:
+            JIAP_PORT = args.jiap_port or DEFAULT_JIAP_PORT
+
+        # Build full URL
+        JIAP_BASE_URL = f"http://{JIAP_HOST}:{JIAP_PORT}"
+
+    # Ensure URL has protocol
+    if not JIAP_BASE_URL.startswith("http://") and not JIAP_BASE_URL.startswith("https://"):
+        JIAP_BASE_URL = f"http://{JIAP_BASE_URL}"
+
+    print(f"JIAP MCP Server connecting to: {JIAP_BASE_URL}")
+    print(f"MCP Server listening on: http://0.0.0.0:{MCP_SERVER_PORT}")
+
+    mcp.run(transport="http", host="0.0.0.0", port=MCP_SERVER_PORT)
 

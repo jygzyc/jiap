@@ -1,25 +1,19 @@
 package jadx.plugins.jiap.service
 
-import org.slf4j.LoggerFactory
-
 import jadx.api.plugins.JadxPluginContext
 import jadx.core.utils.android.AndroidManifestParser
 import jadx.core.utils.android.AppAttribute
-import jadx.core.utils.android.ApplicationParams
 import jadx.api.ResourceFile
 import jadx.api.ResourceType
 import jadx.gui.JadxWrapper
 import jadx.gui.ui.MainWindow
 import jadx.plugins.jiap.model.JiapServiceInterface
 import jadx.plugins.jiap.model.JiapResult
+import jadx.plugins.jiap.utils.LogUtils
 
 import java.util.*
 
 class AndroidAppService(override val pluginContext: JadxPluginContext) : JiapServiceInterface{
-    
-    companion object {
-        private val logger = LoggerFactory.getLogger(AndroidAppService::class.java)
-    }
 
     fun handleGetAppManifest(): JiapResult {
         try{
@@ -29,14 +23,14 @@ class AndroidAppService(override val pluginContext: JadxPluginContext) : JiapSer
                 val jadxWrapper: JadxWrapper = mainWindow.wrapper
                 manifest = AndroidManifestParser.getAndroidManifest(jadxWrapper.resources)
             } else {
-                manifest = decompiler!!.resources
+                manifest = decompiler.resources
                     ?.stream()
                     ?.filter { resourceFile -> resourceFile.type == ResourceType.MANIFEST }
                     ?.findFirst()
                     ?.orElse(null)
             }
             if (manifest == null){
-                logger.error("JIAP Error: AndroidManifest not found.")
+                LogUtils.error("AndroidManifest not found.")
                 return JiapResult(success = false, data = hashMapOf("error" to "getAppManifest: AndroidManifest not found."))
             }
             val manifestContent = manifest.loadContent()?.text?.codeStr
@@ -48,7 +42,7 @@ class AndroidAppService(override val pluginContext: JadxPluginContext) : JiapSer
             return JiapResult(success = true, data = result)
 
         } catch (e: Exception) {
-            logger.error("JIAP Error: load AndroidManifest", e)
+            LogUtils.error("Loading AndroidManifest", e)
             return JiapResult(success = false, data = hashMapOf("error" to "getAppManifest: ${e.message}"))
         }
     }
@@ -62,7 +56,7 @@ class AndroidAppService(override val pluginContext: JadxPluginContext) : JiapSer
                     val jadxWrapper = mainWindow.wrapper
                     val manifest = AndroidManifestParser.getAndroidManifest(jadxWrapper.resources)
                     if (manifest == null) {
-                        logger.error("JIAP Error: AndroidManifest not found.")
+                        LogUtils.error("AndroidManifest not found.")
                         return JiapResult(success = false, data = hashMapOf("error" to "getMainActivity: AndroidManifest not found."))
                     }
                     
@@ -84,14 +78,14 @@ class AndroidAppService(override val pluginContext: JadxPluginContext) : JiapSer
                         "code" to mainActivityClass.code
                     )
                 } else {
-                    logger.warn("JIAP: Main frame is not MainWindow instance")
+                    LogUtils.warn("Main frame not MainWindow instance")
                 }
                 return JiapResult(success = true, data = result)
             } else {
                 return JiapResult(success = false, data = hashMapOf("error" to "getMainActivity: command mode not support"))
             }
         }catch(e: Exception){
-            logger.error("JIAP Error:load main activity", e)
+            LogUtils.error("Loading main activity", e)
             return JiapResult(success = false, data = hashMapOf("error" to "getMainActivity: ${e.message}"))
         }
     }

@@ -2,44 +2,22 @@ package jadx.plugins.jiap.ui
 
 import jadx.api.plugins.JadxPluginContext
 import jadx.api.plugins.gui.JadxGuiContext
-import jadx.api.gui.tree.ITreeNode
 import jadx.plugins.jiap.JiapServer
 import jadx.plugins.jiap.utils.JiapConstants
-import jadx.plugins.jiap.utils.PreferencesManager
-import org.slf4j.LoggerFactory
-import java.awt.BorderLayout
-import java.awt.Dimension
-import java.awt.FlowLayout
-import java.awt.event.ActionEvent
-import java.awt.event.ActionListener
-import java.awt.event.MouseAdapter
-import java.awt.event.MouseEvent
-import javax.swing.BorderFactory
-import javax.swing.JButton
-import javax.swing.JFrame
-import javax.swing.JPanel
-import javax.swing.JOptionPane
-import javax.swing.JTextField
-import javax.swing.JLabel
-import javax.swing.JMenu
-import javax.swing.JMenuItem
-import javax.swing.JPopupMenu
-import java.awt.MouseInfo
-import java.net.HttpURLConnection
-import java.net.URL
-import java.util.function.Predicate
-import java.util.function.Consumer
-import kotlin.concurrent.thread
+import jadx.plugins.jiap.utils.LogUtils
+import jadx.plugins.jiap.utils.PluginUtils
+import java.awt.GridBagConstraints
+import java.awt.GridBagLayout
+import java.awt.Insets
+
+import javax.swing.*
+
 
 
 class JiapUIManager(
     private val pluginContext: JadxPluginContext,
     private val server: JiapServer
 ) {
-
-    companion object {
-        private val logger = LoggerFactory.getLogger(JiapUIManager::class.java)
-    }
 
     fun initializeGuiComponents(guiContext: JadxGuiContext) {
         guiContext.addMenuAction("JIAP Server Status") {
@@ -51,30 +29,175 @@ class JiapUIManager(
     }
 
     private fun restartServer() {
-        if (server.isRunning()) {
-            server.restart()
-        } else {
-            server.start()
-        }
+        // Run in background thread to avoid blocking UI
+        Thread({
+            if (server.isRunning) {
+                server.restart()
+            } else {
+                server.start()
+            }
+        }, "JiapUI-RestartThread").apply {
+            isDaemon = true
+        }.start()
     }
 
     private fun showServerStatus() {
-        val isRunning = server.isRunning()
+        val isRunning = server.isRunning
         val status = if (isRunning) "Running" else "Stopped"
-        val currentPort = server.getCurrentPort()
-        val url = if(isRunning) "http://127.0.0.1:$currentPort/" else "N/A"
+        val currentPort = server.currentPort
+        val url = PluginUtils.buildServerUrl()
 
-        val message = """
-            Server Status: $status
-            Port: $currentPort
-            Health Check: $url
-        """.trimIndent()
+        // Create main panel with GridBagLayout
+        val panel = JPanel(GridBagLayout())
+        val gbc = GridBagConstraints()
+        gbc.anchor = GridBagConstraints.WEST
+        gbc.insets = Insets(5, 5, 5, 5)
 
-        JOptionPane.showMessageDialog(
+        // Server Status
+        gbc.gridx = 0
+        gbc.gridy = 0
+        panel.add(JLabel("Server Status:"), gbc)
+        gbc.gridx = 1
+        panel.add(JLabel(status), gbc)
+
+        // Current Port
+        gbc.gridx = 0
+        gbc.gridy = 1
+        panel.add(JLabel("Current Port:"), gbc)
+        gbc.gridx = 1
+        panel.add(JLabel(currentPort.toString()), gbc)
+
+        // New Port Input
+        gbc.gridx = 0
+        gbc.gridy = 2
+        panel.add(JLabel("New Port:"), gbc)
+
+        val portTextField = JTextField(currentPort.toString(), 10)
+        gbc.gridx = 1
+        panel.add(portTextField, gbc)
+
+        // Health Check URL
+        gbc.gridx = 0
+        gbc.gridy = 3
+        gbc.gridwidth = 2
+        panel.add(JLabel("Health Check: $url"), gbc)
+
+        // Create dialog
+        val options = arrayOf("OK", "Cancel")
+        val result = JOptionPane.showOptionDialog(
             pluginContext.guiContext?.mainFrame,
-            message,
+            panel,
             "JIAP Server Status",
-            JOptionPane.INFORMATION_MESSAGE
+            JOptionPane.DEFAULT_OPTION,
+            JOptionPane.INFORMATION_MESSAGE,
+            null,
+            options,
+            options[0]
         )
+
+        // Handle user response
+        if (result == 0) { // OK button
+            handlePortChange(portTextField.text, currentPort)
+        }
+    }
+
+    private fun handlePortChange(portText: String, currentPort: Int) {
+        try {
+            val newPort = portText.trim().toInt()
+
+            // Validate port range
+            if (newPort !in 1024..65535) {
+                JOptionPane.showMessageDialog(
+                    pluginContext.guiContext?.mainFrame,
+                    "Port must be between 1024 and 65535",
+                    "Invalid Port",
+                    JOptionPane.ERROR_MESSAGE
+                )
+                return
+            }
+
+            // Check if port changed
+            if (newPort != currentPort) {
+                val confirm = JOptionPane.showConfirmDialog(
+                    pluginContext.guiContext?.mainFrame,
+                    "Server will restart on port $newPort. Continue?",
+                    "Confirm Port Change",
+                    JOptionPane.YES_NO_OPTION,
+                    JOptionPane.QUESTION_MESSAGE
+                )
+
+                if (confirm == JOptionPane.YES_OPTION) {
+                    // Show progress dialog
+                    val progressDialog = JDialog(pluginContext.guiContext?.mainFrame as JFrame?, "Restarting Server...", true)
+                    val label = JLabel("Restarting server on port $newPort...")
+                    label.horizontalAlignment = SwingConstants.CENTER
+                    progressDialog.contentPane.add(label)
+                    progressDialog.size = java.awt.Dimension(300, 100)
+                    progressDialog.setLocationRelativeTo(pluginContext.guiContext?.mainFrame)
+
+                    // Run server operations in background thread
+                    Thread({
+                        var success = false
+                        var error: String? = null
+
+                        try {
+                            // Stop server if running
+                            if (server.isRunning) {
+                                server.stop()
+                            }
+
+                            // Start server on new port
+                            success = server.start(newPort)
+                        } catch (e: Exception) {
+                            error = e.message
+                        }
+
+                        // Show result on UI thread
+                        SwingUtilities.invokeLater {
+                            progressDialog.isVisible = false
+                            progressDialog.dispose()
+
+                            if (success) {
+                                JOptionPane.showMessageDialog(
+                                    pluginContext.guiContext?.mainFrame,
+                                    "Server successfully started on port $newPort",
+                                    "Server Restarted",
+                                    JOptionPane.INFORMATION_MESSAGE
+                                )
+                            } else {
+                                JOptionPane.showMessageDialog(
+                                    pluginContext.guiContext?.mainFrame,
+                                    "Failed to start server on port $newPort\n${error ?: "Port may be in use or invalid"}",
+                                    "Error",
+                                    JOptionPane.ERROR_MESSAGE
+                                )
+                            }
+                        }
+                    }, "JiapUI-PortChangeThread").apply {
+                        isDaemon = true
+                    }.start()
+
+                    // Show progress dialog
+                    SwingUtilities.invokeLater {
+                        progressDialog.isVisible = true
+                    }
+                }
+            }
+        } catch (e: NumberFormatException) {
+            JOptionPane.showMessageDialog(
+                pluginContext.guiContext?.mainFrame,
+                "Invalid port number: $portText",
+                "Error",
+                JOptionPane.ERROR_MESSAGE
+            )
+        } catch (e: Exception) {
+            LogUtils.error(JiapConstants.ErrorCode.SERVER_INTERNAL_ERROR, "Error changing port", e)
+            JOptionPane.showMessageDialog(
+                pluginContext.guiContext?.mainFrame,
+                "Error changing port: ${e.message}",
+                "Error",
+                JOptionPane.ERROR_MESSAGE
+            )
+        }
     }
 }

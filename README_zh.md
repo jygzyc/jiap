@@ -26,6 +26,8 @@ JIAP (Java Intelligence Analysis Platform) 是一个基于JADX反编译器的智
 - 🎯 **交叉引用**: 代码引用关系追踪
 - 🔄 **GUI集成**: 与JADX界面实时同步
 - ⚡ **分页处理**: 支持大规模代码库分析
+- 🏃 **Daemon模式**: 支持JADX无GUI后台运行模式
+- 🔧 **自定义接口**: 灵活的API扩展机制
 
 ### 🎯 应用场景
 
@@ -206,10 +208,39 @@ jadx plugins --install-jar <path-to-jiap.jar>
 # JADX -> Plugins -> Install from JAR
 ```
 
-#### 3. 启动MCP服务器
+#### 3. 启动方式
+
+##### GUI模式（推荐）
+```bash
+# 启动JADX GUI，插件自动加载
+jadx-gui your-app.apk
+```
+
+##### Daemon模式（无GUI后台运行）
+```bash
+# 使用daemon模式启动，适合服务器环境
+jadx -d your-app.apk --export-dir ./output --load-plugins jiap-plugin.jar
+
+# 或者在JADX GUI中启用daemon模式
+# Tools -> Preferences -> Plugins -> JIAP -> Enable Daemon Mode
+```
+
+#### 4. 启动MCP服务器
 
 ```bash
 cd mcp_server
+
+# 默认配置启动
+python jiap_mcp_server.py
+
+# 自定义JADX服务器地址
+python jiap_mcp_server.py --jiap-host 192.168.1.100 --jiap-port 25420
+
+# 使用完整URL
+python jiap_mcp_server.py --jiap-url "http://192.168.1.100:25420"
+
+# 使用环境变量
+export JIAP_URL="http://192.168.1.100:25420"
 python jiap_mcp_server.py
 ```
 
@@ -356,28 +387,123 @@ jiap/
 class CustomService(override val pluginContext: JadxPluginContext) : JiapServiceInterface {
 
     fun handleCustomAnalysis(): JiapResult {
-        // 实现自定义分析逻辑
+        try {
+            // 实现自定义分析逻辑
+            val result = hashMapOf<String, Any>()
+            result["type"] = "analysis"
+            result["data"] = "分析结果"
+            return JiapResult(success = true, data = result)
+        } catch (e: Exception) {
+            LogUtils.error("Custom analysis failed", e)
+            return JiapResult(success = false, data = hashMapOf("error" to e.message))
+        }
+    }
+
+    fun handleParameterizedAnalysis(param1: String, param2: Int, param3: Boolean): JiapResult {
+        // 带参数的分析方法
+        val result = performAnalysis(param1, param2, param3)
         return JiapResult(success = true, data = result)
     }
 }
 ```
 
-#### 2. 新增API端点
+#### 2. 在JiapServer中注册新路由
+
+编辑 `JiapServer.kt` 的 `routeMap`：
+
 ```kotlin
-app.post("/api/jiap/custom_endpoint") { ctx ->
-    val result = customService.handleCustomAnalysis()
-    handleServiceResult(result, ctx)
+private val routeMap: Map<String, RouteTarget>
+    get() = mapOf(
+        // 现有路由...
+
+        // 添加自定义路由
+        "/api/jiap/custom_analysis" to RouteTarget(
+            service = customService,
+            methodName = "handleCustomAnalysis"
+        ),
+
+        "/api/jiap/parameterized_analysis" to RouteTarget(
+            service = customService,
+            methodName = "handleParameterizedAnalysis",
+            params = setOf("param1", "param2", "param3")  // 定义参数名
+        )
+    )
+```
+
+#### 3. 在JiapServer中初始化服务
+
+```kotlin
+class JiapServer(
+    private val pluginContext: JadxPluginContext,
+    private val scheduler: ScheduledExecutorService
+) {
+    // 添加自定义服务实例
+    private val customService: CustomService = CustomService(pluginContext)
 }
 ```
 
-#### 3. 新增MCP工具
+#### 4. 新增MCP工具
 ```python
 @mcp.tool(
     name="custom_analysis",
     description="自定义分析工具"
 )
-async def custom_analysis(ctx: Context, param: str) -> ToolResult:
-    return await request_to_jiap("custom_endpoint", json_data={"param": param})
+async def custom_analysis() -> ToolResult:
+    return await request_to_jiap("custom_analysis")
+
+@mcp.tool(
+    name="parameterized_analysis",
+    description="带参数的自定义分析"
+)
+async def parameterized_analysis(
+    param1: str = Field(description="第一个参数"),
+    param2: int = Field(description="第二个参数"),
+    param3: bool = Field(False, description="第三个参数，默认为False")
+) -> ToolResult:
+    return await request_to_jiap(
+        "parameterized_analysis",
+        json_data={
+            "param1": param1,
+            "param2": param2,
+            "param3": param3
+        }
+    )
+```
+
+#### 5. 参数处理说明
+
+- **参数名映射**: `routeMap` 中的 `params` 集合必须与请求JSON中的字段名一致
+- **参数顺序**: `params` 集合中的参数顺序必须与服务方法参数的定义顺序一致
+- **类型转换**: 系统会自动处理 String、Int、Boolean 类型的转换
+- **可选参数**: 使用 `?` 标记可选参数，或提供默认值
+
+#### 6. Daemon模式支持
+
+服务自动支持GUI和Daemon两种模式：
+
+```kotlin
+class CustomService(override val pluginContext: JadxPluginContext) : JiapServiceInterface {
+
+    fun handleGuiDependentAnalysis(): JiapResult {
+        if (!isGui()) {
+            return JiapResult(
+                success = false,
+                data = hashMapOf("error" to "This feature requires GUI mode")
+            )
+        }
+        // GUI相关逻辑
+    }
+
+    fun handleDaemonOnlyAnalysis(): JiapResult {
+        if (isGui()) {
+            return JiapResult(
+                success = false,
+                data = hashMapOf("error" to "This feature is only available in daemon mode")
+            )
+        }
+        // Daemon专用逻辑
+    }
+}
 ```
 
 ---

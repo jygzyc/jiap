@@ -1,18 +1,12 @@
 package jadx.plugins.jiap.service
 
-import org.slf4j.LoggerFactory
-import jadx.api.JadxDecompiler
 import jadx.api.plugins.JadxPluginContext
-import jadx.api.JavaClass
 
 import jadx.plugins.jiap.model.JiapServiceInterface
 import jadx.plugins.jiap.model.JiapResult
+import jadx.plugins.jiap.utils.LogUtils
 
 class AndroidFrameworkService(override val pluginContext: JadxPluginContext) : JiapServiceInterface{
-    
-    companion object {
-        private val logger = LoggerFactory.getLogger(AndroidFrameworkService::class.java)
-    }
     
     fun handleGetSystemServiceImpl(interfaceName: String): JiapResult {
         try {
@@ -30,7 +24,7 @@ class AndroidFrameworkService(override val pluginContext: JadxPluginContext) : J
             )
             return JiapResult(success = true, data = result)
         } catch (e: Exception) {
-            logger.error("JIAP Error: get System Service Implementation", e)
+            LogUtils.error("Got System Service Implementation", e)
             return JiapResult(success = false, data = hashMapOf("error" to "getSystemServiceImpl: ${e.message}"))
         }
     }

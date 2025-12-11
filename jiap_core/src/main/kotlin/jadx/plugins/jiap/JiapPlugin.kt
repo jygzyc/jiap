@@ -1,13 +1,14 @@
 package jadx.plugins.jiap
 
-import org.slf4j.LoggerFactory
-
 import jadx.api.plugins.JadxPlugin
 import jadx.api.plugins.JadxPluginContext
 import jadx.api.plugins.JadxPluginInfo
 import jadx.api.plugins.JadxPluginInfoBuilder
 import jadx.plugins.jiap.ui.JiapUIManager
+import jadx.plugins.jiap.utils.LogUtils
+import jadx.plugins.jiap.utils.JiapConstants
 import jadx.plugins.jiap.utils.PreferencesManager
+import jadx.plugins.jiap.utils.CacheUtils
 
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
@@ -18,33 +19,37 @@ class JiapPlugin : JadxPlugin {
     companion object {
         const val PLUGIN_NAME = "JIAP"
         const val PLUGIN_ID = "jadx-jiap-plugin"
-        private val logger = LoggerFactory.getLogger(JiapPlugin::class.java)
     }
 
     private lateinit var scheduler: ScheduledExecutorService
     lateinit var server: JiapServer
 
     override fun init(ctx: JadxPluginContext) {
-        if (ctx.decompiler != null) {
-            PreferencesManager.initializeJadxArgs(ctx.decompiler)
+        // Initialize preferences if decompiler is available
+        ctx.decompiler?.let { decompiler ->
+            PreferencesManager.initializeJadxArgs(decompiler)
         }
+
         try {
+            // Create scheduler for delayed initialization
             scheduler = Executors.newSingleThreadScheduledExecutor { r ->
-                val thread = Thread(r).apply {
+                Thread(r, "JiapPlugin-Scheduler").apply {
                     isDaemon = true
-                    name = "JiapPlugin-Scheduler"
                 }
-                thread
             }
+
             server = JiapServer(ctx, scheduler)
             server.delayedInitialization()
-            
-            if (ctx.guiContext != null) {
+
+            ctx.guiContext?.also { guiContext ->
                 val uiManager = JiapUIManager(ctx, server)
-                ctx.guiContext?.let { uiManager.initializeGuiComponents(it) }
+                uiManager.initializeGuiComponents(guiContext)
             }
-        } catch (e: Exception){
-            logger.error("Jiap Plugin: Failed to initialize", e)
+
+        } catch (e: Exception) {
+            LogUtils.error(JiapConstants.ErrorCode.SERVER_INTERNAL_ERROR, "Failed to initialize plugin", e)
+            cleanupOnError()
+            throw e
         }
     }
 
@@ -59,27 +64,36 @@ class JiapPlugin : JadxPlugin {
 
     override fun unload() {
         try {
-            logger.info("JIAP: Cleaning up plugin resources...")
+            LogUtils.info("Cleaning up JIAP plugin resources...")
 
-            // Stop the server to release port
-            if (this::server.isInitialized) {
-                server.stop()
-                logger.info("JIAP: Server stopped")
+            // Clear cache
+            CacheUtils.clearCache()
+
+            if (::server.isInitialized) {
+                if (server.isRunning) {
+                    server.stop()
+                }
             }
-
-            // Shutdown the scheduler thread pool
-            if (this::scheduler.isInitialized) {
+            if (::scheduler.isInitialized) {
                 scheduler.shutdown()
-                if (!scheduler.awaitTermination(5, TimeUnit.SECONDS)) {
-                    logger.warn("JIAP: Scheduler did not terminate gracefully, forcing shutdown")
+                if (!scheduler.awaitTermination(3, TimeUnit.SECONDS)) {
+                    LogUtils.warn("Scheduler did not terminate gracefully within 3 seconds, forcing shutdown")
                     scheduler.shutdownNow()
                 }
-                logger.info("JIAP: Scheduler shutdown completed")
             }
 
-            logger.info("JIAP: Plugin cleanup completed")
         } catch (e: Exception) {
-            logger.error("JIAP: Error during plugin cleanup", e)
+            LogUtils.error(JiapConstants.ErrorCode.SERVER_INTERNAL_ERROR, "Error during plugin unload", e)
+        }
+    }
+
+    private fun cleanupOnError() {
+        try {
+            if (::scheduler.isInitialized) {
+                scheduler.shutdownNow()
+            }
+        } catch (e: Exception) {
+            LogUtils.warn("Failed to cleanup scheduler during error recovery", e)
         }
     }
 }

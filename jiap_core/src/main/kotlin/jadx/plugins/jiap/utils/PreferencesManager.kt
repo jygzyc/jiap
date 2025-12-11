@@ -13,11 +13,15 @@ object PreferencesManager {
     }
 
     fun getPreference(key: String, defaultValue: String): String{
-        return jadxArgs.pluginOptions.getOrDefault(key, defaultValue)
+        return synchronized(jadxArgs.pluginOptions) {
+            jadxArgs.pluginOptions.getOrDefault(key, defaultValue)
+        }
     }
 
     fun setPreference(key: String, value: String){
-        jadxArgs.pluginOptions[key] = value
+        synchronized(jadxArgs.pluginOptions) {
+            jadxArgs.pluginOptions[key] = value
+        }
     }
 
     fun setPort(port: Int){
@@ -25,6 +29,10 @@ object PreferencesManager {
     }
 
     fun getPort(): Int{
-        return getPreference(JIAP_PORT, JiapConstants.DEFAULT_PORT.toString()).toInt()
+        return try {
+            getPreference(JIAP_PORT, JiapConstants.DEFAULT_PORT.toString()).toInt()
+        } catch (e: NumberFormatException) {
+            JiapConstants.DEFAULT_PORT
+        }
     }
 }

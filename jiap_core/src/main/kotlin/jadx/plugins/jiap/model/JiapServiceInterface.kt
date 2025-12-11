@@ -1,10 +1,11 @@
 package jadx.plugins.jiap.model
 
 import jadx.api.plugins.JadxPluginContext
+import jadx.api.JadxDecompiler
 
 interface JiapServiceInterface {
     val pluginContext: JadxPluginContext
-    val decompiler get() = pluginContext.decompiler
+    val decompiler: JadxDecompiler get() = pluginContext.decompiler
 
     val gui: Boolean
         get() = isGui()
