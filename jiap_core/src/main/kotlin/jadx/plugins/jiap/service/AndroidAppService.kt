@@ -31,7 +31,7 @@ class AndroidAppService(override val pluginContext: JadxPluginContext) : JiapSer
             }
             if (manifest == null){
                 LogUtils.error("AndroidManifest not found.")
-                return JiapResult(success = false, data = hashMapOf("error" to "getAppManifest: AndroidManifest not found."))
+                return JiapResult(success = false, data = hashMapOf("error" to "handleGetAppManifest: AndroidManifest not found."))
             }
             val manifestContent = manifest.loadContent()?.text?.codeStr
             val result = hashMapOf<String, Any>(
@@ -40,53 +40,96 @@ class AndroidAppService(override val pluginContext: JadxPluginContext) : JiapSer
                 "code" to manifestContent as Any
             )
             return JiapResult(success = true, data = result)
-
         } catch (e: Exception) {
-            LogUtils.error("Loading AndroidManifest", e)
-            return JiapResult(success = false, data = hashMapOf("error" to "getAppManifest: ${e.message}"))
+            LogUtils.error("handleGetAppManifest", e)
+            return JiapResult(success = false, data = hashMapOf("error" to "handleGetAppManifest: ${e.message}"))
         }
     }
 
     fun handleGetMainActivity(): JiapResult {
         try{
             var result = HashMap<String, Any>()
+            var manifest: ResourceFile? = null
+            var parser: AndroidManifestParser? = null
             if(this.gui){
-                val mainWindow = pluginContext.guiContext?.mainFrame
-                if(mainWindow is MainWindow){
-                    val jadxWrapper = mainWindow.wrapper
-                    val manifest = AndroidManifestParser.getAndroidManifest(jadxWrapper.resources)
-                    if (manifest == null) {
-                        LogUtils.error("AndroidManifest not found.")
-                        return JiapResult(success = false, data = hashMapOf("error" to "getMainActivity: AndroidManifest not found."))
-                    }
-                    
-                    val parser = AndroidManifestParser(
-                        manifest,
-                        EnumSet.of(AppAttribute.MAIN_ACTIVITY),
-                        jadxWrapper.args.security
-                    )
-                    
-                    val appParams = parser.parse()
-                    val mainActivityClass = appParams.getMainActivityJavaClass(decompiler) ?: return JiapResult(
-                        success = false,
-                        data = hashMapOf("error" to "getMainActivity: Failed to get main activity class.")
-                    )
-
-                    result = hashMapOf(
-                        "type" to "code",
-                        "name" to mainActivityClass.fullName,
-                        "code" to mainActivityClass.code
-                    )
-                } else {
-                    LogUtils.warn("Main frame not MainWindow instance")
-                }
-                return JiapResult(success = true, data = result)
+                val mainWindow: MainWindow = pluginContext.guiContext?.mainFrame as MainWindow
+                val jadxWrapper: JadxWrapper = mainWindow.wrapper
+                manifest = AndroidManifestParser.getAndroidManifest(jadxWrapper.resources)
+                parser = AndroidManifestParser(
+                    manifest,
+                    EnumSet.of(AppAttribute.MAIN_ACTIVITY),
+                    jadxWrapper.args.security
+                )
             } else {
-                return JiapResult(success = false, data = hashMapOf("error" to "getMainActivity: command mode not support"))
+                manifest = decompiler.resources
+                    ?.stream()
+                    ?.filter { resourceFile -> resourceFile.type == ResourceType.MANIFEST }
+                    ?.findFirst()
+                    ?.orElse(null)
+                parser = AndroidManifestParser(
+                    manifest,
+                    EnumSet.of(AppAttribute.MAIN_ACTIVITY),
+                    decompiler.args.security
+                )
             }
+            val appParams = parser.parse()
+            val mainActivityClass = appParams.getMainActivityJavaClass(decompiler) ?: return JiapResult(
+                success = false,
+                data = hashMapOf("error" to "handleGetMainActivity: Failed to get main activity class.")
+            )
+            result = hashMapOf(
+                "type" to "code",
+                "name" to mainActivityClass.fullName,
+                "code" to mainActivityClass.code
+            )
+            return JiapResult(success = true, data = result)
         }catch(e: Exception){
-            LogUtils.error("Loading main activity", e)
-            return JiapResult(success = false, data = hashMapOf("error" to "getMainActivity: ${e.message}"))
+            LogUtils.error("handleGetMainActivity", e)
+            return JiapResult(success = false, data = hashMapOf("error" to "handleGetMainActivity: ${e.message}"))
         }
+    }
+
+    fun handleGetApplication(): JiapResult {
+        try{
+            var result = HashMap<String, Any>()
+            var manifest: ResourceFile? = null
+            var parser: AndroidManifestParser? = null
+            if(this.gui){
+                val mainWindow: MainWindow = pluginContext.guiContext?.mainFrame as MainWindow
+                val jadxWrapper: JadxWrapper = mainWindow.wrapper
+                manifest = AndroidManifestParser.getAndroidManifest(jadxWrapper.resources)
+                parser = AndroidManifestParser(
+                    manifest,
+                    EnumSet.of(AppAttribute.MAIN_ACTIVITY),
+                    jadxWrapper.args.security
+                )
+            } else {
+                manifest = decompiler.resources
+                    ?.stream()
+                    ?.filter { resourceFile -> resourceFile.type == ResourceType.MANIFEST }
+                    ?.findFirst()
+                    ?.orElse(null)
+                parser = AndroidManifestParser(
+                    manifest,
+                    EnumSet.of(AppAttribute.MAIN_ACTIVITY),
+                    decompiler.args.security
+                )
+            }
+            val appParams = parser.parse()
+            val applicationClass = appParams.getApplicationJavaClass(decompiler) ?: return JiapResult(
+                success = false,
+                data = hashMapOf("error" to "handleGetApplication: Failed to get application class.")
+            )
+            result = hashMapOf(
+                "type" to "code",
+                "name" to applicationClass.fullName,
+                "code" to applicationClass.code
+            )
+            return JiapResult(success = true, data = result)
+        }catch (e:Exception){
+            LogUtils.error("handleGetApplication", e)
+            return JiapResult(success = false, data = hashMapOf("error" to "handleGetApplication: ${e.message}"))
+        }
+
     }
 }

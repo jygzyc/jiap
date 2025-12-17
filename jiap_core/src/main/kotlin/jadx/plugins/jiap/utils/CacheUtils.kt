@@ -4,6 +4,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.concurrent.read
 import kotlin.concurrent.write
+import kotlin.math.min
 
 class LRUCacheWithTTL<K, V>(
     private val maxCapacity: Int,
@@ -88,11 +89,6 @@ class LRUCacheWithTTL<K, V>(
             accessOrder.clear()
         }
     }
-
-    /**
-     * Get current cache size
-     */
-    fun size(): Int = cache.size
 }
 
 object CacheUtils {
@@ -100,6 +96,8 @@ object CacheUtils {
     private const val CACHE_TTL_MINUTES = 10
 
     private var responseCache: LRUCacheWithTTL<String, Any>? = null
+    private var hits: Long = 0
+    private var misses: Long = 0
 
     init {
         initializeCache()
@@ -110,32 +108,6 @@ object CacheUtils {
             maxCapacity = CACHE_MAX_SIZE,
             ttlMillis = CACHE_TTL_MINUTES * 60 * 1000L
         )
-    }
-
-    /**
-     * Get cached response
-     * @param endpoint API endpoint
-     * @param parameters Request parameters as map
-     * @param page Page number for pagination
-     * @return Cached response or null
-     */
-    fun getCachedResponse(endpoint: String, parameters: Map<String, Any>?, page: Int = 1): Any? {
-        val cache = responseCache ?: return null
-        val cacheKey = buildCacheKey(endpoint, parameters, page)
-        return cache.get(cacheKey)
-    }
-
-    /**
-     * Cache API response
-     * @param endpoint API endpoint
-     * @param parameters Request parameters as map
-     * @param page Page number for pagination
-     * @param response Response to cache
-     */
-    fun cacheResponse(endpoint: String, parameters: Map<String, Any>?, page: Int, response: Any) {
-        val cache = responseCache ?: return
-        val cacheKey = buildCacheKey(endpoint, parameters, page)
-        cache.put(cacheKey, response)
     }
 
     /**
@@ -153,7 +125,7 @@ object CacheUtils {
         initializeCache()
     }
 
-    private fun buildCacheKey(endpoint: String, parameters: Map<String, Any>?, page: Int): String {
+    private fun buildBaseCacheKey(endpoint: String, parameters: Map<String, Any>?): String {
         val paramsString = if (parameters != null) {
             parameters.entries
                 .sortedBy { it.key }
@@ -161,6 +133,31 @@ object CacheUtils {
         } else {
             ""
         }
-        return "${endpoint}::${paramsString}::page_${page}"
+        return "${endpoint}::${paramsString}"
+    }
+
+    /**
+     * Get cached response
+     */
+    fun get(endpoint: String, parameters: Map<String, Any>?): Any? {
+        val cache = responseCache ?: return null
+        val cacheKey = buildBaseCacheKey(endpoint, parameters)
+
+        val result = cache.get(cacheKey)
+        if (result != null) {
+            hits++
+        } else {
+            misses++
+        }
+        return result
+    }
+
+    /**
+     * Cache response data
+     */
+    fun put(endpoint: String, parameters: Map<String, Any>?, response: Any) {
+        val cache = responseCache ?: return
+        val cacheKey = buildBaseCacheKey(endpoint, parameters)
+        cache.put(cacheKey, response)
     }
 }

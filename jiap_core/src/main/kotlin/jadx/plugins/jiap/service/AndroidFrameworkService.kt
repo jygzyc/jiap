@@ -24,7 +24,7 @@ class AndroidFrameworkService(override val pluginContext: JadxPluginContext) : J
             )
             return JiapResult(success = true, data = result)
         } catch (e: Exception) {
-            LogUtils.error("Got System Service Implementation", e)
+            LogUtils.error("handleGetSystemServiceImpl", e)
             return JiapResult(success = false, data = hashMapOf("error" to "getSystemServiceImpl: ${e.message}"))
         }
     }

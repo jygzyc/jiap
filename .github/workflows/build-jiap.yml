@@ -20,7 +20,7 @@ jobs:
     permissions:
       contents: write
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
       with:
         fetch-depth: 0
 
@@ -49,6 +49,7 @@ jobs:
     - name: Prepare release files
       run: |
         cp jiap_core/build/dist/*.jar ./
+        ls -la *.jar
 
     - name: Create Release
       uses: softprops/action-gh-release@v2
@@ -57,8 +58,9 @@ jobs:
         name: ${{ github.ref_name }}
         files: |
           *.jar
+        body_path: RELEASE.md
         draft: false
         prerelease: false
-        generate_release_notes: true
+        generate_release_notes: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

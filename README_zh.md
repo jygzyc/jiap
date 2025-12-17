@@ -3,196 +3,166 @@
 <div align="center">
 
 ![JIAP Logo](https://img.shields.io/badge/JIAP-Java%20Intelligence%20Analysis%20Platform-blue?style=for-the-badge&logo=java&logoColor=white)
-![Version](https://img.shields.io/badge/version-0.0.1-green?style=for-the-badge)
-![License](https://img.shields.io/badge/license-MIT-orange?style=for-the-badge)
+![Release](https://img.shields.io/github/v/release/jygzyc/jiap?style=for-the-badge&logo=github&color=green)
+![License](https://img.shields.io/github/license/jygzyc/jiap?style=for-the-badge&logo=gnu&color=orange)
 
 **基于JADX的Java智能分析平台 - 为AI辅助代码分析而设计**
-
-[📖 文档](#-项目概述) | [🏗️ 架构设计](#-架构设计) | [🚀 快速开始](#-快速开始) | [🛠️ API参考](#-api参考)
 
 </div>
 
 ---
 
-## 📖 项目概述
+## 项目概述
 
 JIAP (Java Intelligence Analysis Platform) 是一个基于JADX反编译器的智能代码分析平台，专门为AI辅助代码分析而设计。该平台通过HTTP API和MCP (Model Context Protocol) 协议，为AI助手提供强大的Java代码分析能力。
 
 ---
 
-## 🏗️ 架构设计
-
-### 整体架构图
-
-```mermaid
-graph TB
-    subgraph "AI助手层"
-        A[AI助手<br/>Claude/Qwen]
-    end
-
-    subgraph "协议层"
-        B[MCP Server<br/>Python]
-        C[HTTP API<br/>Kotlin/Javalin]
-    end
-
-    subgraph "核心层"
-        D[JIAP Plugin<br/>JADX插件]
-        E[JADX Decompiler<br/>反编译引擎]
-    end
-
-    subgraph "数据层"
-        F[Java字节码<br/>APK/JAR文件]
-    end
-
-    A -- MCP协议 --> B
-    B -- HTTP请求 --> C
-    C -- API调用 --> D
-    D -- 反编译 --> E
-    E -- 解析 --> F
-
-    style A fill:#e1f5fe
-    style B fill:#f3e5f5
-    style D fill:#e8f5e8
-    style F fill:#fff3e0
-```
-
----
-
-## 🚀 快速开始
+## 快速开始
 
 ### 环境要求
 
-- **Java**: JDK 17+
-- **JADX**: 1.5.2 r2472+
-- **Python**: 3.8+ (用于MCP Server)
-- **内存**: 推荐4GB+
+- **Java**: JDK 17+ （用于 JIAP Core）
+- **Python**: 3.10+ （用于 MCP Server）
+- **JADX**: 支持插件的 JADX 反编译器
+- **Python 依赖**: `requests`, `fastmcp`
 
-### 快速使用
-
-- `Jadx`中安装`JIAP`插件
-- 执行`jiap_mcp_server.py`，使用AI客户端进行代码获取与分析
-
-### 开发
-
-#### 1. 编译项目
+### 安装
 
 ```bash
-# 编译核心插件
-cd jiap_core
-./gradlew dist
+# 1. 在 JADX GUI 中安装插件
+# JADX -> Settings -> Plugins -> Install JIAP
 
-# 安装MCP服务器依赖
-cd mcp_server
-uv sync
-```
-
-#### 2. 安装到JADX
-
-```bash
+# 或使用命令行安装
 jadx plugins --install-jar <path-to-jiap.jar>
 
-# 或者直接在JADX中安装
+# 2. 安装 MCP Server 依赖
+cd mcp_server
+pip install requests fastmcp  # 或者使用 uv sync
 ```
 
-#### 3. 启动方式
+### 使用说明
 
-##### GUI模式（推荐）
+* 启动 JIAP 插件
 
-```bash
-# 启动JADX GUI，插件自动加载
-jadx-gui your-app.apk
-```
+  - 启动 JADX 并启用 JIAP 插件
+  - 确认服务器运行在 `http://127.0.0.1:25419`
 
-##### Daemon模式（无GUI后台运行）
-
-```bash
-# 使用daemon模式启动，适合服务器环境
-jadx -d your-app.apk --export-dir ./output --load-plugins jiap-plugin.jar
-```
-
-#### 4. 启动MCP服务器
+* 启动 MCP 服务器
 
 ```bash
 cd mcp_server
+python jiap_mcp_server.py
+```
 
-# 默认配置启动
+MCP 服务器将在 `http://0.0.0.0:25420` 启动。
+* 验证连接
+
+使用 `health_check()` 验证 MCP 服务器与 JIAP 插件之间的连接
+
+* 可用工具
+  - `get_all_classes(page=1)` - 获取所有可用类，支持分页
+  - `search_class(class_name, page=1)` - 按名称搜索类
+  - `get_class_source(class_name, smali=False, page=1)` - 获取 Java 或 Smali 格式的类源代码
+  - `search_method(method_name, page=1)` - 搜索匹配给定方法名的方法
+  - `get_method_source(method_name, smali=False, page=1)` - 获取方法源代码
+  - `get_class_info(class_name, page=1)` - 获取类信息，包括字段和方法
+  - `get_method_xref(method_name, page=1)` - 查找方法使用位置
+  - `get_class_xref(class_name, page=1)` - 查找类使用位置
+  - `get_implement(interface_name, page=1)` - 获取接口实现
+  - `get_sub_classes(class_name, page=1)` - 获取子类
+  - `selected_text(page=1)` - 获取 JADX GUI 中当前选中的文本
+  - `selected_class(page=1)` - 获取 JADX GUI 中当前选中的类
+  - `get_app_manifest(page=1)` - 获取 Android 清单内容
+  - `get_main_activity(page=1)` - 获取主 Activity 源代码
+  - `get_application(page=1)` - 获取 Android 应用类及其信息
+  - `get_system_service_impl(interface_name, page=1)` - 获取系统服务实现
+
+### 配置说明
+
+```bash
+# 环境变量
+export JIAP_URL="http://192.168.1.100:25419"
 python jiap_mcp_server.py
 
-# 自定义JADX服务器地址
-python jiap_mcp_server.py --jiap-host 192.168.1.100 --jiap-port 25420
-
-# 使用完整URL
-python jiap_mcp_server.py --jiap-url "http://192.168.1.100:25420"
-
-# 使用环境变量
-export JIAP_URL="http://192.168.1.100:25420"
-python jiap_mcp_server.py
+# 命令行参数
+python jiap_mcp_server.py --jiap-host 192.168.1.100 --jiap-port 25419
 ```
 
 ---
 
-## 🛠️ API参考
+## 开发
 
-### HTTP API端点
+### 从源码构建
 
-```http
-POST /api/jiap/get_all_classes          # 获取所有类列表
-POST /api/jiap/get_class_source         # 获取类源码
-POST /api/jiap/search_method            # 搜索方法
-POST /api/jiap/get_method_source        # 获取方法源码
-POST /api/jiap/get_class_info           # 获取类信息
-POST /api/jiap/get_method_xref          # 方法交叉引用
-POST /api/jiap/get_class_xref           # 类交叉引用
-POST /api/jiap/get_implement            # 接口实现类
-POST /api/jiap/get_sub_classes          # 子类查找
+```bash
+# 构建 JIAP Core
+cd jiap_core
+chmod +x gradlew
+./gradlew dist
+
+# 安装 MCP Server 依赖
+cd mcp_server
+pip install requests fastmcp  # 或者使用 uv sync
 ```
 
-#### Android专项
-```http
-POST /api/jiap/get_app_manifest         # 应用清单
-POST /api/jiap/get_main_activity        # 主Activity
-POST /api/jiap/get_system_service_impl  # 系统服务实现
-```
+### 增加自定义功能
 
-#### UI集成功能
-```http
-POST /api/jiap/selected_text            # 获取选中文本
-```
+在`jadx/plugins/jiap/service`下创建自定义`service`，实现`JiapServiceInterface`, 其中接口的实现返回值均为`JiapResult`
 
-### 请求/响应格式
-
-#### 请求格式
-```json
-{
-  "class": "com.example.MyClass",
-  "method": "com.example.MyClass.myMethod(java.lang.String):void",
-  "smali": false,
-  "interface": "com.example.IMyInterface"
+```kotlin
+class CustomService(override val pluginContext: JadxPluginContext) : JiapServiceInterface {
+    fun doSomething(): JiapResult {
+        //...
+    }
 }
 ```
 
-#### 响应格式
-```json
-{
-  "type": "code|list",
-  "name": "com.example.MyClass",
-  "code": "源代码内容",
-  "methods-list": ["方法列表"],
-  "fields-list": ["字段列表"],
-  "count": 100,
-  "page": 1
-}
+在`jadx/plugins/jiap/JiapConfig.kt`中注册自定义`service`，并在`routeMap`中添加路由映射即可实现自定义接口功能
+
+```kotlin
+// Service instances
+val commonService: CommonService = CommonService(pluginContext)
+val androidFrameworkService: AndroidFrameworkService = AndroidFrameworkService(pluginContext)
+val androidAppService: AndroidAppService = AndroidAppService(pluginContext)
+val customService: CustomService = CustomService(pluginContext) // 注册自定义功能
+
+// Route mappings
+val routeMap: Map<String, RouteTarget>
+get() = mapOf(
+    // Common Service
+    "/api/jiap/get_all_classes" to RouteTarget(
+        service = commonService,
+        methodName = "handleGetAllClasses",
+        cacheable = true
+    ),
+    //...
+    // Custom Service
+    "/api/jiap/custom_service/do_something" to RouteTarget(
+        service = customService,
+        methodName = "doSomething",
+    ),
+    //...
+)
 ```
+
+## 贡献
+
+1. Fork 本仓库
+2. 创建功能分支
+3. 进行更改
+4. 如适用，添加测试
+5. 提交 Pull Request
 
 ---
 
-## 📄 许可证
+## 许可证
 
 本项目采用 [GNU许可证](LICENSE) - 详见 [LICENSE](LICENSE) 文件。
 
 ---
 
-## 🙏 致谢
+## 致谢
 
 - **[JADX](https://github.com/skylot/jadx)**: 强大的Android反编译器
 - **[FastMCP](https://github.com/modelcontextprotocol/servers)**: MCP协议实现

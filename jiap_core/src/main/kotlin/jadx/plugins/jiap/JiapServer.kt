@@ -10,23 +10,20 @@ import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
 import kotlin.collections.mapOf
 
-import jadx.plugins.jiap.service.CommonService
-import jadx.plugins.jiap.service.AndroidFrameworkService
-import jadx.plugins.jiap.service.AndroidAppService
-import jadx.plugins.jiap.model.JiapResult
-import jadx.plugins.jiap.utils.JiapConstants
-import jadx.plugins.jiap.utils.JiapConstants.ErrorCode
-import jadx.plugins.jiap.utils.JiapConstants.Messages
 import jadx.plugins.jiap.utils.PreferencesManager
 import jadx.plugins.jiap.utils.PluginUtils
 import jadx.plugins.jiap.utils.LogUtils
 import jadx.plugins.jiap.utils.CacheUtils
+import jadx.plugins.jiap.utils.JiapConstants
+import jadx.plugins.jiap.utils.JiapConstants.ErrorCode
+import jadx.plugins.jiap.utils.JiapConstants.Messages
+import jadx.plugins.jiap.model.JiapResult
 
 class JiapServer(
     private val pluginContext: JadxPluginContext,
     private val scheduler: ScheduledExecutorService
 ) {
-    
+
     companion object {
         private const val SHUTDOWN_TIMEOUT_MS = 500L
         private const val RESTART_DELAY_MS = 1000L
@@ -39,7 +36,6 @@ class JiapServer(
 
     val isRunning: Boolean get() = started
 
-
     private var app: Javalin? = null
 
     @Volatile
@@ -51,79 +47,11 @@ class JiapServer(
     @Volatile
     private var shutdownHook: Thread? = null
 
-    private val commonService: CommonService = CommonService(pluginContext)
-    private val androidFrameworkService: AndroidFrameworkService = AndroidFrameworkService(pluginContext)
-    private val androidAppService: AndroidAppService = AndroidAppService(pluginContext)
+    // Configuration for services and routing
+    private val config: JiapConfig = JiapConfig(pluginContext)
 
-    private val routeMap: Map<String, RouteTarget>
-        get() = mapOf(
-            // Common Service
-            "/api/jiap/get_all_classes" to RouteTarget(
-                service = commonService,
-                methodName = "handleGetAllClasses"
-            ),
-            "/api/jiap/selected_text" to RouteTarget(
-                service = commonService,
-                methodName = "handleGetSelectedText"
-            ),
-            "/api/jiap/search_method" to RouteTarget(
-                service = commonService,
-                methodName = "handleSearchMethod",
-                params = setOf("method")
-            ),
-            "/api/jiap/get_class_info" to RouteTarget(
-                service = commonService,
-                methodName = "handleGetClassInfo",
-                params = setOf("class")
-            ),
-            "/api/jiap/get_method_xref" to RouteTarget(
-                service = commonService,
-                methodName = "handleGetMethodXref",
-                params = setOf("method")
-            ),
-            "/api/jiap/get_class_xref" to RouteTarget(
-                service = commonService,
-                methodName = "handleGetClassXref",
-                params = setOf("class")
-            ),
-            "/api/jiap/get_implement" to RouteTarget(
-                service = commonService,
-                methodName = "handleGetImplementOfInterface",
-                params = setOf("interface")
-            ),
-            "/api/jiap/get_sub_classes" to RouteTarget(
-                service = commonService,
-                methodName = "handleGetSubclasses",
-                params = setOf("class")
-            ),
-            "/api/jiap/get_class_source" to RouteTarget(
-                service = commonService,
-                methodName = "handleGetClassSource",
-                params = setOf("class", "smali")
-            ),
-            "/api/jiap/get_method_source" to RouteTarget(
-                service = commonService,
-                methodName = "handleGetMethodSource",
-                params = setOf("method", "smali")
-            ),
-
-            // Android App Service
-            "/api/jiap/get_app_manifest" to RouteTarget(
-                service = androidAppService,
-                methodName = "handleGetAppManifest"
-            ),
-            "/api/jiap/get_main_activity" to RouteTarget(
-                service = androidAppService,
-                methodName = "handleGetMainActivity"
-            ),
-
-            // Android Framework Service
-            "/api/jiap/get_system_service_impl" to RouteTarget(
-                service = androidFrameworkService,
-                methodName = "handleGetSystemServiceImpl",
-                params = setOf("interface")
-            )
-        )
+    val routeMap: Map<String, RouteTarget>
+        get() = config.routeMap
 
     @Synchronized
     fun start(port: Int = JiapConstants.DEFAULT_PORT): Boolean {
@@ -187,6 +115,7 @@ class JiapServer(
 
         Thread({
             try {
+                CacheUtils.reinitializeCache()
                 LogUtils.info(Messages.SERVER_RESTARTING)
                 stop()
                 Thread.sleep(RESTART_DELAY_MS)
@@ -293,23 +222,48 @@ class JiapServer(
 
             val page = (payload["page"] as? Int) ?: 1
 
-            // Check cache first
-            val cachedResponse = CacheUtils.getCachedResponse(path, payload, page)
-            if (cachedResponse != null) {
-                ctx.json(cachedResponse)
-                return
-            }
-
-            // Cache miss - execute service method
-            val result = invokeServiceMethod(routeTarget, payload)
-
-            if (result.success) {
-                // Cache the successful response
-                CacheUtils.cacheResponse(path, payload, page, result.data)
-                ctx.json(result.data)
+            // Get response data (from cache or by executing service method)
+            val responseData = if (routeTarget.cacheable) {
+                // For cacheable endpoints, check cache first
+                val cachedData = CacheUtils.get(path, payload)
+                cachedData ?: run {
+                    // Cache miss - execute service method and cache result
+                    val result = invokeServiceMethod(routeTarget, payload)
+                    if (result.success) {
+                        CacheUtils.put(path, payload, result.data)
+                        result.data
+                    } else {
+                        ctx.status(500).json(result.data)
+                        return
+                    }
+                }
             } else {
-                ctx.status(500).json(result.data)
+                // For non-cacheable endpoints, execute service method directly
+                val result = invokeServiceMethod(routeTarget, payload)
+                if (result.success) {
+                    result.data
+                } else {
+                    ctx.status(500).json(result.data)
+                    return
+                }
             }
+
+            // Create slice for pagination (applies to all endpoints)
+            val slicedResponse = PluginUtils.createSlice(responseData, page)
+
+            // Add note if requested page is out of range
+            if (page != (slicedResponse["page"] as? Int ?: 1)) {
+                @Suppress("UNCHECKED_CAST")
+                val modifiedResponse = slicedResponse.toMutableMap()
+                val currentPage = modifiedResponse["page"]
+                val totalPages = modifiedResponse["total"]
+                modifiedResponse["note"] = "Requested page $page is out of range. Showing page $currentPage of $totalPages."
+                modifiedResponse["requestedPage"] = page
+                ctx.json(modifiedResponse)
+            } else {
+                ctx.json(slicedResponse)
+            }
+
         } catch (e: Exception) {
             handleRouteError(ctx, e, path)
         }
@@ -323,18 +277,21 @@ class JiapServer(
         for (param in requiredParams) {
             val value = payload[param]
             if (value == null || value.toString().isBlank()) {
-                ctx.status(400).json(mapOf(
-                    "error" to ErrorCode.MISSING_PARAMETER,
-                    "message" to Messages.MISSING_PARAMETER.format(param)
-                ))
+                ctx.status(400).json(
+                    mapOf(
+                        "error" to ErrorCode.MISSING_PARAMETER,
+                        "message" to Messages.MISSING_PARAMETER.format(param)
+                    )
+                )
                 return false
             }
-            // 验证参数类型是否为支持的类型
             if (value !is String && value !is Int && value !is Boolean) {
-                ctx.status(400).json(mapOf(
-                    "error" to ErrorCode.INVALID_PARAMETER,
-                    "message" to Messages.INVALID_PARAMETER.format("$param: ${value::class.simpleName}")
-                ))
+                ctx.status(400).json(
+                    mapOf(
+                        "error" to ErrorCode.INVALID_PARAMETER,
+                        "message" to Messages.INVALID_PARAMETER.format("$param: ${value::class.simpleName}")
+                    )
+                )
                 return false
             }
         }
@@ -354,14 +311,8 @@ class JiapServer(
             return method.invoke(routeTarget.service) as JiapResult
         }
         val args = routeTarget.params.map { paramName ->
-            // Get value from payload
             val value = payload[paramName]
-
-            // Find matching parameter type
-            // We assume params are in the same order as defined in routeTarget.params
             val paramType = params[routeTarget.params.indexOf(paramName)].type
-
-            // Convert to proper type
             PluginUtils.convertValue(value, paramType)
         }.toTypedArray()
 
@@ -376,10 +327,12 @@ class JiapServer(
             else -> ErrorCode.SERVER_INTERNAL_ERROR to "${Messages.SERVICE_CALL_FAILED}: ${e.message}"
         }
 
-        ctx.status(500).json(mapOf(
-            "error" to errorCode,
-            "message" to message
-        ))
+        ctx.status(500).json(
+            mapOf(
+                "error" to errorCode,
+                "message" to message
+            )
+        )
         LogUtils.error(errorCode, message, e)
     }
 
@@ -387,47 +340,23 @@ class JiapServer(
         try {
             val port = PreferencesManager.getPort()
             val url = PluginUtils.buildServerUrl(running = started, port = port)
-            ctx.json(mapOf(
-                "status" to if (started) "running" else "stopped",
-                "url" to url,
-                "port" to port,
-                "timestamp" to System.currentTimeMillis()
-            ))
+            ctx.json(
+                mapOf(
+                    "status" to if (started) "running" else "stopped",
+                    "url" to url,
+                    "port" to port,
+                    "timestamp" to System.currentTimeMillis()
+                )
+            )
         } catch (e: Exception) {
-            LogUtils.error(ErrorCode.HEALTH_CHECK_FAILED, Messages.HEALTH_CHECK_FAILED, e)
-            ctx.status(500).json(mapOf(
-                "error" to ErrorCode.HEALTH_CHECK_FAILED,
-                "message" to e.message
-            ))
+            LogUtils.error(JiapConstants.ErrorCode.HEALTH_CHECK_FAILED, Messages.HEALTH_CHECK_FAILED, e)
+            ctx.status(500).json(
+                mapOf(
+                    "error" to ErrorCode.HEALTH_CHECK_FAILED,
+                    "message" to e.message
+                )
+            )
         }
     }
 }
 
-data class RouteTarget(
-    val service: Any,
-    val methodName: String,
-    val params: Set<String> = emptySet()
-) {
-    // Cached method reference, lazily initialized
-    @Volatile
-    private var cachedMethod: java.lang.reflect.Method? = null
-
-    // Get method reference with caching
-    fun getMethod(): java.lang.reflect.Method {
-        // Double-checked locking pattern
-        if (cachedMethod == null) {
-            synchronized(this) {
-                if (cachedMethod == null) {
-                    val serviceClass = service::class.java
-                    val method = serviceClass.methods.find {
-                        it.name == methodName
-                    } ?: throw NoSuchMethodException(
-                        "Method $methodName not found in ${serviceClass.simpleName}"
-                    )
-                    cachedMethod = method
-                }
-            }
-        }
-        return cachedMethod!!
-    }
-}

@@ -89,4 +89,116 @@ object PluginUtils {
                        running: Boolean = true): String {
         return if (running) "http://$ipAddress:$port/" else "N/A"
     }
+
+    /**
+     * Create a slice of the response for the given page
+     * This method handles pagination for large data sets
+     */
+    fun createSlice(response: Any, page: Int): Map<String, Any> {
+        when (response) {
+            is Map<*, *> -> {
+                @Suppress("UNCHECKED_CAST")
+                val responseMap = response as Map<String, Any>
+
+                // Determine total pages needed based on type
+                val type = responseMap["type"] as? String
+                val totalPages = calculateTotalPages(responseMap, type)
+
+                // Create the slice data
+                val sliceData = createSliceData(responseMap, page, type)
+
+                // Wrap slice with pagination info
+                return mapOf(
+                    "data" to sliceData,
+                    "page" to page,
+                    "total" to totalPages
+                )
+            }
+            else -> {
+                // Non-Map response, wrap as single page
+                return mapOf(
+                    "data" to response,
+                    "page" to 1,
+                    "total" to 1
+                )
+            }
+        }
+    }
+
+    /**
+     * Calculate total pages needed for pagination
+     */
+    private fun calculateTotalPages(responseMap: Map<String, Any>, type: String?): Int {
+        return when (type) {
+            "list" -> {
+                // Find all list fields
+                val listFields = responseMap.filter { (key, value) ->
+                    key.endsWith("-list") && value is List<*>
+                }
+
+                if (listFields.isNotEmpty()) {
+                    listFields.values.maxOf { list ->
+                        @Suppress("UNCHECKED_CAST")
+                        (list as List<*>).size
+                    }.let { size ->
+                        (size + 1000 - 1) / 1000  // 1000 items per page
+                    }
+                } else {
+                    1
+                }
+            }
+            "code" -> {
+                // Check for code or content field
+                val codeField = responseMap["code"]
+                if (codeField != null) {
+                    val codeLines = codeField.toString().split('\n')
+                    (codeLines.size + 1000 - 1) / 1000  // 1000 lines per page
+                } else {
+                    1
+                }
+            }
+            else -> 1
+        }
+    }
+
+    /**
+     * Create sliced data for the given page
+     */
+    private fun createSliceData(responseMap: Map<String, Any>, page: Int, type: String?): Map<String, Any> {
+        val sliceData = mutableMapOf<String, Any>()
+
+        // Process each field in the response based on type
+        responseMap.forEach { (key, value) ->
+            when (type) {
+                "list" if key.endsWith("-list") && value is List<*> -> {
+                    // Slice the list
+                    @Suppress("UNCHECKED_CAST")
+                    val list = value as List<*>
+                    val start = (page - 1) * 1000  // 1000 items per slice
+                    val end = (start + 1000).coerceAtMost(list.size)
+                    sliceData[key] = list.subList(start, end)
+                }
+                "code" if key == "code" -> {
+                    // Slice the code
+                    val codeLines = value.toString().split('\n')
+                    val startLine = (page - 1) * 1000  // 1000 lines per slice
+                    val endLine = (startLine + 1000).coerceAtMost(codeLines.size)
+                    val codeSlice = codeLines.subList(startLine, endLine).joinToString("\n")
+
+                    // Truncate if too long
+                    sliceData[key] = if (codeSlice.length > 60000) {
+                        codeSlice.take(60000)
+                    } else {
+                        codeSlice
+                    }
+                }
+                else -> {
+                    // Copy other fields as-is (including type, count, name, etc.)
+                    sliceData[key] = value
+                }
+            }
+        }
+
+        return sliceData
+    }
 }

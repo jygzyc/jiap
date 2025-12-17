@@ -1,19 +1,59 @@
 package jadx.plugins.jiap.utils
 
+import jadx.api.JadxDecompiler
 import jadx.api.JavaClass
 import jadx.api.JavaMethod
 import jadx.core.dex.instructions.args.ArgType
-import org.slf4j.LoggerFactory
 import java.util.regex.Pattern
 
 
 object CodeUtils {
-    private val logger = LoggerFactory.getLogger(CodeUtils::class.java)
+
+    fun findMethod(decompiler: JadxDecompiler, mthSig: String): Pair<JavaClass, JavaMethod>? {
+        decompiler.classesWithInners?.forEach { clazz ->
+            clazz.methods.find { it.toString() == mthSig }?.let { method ->
+                return clazz to method
+            }
+        }
+        return null
+    }
+
+    fun extractMethodSmaliCode(clazz: JavaClass, mth: JavaMethod): String {
+        val classSmaliCode = clazz.smali ?: return "".also {
+            LogUtils.warn("Smali code not available for class: %s".format(clazz.fullName))
+        }
+
+        try {
+            val smaliSignature = buildSmaliSignature(mth)
+            LogUtils.debug("Looking for Smali signature: %s in class %s".format(smaliSignature, clazz.fullName))
+
+            val patternString = "(^\\s*\\.method[^\n]*${Regex.escape(smaliSignature)}.*?^\\s*\\.end method)"
+            val pattern = Pattern.compile(patternString, Pattern.DOTALL or Pattern.MULTILINE)
+            val matcher = pattern.matcher(classSmaliCode)
+
+            return if (matcher.find()) {
+                matcher.group(1).trimIndent()
+            } else {
+                LogUtils.warn("Smali method body not found for signature: %s in class: %s".format(smaliSignature, clazz.fullName))
+                ""
+            }
+        } catch (e: Exception) {
+            LogUtils.error(JiapConstants.ErrorCode.SERVICE_CALL_FAILED, "Error extracting Smali code for method %s in class %s".format(mth.name, clazz.fullName), e)
+            return ""
+        }
+    }
 
     fun getLineForPos(code: String, pos: Int): String {
         val start = getLineStartForPos(code, pos)
         val end = getLineEndForPos(code, pos)
         return code.substring(start, end)
+    }
+
+    fun getLineNumberForPos(code: String, pos: Int): Int {
+        if (pos < 0 || pos >= code.length) {
+            return 1
+        }
+        return code.substring(0, pos).count { it == '\n' } + 1
     }
 
     private fun getLineStartForPos(code: String, pos: Int): Int {
@@ -42,44 +82,6 @@ object CodeUtils {
         return code.lastIndexOf('\n', startPos)
     }
 
-    fun getLineNumberForPos(code: String, pos: Int): Int {
-        if (pos < 0 || pos >= code.length) {
-            return 1
-        }
-        return code.substring(0, pos).count { it == '\n' } + 1
-    }
-
-    fun extractMethodSmaliCode(clazz: JavaClass, mth: JavaMethod): String {
-        val classSmaliCode = clazz.smali ?: return "".also {
-            logger.warn("Smali code not available for class: {}", clazz.fullName)
-        }
-
-        try {
-            val smaliSignature = buildSmaliSignature(mth)
-            logger.debug("Looking for Smali signature: {} in class {}", smaliSignature, clazz.fullName)
-
-            val patternString = "(^\\s*\\.method[^\n]*${Regex.escape(smaliSignature)}.*?^\\s*\\.end method)"
-            val pattern = Pattern.compile(patternString, Pattern.DOTALL or Pattern.MULTILINE)
-            val matcher = pattern.matcher(classSmaliCode)
-
-            return if (matcher.find()) {
-                matcher.group(1).trimIndent()
-            } else {
-                logger.warn("Smali method body not found for signature: {} in class: {}", smaliSignature, clazz.fullName)
-                ""
-            }
-        } catch (e: Exception) {
-            logger.error("Error extracting Smali code for method {} in class {}: {}", mth.name, clazz.fullName, e.message)
-            return ""
-        }
-    }
-
-    /**
-     * Builds the Smali method signature (name + descriptor) from a JavaMethod object.
-     *
-     * @param mth The JavaMethod object.
-     * @return The Smali method signature string.
-     */
     private fun buildSmaliSignature(mth: JavaMethod): String {
         val methodName = mth.name
         val parameters = mth.arguments.joinToString("") {
@@ -88,17 +90,9 @@ object CodeUtils {
         val returnType = javaTypeToSmaliDescriptor(mth.returnType)
 
         val signature = "$methodName($parameters)$returnType"
-        logger.debug("Built Smali signature: {}", signature)
-
         return signature
     }
 
-    /**
-     * Converts a Jadx ArgType object representing a Java type to its Smali descriptor string.
-     *
-     * @param type The ArgType object.
-     * @return The Smali type descriptor string.
-     */
     private fun javaTypeToSmaliDescriptor(type: ArgType): String {
         return when {
             type.isPrimitive -> when (type.primitiveType) {
