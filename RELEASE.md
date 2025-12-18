@@ -1,9 +1,8 @@
-# 🚀 JIAP v0.2.3 Release Notes
+# 🚀 JIAP v0.2.3 & v0.2.4 Release Notes
 
 ## 🐛 Bug Fixes
 - **Fixed Runtime Parameter Name Resolution**: Resolved issue where parameter names were not preserved at runtime, causing "Parameter not found" errors
 - **Enhanced Parameter Mapping**: Updated parameter mapping logic to use configuration-defined parameter names instead of relying on reflection
-- **Improved Error Messages**: Added clearer error messages indicating which parameter is missing in request payload
 
 ---
 

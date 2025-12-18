@@ -49,6 +49,18 @@ repositories {
 
 version = System.getenv("JIAP_VERSION") ?: "dev"
 
+// Configure Java compiler to preserve parameter names
+tasks.withType<JavaCompile> {
+    options.compilerArgs.add("-parameters")
+}
+
+// Configure Kotlin compiler to preserve parameter names
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
+    compilerOptions {
+        javaParameters = true
+    }
+}
+
 tasks {
     withType(Test::class) {
         useJUnitPlatform()

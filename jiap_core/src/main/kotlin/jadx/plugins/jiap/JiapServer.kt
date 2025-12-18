@@ -311,24 +311,14 @@ class JiapServer(
             return method.invoke(routeTarget.service) as JiapResult
         }
 
-        // Since parameter names might not be preserved at runtime,
-        // we need to map parameters by position using the configured param names
-        val paramNames = routeTarget.params.toList()
-
-        // Validate parameter count
-        if (params.size != paramNames.size) {
-            throw IllegalArgumentException(
-                "Parameter count mismatch in method ${routeTarget.methodName}: " +
-                "expected ${params.size}, got ${paramNames.size}"
-            )
-        }
-
-        // Build arguments array matching parameter positions
-        val args = params.mapIndexed { index, param ->
-            val paramName = paramNames[index]
+        // Build arguments array based on method signature order
+        // Only use parameters that the method actually needs, ignoring others like 'page'
+        val args = params.map { param ->
+            val paramName = param.name
             val value = payload[paramName]
                 ?: throw IllegalArgumentException(
-                    "Parameter '$paramName' not found in request payload for method ${routeTarget.methodName}"
+                    "Parameter '$paramName' not found in request payload for method ${routeTarget.methodName}. " +
+                    "Available parameters in payload: ${payload.keys.joinToString(", ")}"
                 )
             PluginUtils.convertValue(value, param.type)
         }.toTypedArray()
