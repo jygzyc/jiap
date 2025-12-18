@@ -311,14 +311,26 @@ class JiapServer(
             return method.invoke(routeTarget.service) as JiapResult
         }
 
-        // Create a map from parameter name to parameter type for accurate lookup
-        val paramTypeMap = params.associateBy { it.name }
+        // Since parameter names might not be preserved at runtime,
+        // we need to map parameters by position using the configured param names
+        val paramNames = routeTarget.params.toList()
 
-        val args = routeTarget.params.map { paramName ->
+        // Validate parameter count
+        if (params.size != paramNames.size) {
+            throw IllegalArgumentException(
+                "Parameter count mismatch in method ${routeTarget.methodName}: " +
+                "expected ${params.size}, got ${paramNames.size}"
+            )
+        }
+
+        // Build arguments array matching parameter positions
+        val args = params.mapIndexed { index, param ->
+            val paramName = paramNames[index]
             val value = payload[paramName]
-            val paramType = paramTypeMap[paramName]?.type
-                ?: throw IllegalArgumentException("Parameter '$paramName' not found in method ${routeTarget.methodName}")
-            PluginUtils.convertValue(value, paramType)
+                ?: throw IllegalArgumentException(
+                    "Parameter '$paramName' not found in request payload for method ${routeTarget.methodName}"
+                )
+            PluginUtils.convertValue(value, param.type)
         }.toTypedArray()
 
         @Suppress("UNCHECKED_CAST")
