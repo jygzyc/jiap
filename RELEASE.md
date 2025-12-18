@@ -1,3 +1,15 @@
+# 🚀 JIAP v0.2.1 Release Notes
+
+## ✨ Features
+- **New Class Keyword Search**: Added `search_class_key` functionality to search for classes whose source code contains specified keywords (case-insensitive)
+- **Enhanced Code Analysis**: Improved search capabilities for more efficient code navigation and discovery
+
+## ⚡ Improvements
+- **Fixed Error Message Format**: Corrected error message naming conventions in method handlers
+- **Updated Documentation**: Refreshed all README files with accurate tool descriptions
+
+---
+
 # 🚀 JIAP v0.2.0 Release Notes
 
 ## ✨ Features
@@ -14,5 +26,5 @@
 
 ---
 
-**Breaking Changes**: Removed client-side caching, simplified MCP response format
+**Breaking Changes (v0.2.0)**: Removed client-side caching, simplified MCP response format
 **Migration**: Update MCP clients for new response structure

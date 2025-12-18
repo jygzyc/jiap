@@ -103,15 +103,14 @@ async def search_method(
 
 
 @mcp.tool(
-    name="search_class",
-    description="Searches for classes matching the given class_name string, e.g., MainActivity matches com.example.MainActivity. Supports pagination via the page parameter (default: 1)."
+    name="search_class_key",
+    description="Searches for classes whose source code contains the specified keyword. The search is case-insensitive and looks for the keyword within the class code content. Supports pagination via the page parameter (default: 1)."
 )
-async def search_class(
-    class_name: str = Field(description="Class name or partial name to search for"),
+async def search_class_key(
+    key: str = Field(description="Keyword to search for within class source code"),
     page: int = Field(1, description="Page number for pagination, default is 1")
 ) -> ToolResult:
-    return await request_to_jiap("search_class", json_data={"class": class_name}, page=page)
-
+    return await request_to_jiap("search_class_key", json_data={"key": key}, page=page)
 
 @mcp.tool(
     name="get_method_source",

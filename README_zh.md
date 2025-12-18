@@ -62,7 +62,7 @@ MCP 服务器将在 `http://0.0.0.0:25420` 启动。
 
 * 可用工具
   - `get_all_classes(page=1)` - 获取所有可用类，支持分页
-  - `search_class(class_name, page=1)` - 按名称搜索类
+  - `search_class_key(key, page=1)` - 搜索源代码中包含指定关键字的类（不区分大小写）
   - `get_class_source(class_name, smali=False, page=1)` - 获取 Java 或 Smali 格式的类源代码
   - `search_method(method_name, page=1)` - 搜索匹配给定方法名的方法
   - `get_method_source(method_name, smali=False, page=1)` - 获取方法源代码

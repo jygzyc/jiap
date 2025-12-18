@@ -28,16 +28,27 @@ class JiapConfig(
                 methodName = "handleGetAllClasses",
                 cacheable = true
             ),
-            "/api/jiap/search_method" to RouteTarget(
-                service = commonService,
-                methodName = "handleSearchMethod",
-                params = setOf("method"),
-                cacheable = true
-            ),
             "/api/jiap/get_class_info" to RouteTarget(
                 service = commonService,
                 methodName = "handleGetClassInfo",
                 params = setOf("class"),
+                cacheable = true
+            ),
+            "/api/jiap/get_class_source" to RouteTarget(
+                service = commonService,
+                methodName = "handleGetClassSource",
+                params = setOf("class", "smali")
+            ),
+            "/api/jiap/search_class_key" to RouteTarget(
+                service = commonService,
+                methodName = "handleSearchClassKey",
+                params = setOf("key"),
+                cacheable = true
+            ),
+            "/api/jiap/search_method" to RouteTarget(
+                service = commonService,
+                methodName = "handleSearchMethod",
+                params = setOf("method"),
                 cacheable = true
             ),
             "/api/jiap/get_method_xref" to RouteTarget(
@@ -64,11 +75,6 @@ class JiapConfig(
                 params = setOf("class"),
                 cacheable = true
             ),
-            "/api/jiap/get_class_source" to RouteTarget(
-                service = commonService,
-                methodName = "handleGetClassSource",
-                params = setOf("class", "smali")
-            ),
             "/api/jiap/get_method_source" to RouteTarget(
                 service = commonService,
                 methodName = "handleGetMethodSource",
@@ -82,7 +88,6 @@ class JiapConfig(
                 service = commonService,
                 methodName = "handleGetSelectedClass"
             ),
-
             // Android App Service
             "/api/jiap/get_app_manifest" to RouteTarget(
                 service = androidAppService,

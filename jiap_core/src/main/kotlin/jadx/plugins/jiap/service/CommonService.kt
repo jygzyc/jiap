@@ -56,7 +56,7 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
             return JiapResult(success = true, data = result)
         } catch (e: Exception) {
             LogUtils.error("handleGetAllClasses", e)
-            return JiapResult(success = false, data = hashMapOf("error" to "getAllClasses: ${e.message}"))
+            return JiapResult(success = false, data = hashMapOf("error" to "handleGetAllClasses: ${e.message}"))
         }
     }
 
@@ -72,11 +72,11 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
                 )
                 JiapResult(success = true, data = result)
             } else {
-                JiapResult(success = false, data = hashMapOf("error" to "getClassInfo: $className not found"))
+                JiapResult(success = false, data = hashMapOf("error" to "handleGetClassInfo: $className not found"))
             }
         } catch (e: Exception) {
-            LogUtils.error("getClassInfo", e)
-            JiapResult(success = false, data = hashMapOf("error" to "getClassInfo: ${e.message}"))
+            LogUtils.error("handleGetClassInfo", e)
+            JiapResult(success = false, data = hashMapOf("error" to "handleGetClassInfo: ${e.message}"))
         }
     }
 
@@ -102,6 +102,24 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
         }
     }
 
+    fun handleSearchClassKey(keyword: String): JiapResult {
+        try {
+            val lowerKeyword = keyword.lowercase()
+            val classes = decompiler.classesWithInners?.parallelStream()?.filter { clazz ->
+                clazz.code.lowercase().contains(lowerKeyword)
+            } ?: emptyList()
+            val result = hashMapOf(
+                "type" to "list",
+                "count" to classes.size,
+                "classes-list" to classes.map { it.fullName }
+            )
+            return JiapResult(success = true, data = result)
+        } catch (e: Exception) {
+            LogUtils.error("handleSearchClassKey", e)
+            return JiapResult(success = false, data = hashMapOf("error" to "handleSearchClassKey: ${e.message}"))
+        }
+    }
+
     fun handleSearchMethod(methodName: String): JiapResult {
         try {
             val lowerMethodName = methodName.lowercase()
@@ -118,7 +136,7 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
             return JiapResult(success = true, data = result)
         } catch (e: Exception) {
             LogUtils.error("handleSearchMethod", e)
-            return JiapResult(success = false, data = hashMapOf("error" to "searchMethod: ${e.message}"))
+            return JiapResult(success = false, data = hashMapOf("error" to "handleSearchMethod: ${e.message}"))
         }
     }
 
@@ -126,7 +144,7 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
         try {
             val mthPair = CodeUtils.findMethod(decompiler, methodName) ?: return JiapResult(
                 success = false,
-                data = hashMapOf("error" to "getMethodSource: $methodName not found")
+                data = hashMapOf("error" to "handleGetMethodSource: $methodName not found")
             )
             val clazz = mthPair.first
             val method = mthPair.second
@@ -141,7 +159,7 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
             return JiapResult(success = true, data = result)
         } catch (e: Exception) {
             LogUtils.error("handleGetMethodSource", e)
-            return JiapResult(success = false, data = hashMapOf("error" to "getMethodSource: ${e.message}"))
+            return JiapResult(success = false, data = hashMapOf("error" to "handleGetMethodSource: ${e.message}"))
         }
     }
 
@@ -150,7 +168,7 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
     fun handleGetMethodXref(methodName: String): JiapResult {
         try {
             val mthPair = CodeUtils.findMethod(decompiler, methodName)
-            ?: return JiapResult(success = false, data = hashMapOf("error" to "getMethodXref: $methodName not found"))
+            ?: return JiapResult(success = false, data = hashMapOf("error" to "handleGetMethodXref: $methodName not found"))
             val method = mthPair.second
             val xrefNodes = mutableListOf<JavaNode>()
             method.declaringClass.decompile()
@@ -170,14 +188,14 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
             return JiapResult(success = true, data = result)
         } catch (e: Exception) {
             LogUtils.error("handleGetMethodXref", e)
-            return JiapResult(success = false, data = hashMapOf("error" to "getMethodXref: ${e.message}"))
+            return JiapResult(success = false, data = hashMapOf("error" to "handleGetMethodXref: ${e.message}"))
         }
     }
 
     fun handleGetClassXref(className: String): JiapResult {
         try {
             val clazz = decompiler.searchJavaClassOrItsParentByOrigFullName(className) 
-            ?: return JiapResult(success = false, data = hashMapOf("error" to "getClassXref: $className not found"))
+            ?: return JiapResult(success = false, data = hashMapOf("error" to "handleGetClassXref: $className not found"))
             val xrefNodes = mutableListOf<JavaNode>()
             clazz.decompile()
             val classUseIn = clazz.useIn
@@ -201,14 +219,14 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
             return JiapResult(success = true, data = result)
         } catch (e: Exception) {
             LogUtils.error("handleGetClassXref", e)
-            return JiapResult(success = false, data = hashMapOf("error" to "getClassXref: ${e.message}"))
+            return JiapResult(success = false, data = hashMapOf("error" to "handleGetClassXref: ${e.message}"))
         }
     }
 
     fun handleGetImplementOfInterface(interfaceName: String): JiapResult {
         return try {
             val interfaceClazz = decompiler.searchJavaClassOrItsParentByOrigFullName(interfaceName)
-            ?: return JiapResult(success = false, data = hashMapOf("error" to "getImplementOfInterface: $interfaceName not found"))
+            ?: return JiapResult(success = false, data = hashMapOf("error" to "handleGetImplementOfInterface: $interfaceName not found"))
             val implementingClasses = decompiler.classesWithInners.filter {
                 it.smali.contains(".super L${interfaceClazz.fullName.replace('.', '/')};") ?: false
             }
@@ -219,14 +237,14 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
             JiapResult(success = true, data = result)
         } catch (e: Exception) {
             LogUtils.error("handleGetImplementOfInterface", e)
-            JiapResult(success = false, data = hashMapOf("error" to "getImplementOfInterface: ${e.message}"))
+            JiapResult(success = false, data = hashMapOf("error" to "handleGetImplementOfInterface: ${e.message}"))
         }
     }
 
     fun handleGetSubclasses(className: String): JiapResult {
         return try {
             val clazz = decompiler.searchJavaClassOrItsParentByOrigFullName(className) 
-            ?: return JiapResult(success = false, data = hashMapOf("error" to "getSubclasses: $className not found"))
+            ?: return JiapResult(success = false, data = hashMapOf("error" to "handleGetSubclasses: $className not found"))
 
             val subClasses = decompiler.classesWithInners.filter {
                 it.smali.contains(".super L${clazz.fullName.replace(".", "/")};")
@@ -238,7 +256,7 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
             JiapResult(success = true, data = result)
         } catch (e: Exception) {
             LogUtils.error("handleGetSubclasses", e)
-            JiapResult(success = false, data = hashMapOf("error" to "getSubclasses: ${e.message}"))
+            JiapResult(success = false, data = hashMapOf("error" to "handleGetSubclasses: ${e.message}"))
         }
     }
 

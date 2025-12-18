@@ -50,7 +50,7 @@ python jiap_mcp_server.py --jiap-url "http://192.168.1.100:25419"
 
 ### Basic JADX Analysis
 - `get_all_classes(page=1)` - Retrieve all available classes with pagination
-- `search_class(class_name, page=1)` - Search for classes by name (e.g., `MainActivity` matches `com.example.MainActivity`)
+- `search_class_key(key, page=1)` - Search for classes whose source code contains the specified keyword (case-insensitive)
 - `get_class_source(class_name, smali=False, page=1)` - Get class source code in Java or Smali format (e.g., `com.example.MyClass$InnerClass`)
 - `get_class_info(class_name, page=1)` - Get class information including fields and methods
 - `get_class_xref(class_name, page=1)` - Find class usage locations
