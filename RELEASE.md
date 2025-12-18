@@ -1,3 +1,13 @@
+# 🚀 JIAP v0.2.2 Release Notes
+
+## ⚡ Improvements
+- **Fixed Parameter Mapping Issue**: Resolved parameter confusion when methods have multiple parameters of the same type
+- **Enhanced Parameter Validation**: Added proper parameter name matching between configuration and service methods
+- **Improved Null Safety**: Enhanced null pointer exception handling in search functions
+- **Better Error Handling**: Added input validation for blank/null parameters
+
+---
+
 # 🚀 JIAP v0.2.1 Release Notes
 
 ## ✨ Features

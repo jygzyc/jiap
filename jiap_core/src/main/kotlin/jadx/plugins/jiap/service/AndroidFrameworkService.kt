@@ -8,10 +8,10 @@ import jadx.plugins.jiap.utils.LogUtils
 
 class AndroidFrameworkService(override val pluginContext: JadxPluginContext) : JiapServiceInterface{
     
-    fun handleGetSystemServiceImpl(interfaceName: String): JiapResult {
+    fun handleGetSystemServiceImpl(`interface`: String): JiapResult {
         try {
-            val interfaceClazz = decompiler.searchJavaClassOrItsParentByOrigFullName(interfaceName)
-                ?: return JiapResult(success = false, data = hashMapOf("error" to "handleGetSystemServiceImpl: $interfaceName not found"))
+            val interfaceClazz = decompiler.searchJavaClassOrItsParentByOrigFullName(`interface`)
+                ?: return JiapResult(success = false, data = hashMapOf("error" to "handleGetSystemServiceImpl: ${`interface`} not found"))
             val serviceClazz = decompiler.classes.firstOrNull {
                 it.smali.contains(".super L${interfaceClazz.fullName.replace('.', '/')}\$Stub;") 
             } ?: return JiapResult(success = false, data = hashMapOf("error" to "handleGetSystemServiceImpl: Service implementation not found"))
