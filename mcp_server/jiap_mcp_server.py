@@ -364,8 +364,4 @@ if __name__ == "__main__":
     ):
         JIAP_BASE_URL = f"http://{JIAP_BASE_URL}"
 
-    import logging
-
-    logging.getLogger("fastmcp").setLevel(logging.WARNING)
-
     mcp.run(transport="http", host="0.0.0.0", port=MCP_SERVER_PORT, show_banner=False)
