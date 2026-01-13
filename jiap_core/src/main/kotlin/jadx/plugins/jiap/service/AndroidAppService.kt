@@ -9,7 +9,6 @@ import jadx.gui.JadxWrapper
 import jadx.gui.ui.MainWindow
 import jadx.plugins.jiap.model.JiapServiceInterface
 import jadx.plugins.jiap.model.JiapResult
-import jadx.plugins.jiap.utils.LogUtils
 
 import java.util.*
 
@@ -30,7 +29,6 @@ class AndroidAppService(override val pluginContext: JadxPluginContext) : JiapSer
                     ?.orElse(null)
             }
             if (manifest == null){
-                LogUtils.error("AndroidManifest not found.")
                 return JiapResult(success = false, data = hashMapOf("error" to "handleGetAppManifest: AndroidManifest not found."))
             }
             val manifestContent = manifest.loadContent()?.text?.codeStr
@@ -41,16 +39,15 @@ class AndroidAppService(override val pluginContext: JadxPluginContext) : JiapSer
             )
             return JiapResult(success = true, data = result)
         } catch (e: Exception) {
-            LogUtils.error("handleGetAppManifest", e)
             return JiapResult(success = false, data = hashMapOf("error" to "handleGetAppManifest: ${e.message}"))
         }
     }
 
     fun handleGetMainActivity(): JiapResult {
         try{
-            var result = HashMap<String, Any>()
-            var manifest: ResourceFile? = null
-            var parser: AndroidManifestParser? = null
+            var result: HashMap<String, Any>
+            var manifest: ResourceFile?
+            var parser: AndroidManifestParser?
             if(this.gui){
                 val mainWindow: MainWindow = pluginContext.guiContext?.mainFrame as MainWindow
                 val jadxWrapper: JadxWrapper = mainWindow.wrapper
@@ -84,16 +81,14 @@ class AndroidAppService(override val pluginContext: JadxPluginContext) : JiapSer
             )
             return JiapResult(success = true, data = result)
         }catch(e: Exception){
-            LogUtils.error("handleGetMainActivity", e)
             return JiapResult(success = false, data = hashMapOf("error" to "handleGetMainActivity: ${e.message}"))
         }
     }
 
     fun handleGetApplication(): JiapResult {
         try{
-            var result = HashMap<String, Any>()
-            var manifest: ResourceFile? = null
-            var parser: AndroidManifestParser? = null
+            var manifest: ResourceFile?
+            var parser: AndroidManifestParser?
             if(this.gui){
                 val mainWindow: MainWindow = pluginContext.guiContext?.mainFrame as MainWindow
                 val jadxWrapper: JadxWrapper = mainWindow.wrapper
@@ -120,14 +115,13 @@ class AndroidAppService(override val pluginContext: JadxPluginContext) : JiapSer
                 success = false,
                 data = hashMapOf("error" to "handleGetApplication: Failed to get application class.")
             )
-            result = hashMapOf(
+            var result: HashMap<String, Any> = hashMapOf(
                 "type" to "code",
                 "name" to applicationClass.fullName,
                 "code" to applicationClass.code
             )
             return JiapResult(success = true, data = result)
         }catch (e:Exception){
-            LogUtils.error("handleGetApplication", e)
             return JiapResult(success = false, data = hashMapOf("error" to "handleGetApplication: ${e.message}"))
         }
 

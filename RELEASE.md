@@ -1,48 +1,71 @@
-# 🚀 JIAP v0.2.3 & v0.2.4 Release Notes
+# 🚀 JIAP v0.3.0 Release Notes
+
+## ✨ Major Features
+
+### Automatic MCP Companion Process Management
+- **Automatic Startup**: MCP server now launches automatically as a companion process when JIAP plugin starts
+- **Sidecar Architecture**: Built-in sidecar process manager handles MCP server lifecycle
+- **Zero Configuration**: No manual MCP server startup or dependency installation required
+- **Auto-Extraction**: MCP scripts automatically extracted to `~/.jiap/mcp/` on first launch
+- **Health Monitoring**: Continuous monitoring of companion process with auto-restart capability
+
+### Structured Error System
+- **Error Codes**: Added 19 structured error codes (E001-E019) for clear diagnostics
+- **Error Messages**: Human-readable error messages with context-specific details
+- **Consistent Format**: Standardized JSON error response format across all endpoints
+- **Enhanced Logging**: Improved error logging with code-based categorization
+
+### Enhanced User Experience
+- **GUI Integration**: New JIAP Server Status menu with real-time monitoring
+- **Live Configuration**: Port and script path changes via GUI with automatic restart
+- **Visual Feedback**: Status indicators for both JIAP server and MCP companion process
+- **Health Check**: Built-in connection verification tool
+
+## ⚡ Improvements
+
+### Architecture & Performance
+- **Companion Process Lifecycle**: Managed process lifecycle synchronized with plugin state
+- **Resource Management**: Proper cleanup of companion processes on plugin unload
+- **Port Flexibility**: Dynamic port assignment with automatic MCP port calculation (JIAP_PORT + 1)
+- **Dependency Detection**: Automatic Python/uv detection and dependency validation
+
+### Developer Experience
+- **Error Handling**: Comprehensive error coverage with actionable error messages
+- **Logging**: Enhanced logging with prefix-based categorization for companion process output
+- **Configuration**: Simplified configuration via plugin options and GUI
 
 ## 🐛 Bug Fixes
-- **Fixed Runtime Parameter Name Resolution**: Resolved issue where parameter names were not preserved at runtime, causing "Parameter not found" errors
-- **Enhanced Parameter Mapping**: Updated parameter mapping logic to use configuration-defined parameter names instead of relying on reflection
+
+- **Process Management**: Fixed companion process not stopping on plugin unload
+- **Port Conflicts**: Better handling of port allocation and conflict detection
+- **Script Extraction**: Fixed resource extraction path issues on different platforms
+- **Health Check**: Improved health check reliability and timeout handling
+
+## 📋 Technical Details
+
+### Companion Process Flow
+```
+JADX Startup → JIAP Plugin Init → HTTP Server Start → Script Extraction → 
+Companion Launch → Health Monitoring → Ready for MCP Connections
+```
+
+### Error Code Categories
+- **E001-E005**: Server lifecycle errors
+- **E006-E007**: JADX integration errors
+- **E008-E012**: Companion process errors
+- **E013-E019**: API and connection errors
+
+## 🔄 Migration Notes
+
+**Breaking Changes**: None - fully backward compatible
+
+**Recommended Actions**:
+1. Remove manual MCP server startup scripts
+2. Update MCP client configurations to use auto-managed ports
+3. Review error handling to use new error codes
 
 ---
 
-# 🚀 JIAP v0.2.2 Release Notes
+## Previous Releases
 
-## ⚡ Improvements
-- **Fixed Parameter Mapping Issue**: Resolved parameter confusion when methods have multiple parameters of the same type
-- **Enhanced Parameter Validation**: Added proper parameter name matching between configuration and service methods
-- **Improved Null Safety**: Enhanced null pointer exception handling in search functions
-- **Better Error Handling**: Added input validation for blank/null parameters
-
----
-
-# 🚀 JIAP v0.2.1 Release Notes
-
-## ✨ Features
-- **New Class Keyword Search**: Added `search_class_key` functionality to search for classes whose source code contains specified keywords (case-insensitive)
-- **Enhanced Code Analysis**: Improved search capabilities for more efficient code navigation and discovery
-
-## ⚡ Improvements
-- **Fixed Error Message Format**: Corrected error message naming conventions in method handlers
-- **Updated Documentation**: Refreshed all README files with accurate tool descriptions
-
----
-
-# 🚀 JIAP v0.2.0 Release Notes
-
-## ✨ Features
-- **Plugin Architecture Refactor**: Introduced JiapConfig with centralized service management and routing
-- **Enhanced Cross-Reference Analysis**: Improved method/class cross-references with better line number tracking
-- **UI Integration**: Added selected text/class endpoints for real-time JADX GUI interaction
-- **Android System Service Analysis**: Enhanced system service implementation discovery
-
-## ⚡ Improvements
-- **Server-Side Caching**: Moved caching logic from client to core server for better performance
-- **Simplified MCP Server**: Removed client-side slicing and complex cache management
-- **Enhanced Error Handling**: Better exception management with structured error responses
-- **Code Quality**: Cleaned up duplicated code, improved type safety and service organization
-
----
-
-**Breaking Changes (v0.2.0)**: Removed client-side caching, simplified MCP response format
-**Migration**: Update MCP clients for new response structure
+See v0.2.x release notes for historical changes.

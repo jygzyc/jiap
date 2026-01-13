@@ -6,7 +6,6 @@ import jadx.api.JavaMethod
 import jadx.core.dex.instructions.args.ArgType
 import java.util.regex.Pattern
 
-
 object CodeUtils {
 
     fun findMethod(decompiler: JadxDecompiler, mthSig: String): Pair<JavaClass, JavaMethod>? {
@@ -19,13 +18,10 @@ object CodeUtils {
     }
 
     fun extractMethodSmaliCode(clazz: JavaClass, mth: JavaMethod): String {
-        val classSmaliCode = clazz.smali ?: return "".also {
-            LogUtils.warn("Smali code not available for class: %s".format(clazz.fullName))
-        }
+        val classSmaliCode = clazz.smali ?: throw IllegalStateException("Smali code not available for class: ${clazz.fullName}")
 
         try {
             val smaliSignature = buildSmaliSignature(mth)
-            LogUtils.debug("Looking for Smali signature: %s in class %s".format(smaliSignature, clazz.fullName))
 
             val patternString = "(^\\s*\\.method[^\n]*${Regex.escape(smaliSignature)}.*?^\\s*\\.end method)"
             val pattern = Pattern.compile(patternString, Pattern.DOTALL or Pattern.MULTILINE)
@@ -34,12 +30,11 @@ object CodeUtils {
             return if (matcher.find()) {
                 matcher.group(1).trimIndent()
             } else {
-                LogUtils.warn("Smali method body not found for signature: %s in class: %s".format(smaliSignature, clazz.fullName))
-                ""
+                throw NoSuchMethodException("Smali method body not found for signature: $smaliSignature in class: ${clazz.fullName}")
             }
         } catch (e: Exception) {
-            LogUtils.error(JiapConstants.ErrorCode.SERVICE_CALL_FAILED, "Error extracting Smali code for method %s in class %s".format(mth.name, clazz.fullName), e)
-            return ""
+            if (e is IllegalStateException || e is NoSuchMethodException) throw e
+            throw RuntimeException("Error extracting Smali code for method ${mth.name} in class ${clazz.fullName}", e)
         }
     }
 

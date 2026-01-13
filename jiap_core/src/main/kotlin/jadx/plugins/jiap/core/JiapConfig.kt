@@ -1,4 +1,4 @@
-package jadx.plugins.jiap
+package jadx.plugins.jiap.core
 
 import jadx.api.plugins.JadxPluginContext
 import jadx.plugins.jiap.service.CommonService
@@ -11,7 +11,7 @@ import kotlin.collections.mapOf
  * This class centralizes all service instances and route mappings.
  */
 class JiapConfig(
-    private val pluginContext: JadxPluginContext
+    pluginContext: JadxPluginContext
 ) {
 
     // Service instances
@@ -133,7 +133,7 @@ data class RouteTarget(
     val service: Any,
     val methodName: String,
     val params: Set<String> = emptySet(),
-    val cacheable: Boolean = false  // 默认不缓存，只有明确标记的才缓存
+    val cacheable: Boolean = false
 ) {
     // Cached method reference, lazily initialized
     @Volatile

@@ -85,9 +85,12 @@ object PluginUtils {
     }
 
     fun buildServerUrl(ipAddress: String = getLocalIpAddress(),
-                       port: Int = PreferencesManager.getPort(),
+                       port: Int,
                        running: Boolean = true): String {
-        return if (running) "http://$ipAddress:$port/" else "N/A"
+        if (port !in 1..65535) {
+            throw IllegalArgumentException("Port must be between 1 and 65535, got: $port")
+        }
+        return if (running) "http://$ipAddress:$port" else "N/A"
     }
 
     /**
@@ -170,26 +173,34 @@ object PluginUtils {
         // Process each field in the response based on type
         responseMap.forEach { (key, value) ->
             when (type) {
-                "list" if key.endsWith("-list") && value is List<*> -> {
-                    // Slice the list
-                    @Suppress("UNCHECKED_CAST")
-                    val list = value as List<*>
-                    val start = (page - 1) * 1000  // 1000 items per slice
-                    val end = (start + 1000).coerceAtMost(list.size)
-                    sliceData[key] = list.subList(start, end)
-                }
-                "code" if key == "code" -> {
-                    // Slice the code
-                    val codeLines = value.toString().split('\n')
-                    val startLine = (page - 1) * 1000  // 1000 lines per slice
-                    val endLine = (startLine + 1000).coerceAtMost(codeLines.size)
-                    val codeSlice = codeLines.subList(startLine, endLine).joinToString("\n")
-
-                    // Truncate if too long
-                    sliceData[key] = if (codeSlice.length > 60000) {
-                        codeSlice.take(60000)
+                "list" -> {
+                    if (key.endsWith("-list") && value is List<*>) {
+                        // Slice the list
+                        @Suppress("UNCHECKED_CAST")
+                        val list = value as List<*>
+                        val start = (page - 1) * 1000  // 1000 items per slice
+                        val end = (start + 1000).coerceAtMost(list.size)
+                        sliceData[key] = list.subList(start, end)
                     } else {
-                        codeSlice
+                        sliceData[key] = value
+                    }
+                }
+                "code" -> {
+                    if (key == "code") {
+                        // Slice the code
+                        val codeLines = value.toString().split('\n')
+                        val startLine = (page - 1) * 1000  // 1000 lines per slice
+                        val endLine = (startLine + 1000).coerceAtMost(codeLines.size)
+                        val codeSlice = codeLines.subList(startLine, endLine).joinToString("\n")
+
+                        // Truncate if too long
+                        sliceData[key] = if (codeSlice.length > 60000) {
+                            codeSlice.take(60000)
+                        } else {
+                            codeSlice
+                        }
+                    } else {
+                        sliceData[key] = value
                     }
                 }
                 else -> {
