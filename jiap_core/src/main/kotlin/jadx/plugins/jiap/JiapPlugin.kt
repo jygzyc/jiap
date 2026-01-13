@@ -6,13 +6,13 @@ import jadx.api.plugins.JadxPluginInfo
 import jadx.api.plugins.JadxPluginInfoBuilder
 import jadx.plugins.jiap.ui.JiapUIManager
 import jadx.plugins.jiap.utils.LogUtils
-import jadx.plugins.jiap.utils.JiapConstants
 import jadx.plugins.jiap.utils.PreferencesManager
 import jadx.plugins.jiap.utils.CacheUtils
-
-import java.util.concurrent.Executors
-import java.util.concurrent.ScheduledExecutorService
-import java.util.concurrent.TimeUnit
+import jadx.plugins.jiap.core.SidecarProcessManager
+import jadx.plugins.jiap.core.JiapServer
+import jadx.plugins.jiap.core.PluginLifecycleManager
+import jadx.plugins.jiap.JiapConstants
+import jadx.plugins.jiap.model.JiapError
 
 class JiapPlugin : JadxPlugin {
 
@@ -21,33 +21,25 @@ class JiapPlugin : JadxPlugin {
         const val PLUGIN_ID = "jadx-jiap-plugin"
     }
 
-    private lateinit var scheduler: ScheduledExecutorService
-    lateinit var server: JiapServer
+    private var sidecarManager: SidecarProcessManager? = null
+    private var server: JiapServer? = null
 
     override fun init(ctx: JadxPluginContext) {
-        // Initialize preferences if decompiler is available
-        ctx.decompiler?.let { decompiler ->
-            PreferencesManager.initializeJadxArgs(decompiler)
-        }
-
         try {
-            // Create scheduler for delayed initialization
-            scheduler = Executors.newSingleThreadScheduledExecutor { r ->
-                Thread(r, "JiapPlugin-Scheduler").apply {
-                    isDaemon = true
+            ctx.decompiler?.let { decompiler ->
+                PreferencesManager.initializeJadxArgs(decompiler)
+            }
+            
+            PluginLifecycleManager(ctx) { srv, sidecar ->
+                this.server = srv
+                
+                ctx.guiContext?.let { guiContext ->
+                    JiapUIManager(ctx, srv, sidecar).initializeGuiComponents(guiContext)
                 }
-            }
-
-            server = JiapServer(ctx, scheduler)
-            server.delayedInitialization()
-
-            ctx.guiContext?.also { guiContext ->
-                val uiManager = JiapUIManager(ctx, server)
-                uiManager.initializeGuiComponents(guiContext)
-            }
+            }.start()
 
         } catch (e: Exception) {
-            LogUtils.error(JiapConstants.ErrorCode.SERVER_INTERNAL_ERROR, "Failed to initialize plugin", e)
+            LogUtils.error(JiapError.SERVER_INTERNAL_ERROR, "Failed to initialize plugin", e)
             cleanupOnError()
             throw e
         }
@@ -56,7 +48,7 @@ class JiapPlugin : JadxPlugin {
     override fun getPluginInfo(): JadxPluginInfo? {
         return JadxPluginInfoBuilder.pluginId(PLUGIN_ID)
             .name(PLUGIN_NAME)
-            .description("JIAP plugin for jadx")
+            .description("Java Intelligence Analysis Platform - Bridges JADX with AI assistants via MCP")
             .homepage("https://github.com/jygzyc/jiap")
             .requiredJadxVersion("1.5.2, r2472")
             .build()
@@ -66,34 +58,15 @@ class JiapPlugin : JadxPlugin {
         try {
             LogUtils.info("Cleaning up JIAP plugin resources...")
 
-            // Clear cache
             CacheUtils.clearCache()
-
-            if (::server.isInitialized) {
-                if (server.isRunning) {
-                    server.stop()
-                }
-            }
-            if (::scheduler.isInitialized) {
-                scheduler.shutdown()
-                if (!scheduler.awaitTermination(3, TimeUnit.SECONDS)) {
-                    LogUtils.warn("Scheduler did not terminate gracefully within 3 seconds, forcing shutdown")
-                    scheduler.shutdownNow()
-                }
-            }
+            server?.stop() // stop 会自动停止 sidecar
 
         } catch (e: Exception) {
-            LogUtils.error(JiapConstants.ErrorCode.SERVER_INTERNAL_ERROR, "Error during plugin unload", e)
+            LogUtils.error(JiapError.SERVER_INTERNAL_ERROR, "Error during plugin unload", e)
         }
     }
 
     private fun cleanupOnError() {
-        try {
-            if (::scheduler.isInitialized) {
-                scheduler.shutdownNow()
-            }
-        } catch (e: Exception) {
-            LogUtils.warn("Failed to cleanup scheduler during error recovery", e)
-        }
+        server?.stop()
     }
 }

@@ -1,6 +1,7 @@
 package jadx.plugins.jiap.utils
 
 import org.slf4j.LoggerFactory
+import jadx.plugins.jiap.model.JiapError
 
 object LogUtils {
 
@@ -14,27 +15,15 @@ object LogUtils {
         logger.info("[JIAP] $message", *args)
     }
 
-    fun warn(errorCode: String, message: String, vararg args: Any) {
-        logger.warn("[JIAP] [{}] $message", errorCode, *args)
-    }
-
-    fun error(errorCode: String, message: String, vararg args: Any) {
-        logger.error("[JIAP] [{}] $message", errorCode, *args)
-    }
-
-    fun error(errorCode: String, message: String, e: Exception, vararg args: Any) {
-        logger.error("[JIAP] [{}] $message", errorCode, *args, e)
-    }
-
     fun warn(message: String, vararg args: Any) {
         logger.warn("[JIAP] $message", *args)
     }
 
-    fun error(message: String, vararg args: Any) {
-        logger.error("[JIAP] $message", *args)
+    fun error(error: JiapError, vararg args: Any) {
+        logger.error("[JIAP] [{}] {}", error.code, error.format(*args))
     }
 
-    fun error(message: String, e: Exception, vararg args: Any) {
-        logger.error("[JIAP] $message", *args, e)
+    fun error(error: JiapError, e: Exception, vararg args: Any) {
+        logger.error("[JIAP] [{}] {}", error.code, error.format(*args), e)
     }
 }

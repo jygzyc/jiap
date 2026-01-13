@@ -23,9 +23,9 @@ JIAP (Java Intelligence Analysis Platform) 是一个基于JADX反编译器的智
 ### 环境要求
 
 - **Java**: JDK 17+ （用于 JIAP Core）
-- **Python**: 3.10+ （用于 MCP Server）
-- **JADX**: 支持插件的 JADX 反编译器
-- **Python 依赖**: `requests`, `fastmcp`
+- **Python**: 3.10+ （可选 - 自动管理）
+- **JADX**: v1.5.2+ 支持插件的 JADX 反编译器
+- **Python 依赖**: `requests`, `fastmcp`, `pydantic`（自动安装）
 
 ### 安装
 
@@ -36,26 +36,38 @@ JIAP (Java Intelligence Analysis Platform) 是一个基于JADX反编译器的智
 # 或使用命令行安装
 jadx plugins --install-jar <path-to-jiap.jar>
 
-# 2. 安装 MCP Server 依赖
-cd mcp_server
-pip install requests fastmcp  # 或者使用 uv sync
+# 2. 构建 JIAP Core（从源码）
+cd jiap_core
+chmod +x gradlew
+./gradlew dist
 ```
+
+**MCP 服务器自动管理：**
+- 插件会自动提取并管理 MCP 服务器脚本
+- 无需手动安装 Python 依赖或启动 MCP 服务器
+- 无需手动配置环境变量
 
 ### 使用说明
 
 * 启动 JIAP 插件
 
   - 启动 JADX 并启用 JIAP 插件
+  - 插件会自动启动 HTTP 服务器和 MCP 伴生进程
   - 确认服务器运行在 `http://127.0.0.1:25419`
 
-* 启动 MCP 服务器
+**伴生进程机制：**
+- JIAP 插件启动时，会自动启动 MCP 服务器作为**伴生进程**
+- MCP 服务器作为侧车进程（sidecar）由插件管理
+- 无需手动启动 MCP 服务器
+- 伴生进程会在 JIAP 插件卸载或 JADX 退出时自动停止
 
-```bash
-cd mcp_server
-python jiap_mcp_server.py
-```
+**自动执行流程：**
+1. JIAP 插件启动 HTTP 服务器（端口 `25419`）
+2. 插件自动提取 MCP 脚本到 `~/.jiap/mcp/`
+3. 伴生进程（MCP 服务器）自动启动（端口 `25420`）
+4. 插件监控伴生进程健康状态
+5. 两个进程在关闭时协同停止
 
-MCP 服务器将在 `http://0.0.0.0:25420` 启动。
 * 验证连接
 
 使用 `health_check()` 验证 MCP 服务器与 JIAP 插件之间的连接
@@ -80,13 +92,56 @@ MCP 服务器将在 `http://0.0.0.0:25420` 启动。
 
 ### 配置说明
 
-```bash
-# 环境变量
-export JIAP_URL="http://192.168.1.100:25419"
-python jiap_mcp_server.py
+**端口配置：**
+- **GUI 方式**：JIAP Server Status 菜单 → 设置新端口 → 自动重启
+- **插件选项**：在 JADX 插件选项中设置 `jiap.port`
+- **默认值**：`25419`（JIAP），`25420`（MCP 伴生进程）
 
-# 命令行参数
-python jiap_mcp_server.py --jiap-host 192.168.1.100 --jiap-port 25419
+**MCP 脚本路径：**
+- **GUI 方式**：JIAP Server Status 菜单 → 浏览并选择自定义脚本
+- **插件选项**：在 JADX 插件选项中设置 `jiap.mcp_path` 为自定义脚本路径
+- **默认值**：自动提取到 `~/.jiap/mcp/jiap_mcp_server.py`
+
+**伴生进程配置：**
+```bash
+# 自动检测执行器：uv、python3 或 python
+# 自动提取脚本到 ~/.jiap/mcp/
+# 自动启动并配置正确的 JIAP_URL 和 MCP_PORT
+# 自动监控并在需要时重启
+```
+
+### 错误码说明
+
+JIAP 使用结构化的错误码进行清晰的诊断：
+
+| 错误码 | 描述 | 常见原因 |
+|--------|------|----------|
+| **E001** | 内部服务器错误 | 意外的服务器状态 |
+| **E002** | 端口被占用 | 其他服务正在使用该端口 |
+| **E003** | 服务器启动失败 | 端口绑定或初始化错误 |
+| **E004** | 服务器停止失败 | 优雅关闭超时 |
+| **E005** | 服务器重启失败 | 重启序列错误 |
+| **E006** | JADX 不可用 | 反编译器未初始化 |
+| **E007** | JADX 初始化失败 | 反编译器初始化错误 |
+| **E008** | 未找到 Python | 未找到 Python/uv 可执行文件 |
+| **E009** | 侧车脚本未找到 | MCP 脚本提取失败 |
+| **E010** | 侧车启动失败 | 伴生进程启动失败 |
+| **E011** | 侧车进程错误 | 伴生进程崩溃 |
+| **E012** | 侧车停止失败 | 伴生进程无法停止 |
+| **E013** | 服务错误 | 通用服务错误 |
+| **E014** | 健康检查失败 | 无法连接 JIAP 服务器 |
+| **E015** | 方法未找到 | 请求的方法不存在 |
+| **E016** | 缺少参数 | 未提供必需参数 |
+| **E017** | 参数无效 | 参数格式/值无效 |
+| **E018** | 未知端点 | 请求的 API 端点不存在 |
+| **E019** | 连接错误 | 网络/HTTP 连接失败 |
+
+**错误响应格式：**
+```json
+{
+  "error": "E010",
+  "message": "侧车启动失败: 未找到 Python 可执行文件"
+}
 ```
 
 ---
@@ -101,9 +156,9 @@ cd jiap_core
 chmod +x gradlew
 ./gradlew dist
 
-# 安装 MCP Server 依赖
+# 可选：测试 MCP Server（用于开发）
 cd mcp_server
-pip install requests fastmcp  # 或者使用 uv sync
+python jiap_mcp_server.py --jiap-url "http://127.0.0.1:25419"
 ```
 
 ### 增加自定义功能
@@ -118,7 +173,7 @@ class CustomService(override val pluginContext: JadxPluginContext) : JiapService
 }
 ```
 
-在`jadx/plugins/jiap/JiapConfig.kt`中注册自定义`service`，并在`routeMap`中添加路由映射即可实现自定义接口功能
+在`jadx/plugins/jiap/core/JiapConfig.kt`中注册自定义`service`，并在`routeMap`中添加路由映射即可实现自定义接口功能
 
 ```kotlin
 // Service instances
@@ -145,6 +200,25 @@ get() = mapOf(
     //...
 )
 ```
+
+### 故障排查
+
+**伴生进程问题：**
+- **查看日志**：在 JIAP 日志中查找 `[MCP Sidecar STDOUT]` 消息
+- **验证 Python**：确保已安装 Python 3.10+ 或 `uv`
+- **检查依赖**：插件会自动检查 `requests`、`fastmcp`、`pydantic`
+- **手动路径**：如有需要，可通过 GUI 配置自定义脚本路径
+
+**连接问题：**
+- 使用 `health_check()` 验证两个服务器是否都在运行
+- 检查端口冲突：`netstat -tlnp | grep 25419`
+- 验证防火墙是否允许 localhost 连接
+
+**常见错误：**
+- **E008**：安装 Python 3.10+ 或 `uv`
+- **E009/E010**：检查 `~/.jiap/mcp/` 权限
+- **E002**：在 JIAP 设置 GUI 中更改端口
+- **E014**：确保 JIAP 插件已启用并加载
 
 ## 贡献
 

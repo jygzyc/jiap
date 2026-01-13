@@ -1,16 +1,12 @@
 package jadx.plugins.jiap.service
 
 import jadx.gui.ui.MainWindow
-import jadx.api.JavaClass
-import jadx.api.JavaMethod
 import jadx.api.JavaNode
 import jadx.api.plugins.JadxPluginContext
 
 import jadx.plugins.jiap.model.JiapResult
 import jadx.plugins.jiap.model.JiapServiceInterface
 import jadx.plugins.jiap.utils.CodeUtils
-import jadx.plugins.jiap.utils.LogUtils
-import jadx.plugins.jiap.utils.CacheUtils
 import kotlin.collections.forEach
 import java.awt.Component
 import java.awt.Container
@@ -55,7 +51,6 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
             )
             return JiapResult(success = true, data = result)
         } catch (e: Exception) {
-            LogUtils.error("handleGetAllClasses", e)
             return JiapResult(success = false, data = hashMapOf("error" to "handleGetAllClasses: ${e.message}"))
         }
     }
@@ -75,7 +70,6 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
                 JiapResult(success = false, data = hashMapOf("error" to "handleGetClassInfo: ${`class`} not found"))
             }
         } catch (e: Exception) {
-            LogUtils.error("handleGetClassInfo", e)
             JiapResult(success = false, data = hashMapOf("error" to "handleGetClassInfo: ${e.message}"))
         }
     }
@@ -97,7 +91,6 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
             )
             return JiapResult(success = true, data = result)
         } catch (e: Exception) {
-            LogUtils.error("handleGetClassSource", e)
             return JiapResult(success = false, data = hashMapOf("error" to "getClassSource: ${e.message}"))
         }
     }
@@ -125,7 +118,6 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
             )
             return JiapResult(success = true, data = result)
         } catch (e: Exception) {
-            LogUtils.error("handleSearchClassKey", e)
             return JiapResult(success = false, data = hashMapOf("error" to "handleSearchClassKey: ${e.message}"))
         }
     }
@@ -133,19 +125,18 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
     fun handleSearchMethod(method: String): JiapResult {
         try {
             val lowerMethodName = method.lowercase()
-            val methods = decompiler.classesWithInners?.flatMap { clazz ->
+            val mths = decompiler.classesWithInners?.flatMap { clazz ->
                 clazz.methods.filter { mth ->
                     mth.fullName.lowercase().contains(lowerMethodName)
                 }
             } ?: emptyList()
             val result = hashMapOf(
                 "type" to "list",
-                "count" to methods.size,
-                "methods-list" to methods.map { it.toString() }
+                "count" to mths.size,
+                "methods-list" to mths.map { it.toString() }
             )
             return JiapResult(success = true, data = result)
         } catch (e: Exception) {
-            LogUtils.error("handleSearchMethod", e)
             return JiapResult(success = false, data = hashMapOf("error" to "handleSearchMethod: ${e.message}"))
         }
     }
@@ -168,7 +159,6 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
             )
             return JiapResult(success = true, data = result)
         } catch (e: Exception) {
-            LogUtils.error("handleGetMethodSource", e)
             return JiapResult(success = false, data = hashMapOf("error" to "handleGetMethodSource: ${e.message}"))
         }
     }
@@ -180,17 +170,17 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
                     success = false,
                     data = hashMapOf("error" to "handleGetMethodXref: $method not found")
                 )
-            val method = mthPair.second
+            val mth = mthPair.second
             val xrefNodes = mutableListOf<JavaNode>()
-            method.declaringClass.decompile()
-            method.overrideRelatedMethods.forEach { relatedMethod ->
+            mth.declaringClass.decompile()
+            mth.overrideRelatedMethods.forEach { relatedMethod ->
                 val relatedUseIn = relatedMethod.useIn
                 if (relatedUseIn.isNotEmpty()) {
                     xrefNodes.addAll(relatedUseIn)
                 }
             }
-            xrefNodes.addAll(method.useIn)
-            val references = processUsage(method, xrefNodes)
+            xrefNodes.addAll(mth.useIn)
+            val references = processUsage(mth, xrefNodes)
             val result = hashMapOf<String, Any>(
                 "type" to "list",
                 "count" to xrefNodes.size,
@@ -198,7 +188,6 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
             )
             return JiapResult(success = true, data = result)
         } catch (e: Exception) {
-            LogUtils.error("handleGetMethodXref", e)
             return JiapResult(success = false, data = hashMapOf("error" to "handleGetMethodXref: ${e.message}"))
         }
     }
@@ -232,7 +221,6 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
             )
             return JiapResult(success = true, data = result)
         } catch (e: Exception) {
-            LogUtils.error("handleGetClassXref", e)
             return JiapResult(success = false, data = hashMapOf("error" to "handleGetClassXref: ${e.message}"))
         }
     }
@@ -253,7 +241,6 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
             )
             JiapResult(success = true, data = result)
         } catch (e: Exception) {
-            LogUtils.error("handleGetImplementOfInterface", e)
             JiapResult(success = false, data = hashMapOf("error" to "handleGetImplementOfInterface: ${e.message}"))
         }
     }
@@ -275,7 +262,6 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
             )
             JiapResult(success = true, data = result)
         } catch (e: Exception) {
-            LogUtils.error("handleGetSubclasses", e)
             JiapResult(success = false, data = hashMapOf("error" to "handleGetSubclasses: ${e.message}"))
         }
     }
@@ -319,7 +305,6 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
             )
             return JiapResult(success = true, data = result)
         } catch (e: Exception) {
-            LogUtils.error("handleGetSelectedClass", e)
             return JiapResult(success = false, data = hashMapOf("error" to "GetSelectedClass: ${e.message}"))
         }
     }
@@ -346,7 +331,6 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
             )
             return JiapResult(success = true, data = result)
         } catch (e: Exception) {
-            LogUtils.error("handleGetSelectedText", e)
             return JiapResult(success = false, data = hashMapOf("error" to "handleGetSelectedText: ${e.message}"))
         }
     }

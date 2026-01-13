@@ -126,13 +126,7 @@ object CacheUtils {
     }
 
     private fun buildBaseCacheKey(endpoint: String, parameters: Map<String, Any>?): String {
-        val paramsString = if (parameters != null) {
-            parameters.entries
-                .sortedBy { it.key }
-                .joinToString(",") { "${it.key}=${it.value}" }
-        } else {
-            ""
-        }
+        val paramsString = parameters?.entries?.sortedBy { it.key }?.joinToString(",") { "${it.key}=${it.value}" } ?: ""
         return "${endpoint}::${paramsString}"
     }
 

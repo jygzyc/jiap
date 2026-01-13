@@ -28,15 +28,34 @@ dependencies {
     implementation("com.google.code.gson:gson:2.10.1")
     implementation("io.javalin:javalin:6.7.0")
     implementation("com.fasterxml.jackson.core:jackson-databind:2.17.2")
-    implementation("org.slf4j:slf4j-api:2.0.9")
+    compileOnly("org.slf4j:slf4j-api:2.0.9")
 
 	testImplementation("io.github.skylot:jadx-smali-input:$jadxVersion") {
         isChanging = isJadxSnapshot
     }
-    implementation("ch.qos.logback:logback-classic:1.5.18")
+    compileOnly("ch.qos.logback:logback-classic:1.5.18")
 	testImplementation("org.assertj:assertj-core:3.27.3")
 	testImplementation("org.junit.jupiter:junit-jupiter:5.12.1")
 	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+}
+
+sourceSets {
+    main {
+        resources {
+            srcDirs("src/main/resources")
+        }
+    }
+}
+
+tasks.processResources {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    from("../mcp_server") {
+        include("jiap_mcp_server.py")
+        include("pyproject.toml")
+        include("requirements.txt")
+        include(".python-version")
+        into("mcp")
+    }
 }
 
 repositories {
