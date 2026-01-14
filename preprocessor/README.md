@@ -28,7 +28,19 @@ Windows support is not currently available. This is a temporary limitation that 
 ### Command Line Usage
 
 ```bash
-python collect_framework.py
+usage: collect_framework.py [-h] [--source-dir SOURCE_DIR] [--out-dir OUT_DIR] [--adb-path ADB_PATH] oem
+
+Collect Android framework files from OEM devices
+
+positional arguments:
+  oem                   OEM manufacturer (vivo, oppo, xiaomi, honor, google)
+
+options:
+  -h, --help            show this help message and exit
+  --source-dir SOURCE_DIR
+                        Source directory for collected files
+  --out-dir OUT_DIR     Output directory for processed files
+  --adb-path ADB_PATH   Path to ADB executable
 ```
 
 The script will:

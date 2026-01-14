@@ -1,4 +1,13 @@
-# 🚀 JIAP v0.3.0 Release Notes
+# 🚀 JIAP v0.3.1 Release Notes
+
+## ✨ New Features
+
+### Built-in Security Analysis Skills
+- **JIAP Analyst Skill**: Main entry point for Android reverse engineering and security analysis
+
+---
+
+## 🚀 JIAP v0.3.0 Release Notes
 
 ## ✨ Major Features
 
