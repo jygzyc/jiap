@@ -23,8 +23,8 @@ class JiapServer(
 ) {
 
     companion object {
-        private const val SHUTDOWN_TIMEOUT_MS = 500L
-        private const val RESTART_DELAY_MS = 1000L
+        private const val SHUTDOWN_TIMEOUT_MS = 2000L
+        private const val RESTART_DELAY_MS = 2000L
     }
 
     val currentPort: Int get() = PreferencesManager.getPort()

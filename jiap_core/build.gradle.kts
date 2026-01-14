@@ -84,6 +84,10 @@ tasks {
     withType(Test::class) {
         useJUnitPlatform()
     }
+
+    named<Delete>("clean") {
+        delete(layout.buildDirectory)
+    }
     val shadowJar = withType(ShadowJar::class) {
         archiveClassifier = ""
         // Don't minimize to preserve Jetty WebSocket service files

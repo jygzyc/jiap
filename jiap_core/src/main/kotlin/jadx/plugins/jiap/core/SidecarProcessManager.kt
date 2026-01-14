@@ -116,22 +116,33 @@ class SidecarProcessManager(private val pluginContext: JadxPluginContext) {
 
     fun stop() {
         if (!isRunning()) return
-        
-        process?.let {
-            LogUtils.info("Sidecar stopped")
+
+        process?.let { p ->
+            LogUtils.info("Stopping sidecar...")
             try {
-                it.destroy()
-                if (!it.waitFor(2, TimeUnit.SECONDS)) {
-                    it.destroyForcibly()
+
+                p.destroy()
+                val terminated = p.waitFor(3, TimeUnit.SECONDS)
+
+                if (!terminated || p.isAlive) {
+                    LogUtils.debug("Sidecar did not terminate gracefully, forcing...")
+                    p.destroyForcibly()
+                    p.waitFor(2, TimeUnit.SECONDS)
                 }
+
+                if (System.getProperty("os.name").lowercase().contains("win")) {
+                    Thread.sleep(500)
+                }
+
             } catch (e: Exception) {
                 LogUtils.error(JiapError.SIDECAR_STOP_FAILED, e.message ?: "Stop failed")
-                it.destroyForcibly()
+                p.destroyForcibly()
             }
             process = null
         }
         _isRunning.set(false)
         lastStatus.set(false)
+        LogUtils.info("Sidecar stopped")
     }
 
     private fun checkDependencies(executor: String, scriptPath: String): Boolean {
