@@ -1,3 +1,25 @@
+# 🚀 JIAP v0.3.2 Release Notes
+
+## ✨ New Features
+
+### Advanced Android Analysis Tools
+
+#### Code Analysis Enhancements
+- **Field Cross-Reference Analysis** (`get_field_xref`): Find field usage locations across the codebase
+- **Enhanced Method Tracking**: Extended method xref capabilities for better code flow analysis
+
+#### Android Security Analysis
+- **Exported Components Detection** (`get_exported_components`): Identify exported activities, services, receivers, and providers with their permissions
+- **Deep Link Discovery** (`get_deep_links`): Extract URL schemes and intent filters for attack surface analysis
+- **Dynamic Broadcast Receivers** (`get_dynamic_receivers`): Find dynamically registered BroadcastReceivers for vulnerability assessment
+
+#### Architecture Improvements
+- **UI Service Extraction**: Separated UI-related functionality into dedicated `UIService`
+- **Vulnerability Mining Service**: New `VulnMiningService` for security-specific analysis features
+- **Modular Service Architecture**: Refactored service layer for better maintainability and extensibility
+
+---
+
 # 🚀 JIAP v0.3.1 Release Notes
 
 ## ✨ New Features
