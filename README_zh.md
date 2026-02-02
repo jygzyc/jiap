@@ -57,7 +57,6 @@ chmod +x gradlew
 
 **伴生进程机制：**
 - JIAP 插件启动时，会自动启动 MCP 服务器作为**伴生进程**
-- MCP 服务器作为侧车进程（sidecar）由插件管理
 - 无需手动启动 MCP 服务器
 - 伴生进程会在 JIAP 插件卸载或 JADX 退出时自动停止
 
@@ -65,7 +64,7 @@ chmod +x gradlew
 1. JIAP 插件启动 HTTP 服务器（端口 `25419`）
 2. 插件自动提取 MCP 脚本到 `~/.jiap/mcp/`
 3. 伴生进程（MCP 服务器）自动启动（端口 `25420`）
-4. 插件监控伴生进程健康状态
+4. 插件监控健康状态
 5. 两个进程在关闭时协同停止
 
 * 验证连接
@@ -73,22 +72,39 @@ chmod +x gradlew
 使用 `health_check()` 验证 MCP 服务器与 JIAP 插件之间的连接
 
 * 可用工具
-  - `get_all_classes(page=1)` - 获取所有可用类，支持分页
-  - `search_class_key(key, page=1)` - 搜索源代码中包含指定关键字的类（不区分大小写）
-  - `get_class_source(class_name, smali=False, page=1)` - 获取 Java 或 Smali 格式的类源代码
-  - `search_method(method_name, page=1)` - 搜索匹配给定方法名的方法
-  - `get_method_source(method_name, smali=False, page=1)` - 获取方法源代码
-  - `get_class_info(class_name, page=1)` - 获取类信息，包括字段和方法
-  - `get_method_xref(method_name, page=1)` - 查找方法使用位置
-  - `get_class_xref(class_name, page=1)` - 查找类使用位置
-  - `get_implement(interface_name, page=1)` - 获取接口实现
-  - `get_sub_classes(class_name, page=1)` - 获取子类
-  - `selected_text(page=1)` - 获取 JADX GUI 中当前选中的文本
-  - `selected_class(page=1)` - 获取 JADX GUI 中当前选中的类
-  - `get_app_manifest(page=1)` - 获取 Android 清单内容
-  - `get_main_activity(page=1)` - 获取主 Activity 源代码
-  - `get_application(page=1)` - 获取 Android 应用类及其信息
-  - `get_system_service_impl(interface_name, page=1)` - 获取系统服务实现
+
+所有工具均支持通过 `page` 参数进行分页。
+
+**代码分析**
+- `get_all_classes(page=1)` - 获取所有可用类
+- `search_class_key(key, page=1)` - 搜索源代码中包含指定关键字的类（不区分大小写）
+- `get_class_source(class_name, smali=False, page=1)` - 获取 Java 或 Smali 格式的类源代码
+- `search_method(method_name, page=1)` - 搜索匹配给定方法名的方法
+- `get_method_source(method_name, smali=False, page=1)` - 获取方法源代码
+- `get_class_info(class_name, page=1)` - 获取类信息，包括字段和方法
+- `get_method_xref(method_name, page=1)` - 查找方法使用位置
+- `get_field_xref(field_name, page=1)` - 查找字段使用位置
+- `get_class_xref(class_name, page=1)` - 查找类使用位置
+- `get_implement(interface_name, page=1)` - 获取接口实现
+- `get_sub_classes(class_name, page=1)` - 获取子类
+
+**UI 集成**
+- `selected_text(page=1)` - 获取 JADX GUI 中当前选中的文本
+- `selected_class(page=1)` - 获取 JADX GUI 中当前选中的类
+
+**Android 分析**
+- `get_app_manifest(page=1)` - 获取 Android 清单内容
+- `get_main_activity(page=1)` - 获取主 Activity 源代码
+- `get_application(page=1)` - 获取 Android 应用类及其信息
+- `get_exported_components(page=1)` - 获取导出的组件（Activity、Service、Receiver、Provider）及权限
+- `get_deep_links(page=1)` - 获取应用的 URL schemes 和 intent filters
+- `get_system_service_impl(interface_name, page=1)` - 获取系统服务实现
+
+**漏洞挖掘**
+- `get_dynamic_receivers(page=1)` - 获取动态注册的 BroadcastReceivers
+
+**系统**
+- `health_check()` - 验证服务器连接状态
 
 ### 配置说明
 
@@ -238,10 +254,10 @@ get() = mapOf(
 
 ## 致谢
 
-- **[JADX](https://github.com/skylot/jadx)**: 强大的Android反编译器
+- **[skylot/jadx](https://github.com/skylot/jadx)** - 本项目的基础，强大的 JADX 反编译器，提供插件支持
+- **[zinja-coder/jadx-ai-mcp](https://github.com/zinja-coder/jadx-ai-mcp)** - 为本项目提供了很多思路和灵感，关于 JADX MCP 集成的优秀实践
 - **[FastMCP](https://github.com/modelcontextprotocol/servers)**: MCP协议实现
 - **[Javalin](https://javalin.io/)**: 轻量级Web框架
-- **[jadx-ai-mcp](https://github.com/zinja-coder/jadx-ai-mcp/)**：Jadx AI 插件
 
 ---
 

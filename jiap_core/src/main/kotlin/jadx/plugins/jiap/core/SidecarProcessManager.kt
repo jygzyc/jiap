@@ -8,7 +8,10 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.TimeUnit
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
+import java.nio.file.Path
+import java.nio.file.Paths
 
+import jadx.plugins.jiap.JiapConstants
 import jadx.plugins.jiap.model.JiapError
 import jadx.plugins.jiap.utils.LogUtils
 import jadx.plugins.jiap.utils.PreferencesManager
@@ -18,6 +21,14 @@ class SidecarProcessManager(private val pluginContext: JadxPluginContext) {
     private var process: Process? = null
     private val _isRunning = AtomicBoolean(false)
     private val lastStatus = AtomicBoolean(false)
+    private val mcpPath: File
+        get() = File(PreferencesManager.getMcpPath())
+    
+    companion object {
+        private const val PORT_CHECK_TIMEOUT_MS = 500
+        private const val PORT_RELEASE_WAIT_MS = 2000L
+        private const val MAX_PORT_RETRY_ATTEMPTS = 3
+    }
 
     fun isRunning(): Boolean {
         val running = process?.isAlive == true
@@ -54,16 +65,30 @@ class SidecarProcessManager(private val pluginContext: JadxPluginContext) {
             val mcpPort = port + 1
             val jiapUrl = PluginUtils.buildServerUrl(running=true, port=port)
 
-            LogUtils.info("Sidecar starting...")
-            
+            // Check and release port if occupied
+            if (isPortInUse(mcpPort)) {
+                LogUtils.info("Port $mcpPort is currently in use, attempting to release...")
+                killProcessOnPort(mcpPort)
+                Thread.sleep(PORT_RELEASE_WAIT_MS)
+                
+                if (isPortInUse(mcpPort)) {
+                    LogUtils.error(JiapError.SIDECAR_START_FAILED, "Port $mcpPort is still occupied after cleanup attempt")
+                    return false
+                }
+            }
+
+            LogUtils.info("MCP Server starting...")
+
+            val normalizedScriptPath = scriptPath.replace("\\", "/")
+
             val command = mutableListOf<String>()
             when (executor) {
-                "uv" -> command.addAll(listOf("uv", "run", scriptPath, "--jiap-url", jiapUrl, "--mcp-port", mcpPort.toString()))
-                else -> command.addAll(listOf(executor, scriptPath, "--jiap-url", jiapUrl, "--mcp-port", mcpPort.toString()))
+                "uv" -> command.addAll(listOf("uv", "run", normalizedScriptPath, "--url", jiapUrl))
+                else -> command.addAll(listOf(executor, normalizedScriptPath, "--url", jiapUrl))
             }
 
             val pb = ProcessBuilder(command)
-            pb.directory(File(scriptPath).parentFile)
+            pb.directory(File(normalizedScriptPath).parentFile)
             
             val isWindows = System.getProperty("os.name").lowercase().contains("win")
             if (!isWindows) {
@@ -71,7 +96,9 @@ class SidecarProcessManager(private val pluginContext: JadxPluginContext) {
             }
             
             pb.environment()["JIAP_URL"] = jiapUrl
-            
+            pb.environment()["PYTHONIOENCODING"] = "utf-8"
+            pb.environment()["LANG"] = "en_US.UTF-8"
+
             val p = pb.start()
             process = p
             _isRunning.set(true)
@@ -81,7 +108,7 @@ class SidecarProcessManager(private val pluginContext: JadxPluginContext) {
             fun startLogger(inputStream: java.io.InputStream, prefix: String) {
                 Thread({
                     try {
-                        val reader = BufferedReader(InputStreamReader(inputStream))
+                        val reader = BufferedReader(InputStreamReader(inputStream, java.nio.charset.StandardCharsets.UTF_8))
                         var line: String?
                         while (reader.readLine().also { line = it } != null) {
                             LogUtils.info("$prefix $line")
@@ -94,9 +121,9 @@ class SidecarProcessManager(private val pluginContext: JadxPluginContext) {
                 }, prefix).apply { isDaemon = true }.start()
             }
 
-            startLogger(p.inputStream, "[MCP Sidecar STDOUT]")
+            startLogger(p.inputStream, "[MCP STDOUT]")
             if (isWindows) {
-                startLogger(p.errorStream, "[MCP Sidecar STDERR]")
+                startLogger(p.errorStream, "[MCP STDERR]")
             }
 
             Thread.sleep(1000)
@@ -106,7 +133,7 @@ class SidecarProcessManager(private val pluginContext: JadxPluginContext) {
                 return false
             }
 
-            LogUtils.info("Sidecar started (Port: $mcpPort)")
+            LogUtils.info("MCP Server started (Port: ${port + 1})")
             return true
         } catch (e: Exception) {
             LogUtils.error(JiapError.SIDECAR_START_FAILED, e.message ?: "Unknown error")
@@ -118,14 +145,14 @@ class SidecarProcessManager(private val pluginContext: JadxPluginContext) {
         if (!isRunning()) return
 
         process?.let { p ->
-            LogUtils.info("Stopping sidecar...")
+            LogUtils.info("Stopping MCP Server...")
             try {
 
                 p.destroy()
                 val terminated = p.waitFor(3, TimeUnit.SECONDS)
 
                 if (!terminated || p.isAlive) {
-                    LogUtils.debug("Sidecar did not terminate gracefully, forcing...")
+                    LogUtils.debug("MCP Server did not terminate gracefully, forcing...")
                     p.destroyForcibly()
                     p.waitFor(2, TimeUnit.SECONDS)
                 }
@@ -142,7 +169,7 @@ class SidecarProcessManager(private val pluginContext: JadxPluginContext) {
         }
         _isRunning.set(false)
         lastStatus.set(false)
-        LogUtils.info("Sidecar stopped")
+        LogUtils.info("MCP Server stopped")
     }
 
     private fun checkDependencies(executor: String, scriptPath: String): Boolean {
@@ -193,17 +220,15 @@ class SidecarProcessManager(private val pluginContext: JadxPluginContext) {
         }
 
         try {
-            val userHome = System.getProperty("user.home")
-            val jiapDir = File(userHome, ".jiap/mcp")
-            if (!jiapDir.exists()) {
-                jiapDir.mkdirs()
+            if (!mcpPath.exists()) {
+                mcpPath.mkdirs()
             }
 
-            val scriptFile = File(jiapDir, "jiap_mcp_server.py")
-            val projectFile = File(jiapDir, "pyproject.toml")
-            val requirementsFile = File(jiapDir, "requirements.txt")
+            val scriptFile = File(mcpPath, "jiap_mcp_server.py")
+            val projectFile = File(mcpPath, "pyproject.toml")
+            val requirementsFile = File(mcpPath, "requirements.txt")
 
-            LogUtils.info("Extracting/Updating MCP scripts in $jiapDir...")
+            LogUtils.info("Extracting/Updating MCP scripts in $mcpPath...")
             extractResource("/mcp/jiap_mcp_server.py", scriptFile)
             extractResource("/mcp/pyproject.toml", projectFile)
             extractResource("/mcp/requirements.txt", requirementsFile)
@@ -224,6 +249,102 @@ class SidecarProcessManager(private val pluginContext: JadxPluginContext) {
             }
         } catch (e: Exception) {
               LogUtils.error(JiapError.SIDECAR_SCRIPT_NOT_FOUND, "Extract failed $resourcePath: ${e.message}")
+        }
+    }
+
+    fun cleanupMcpFiles() {
+        try {
+
+            if (mcpPath.exists() && mcpPath.isDirectory) {
+                LogUtils.info("Cleaning up .jiap/mcp directory...")
+                mcpPath.deleteRecursively()
+                LogUtils.info("MCP files cleanup completed")
+            }
+        } catch (e: Exception) {
+            LogUtils.error(JiapError.SERVICE_ERROR, "Failed to cleanup MCP files: ${e.message}")
+        }
+    }
+
+    /**
+     * Check if a port is currently in use by attempting to bind to it.
+     * Uses socket connection test with short timeout.
+     */
+    private fun isPortInUse(port: Int): Boolean {
+        return try {
+            java.net.Socket("localhost", port).use { 
+                it.soTimeout = PORT_CHECK_TIMEOUT_MS
+                true 
+            }
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /**
+     * Attempt to kill any process occupying the specified port.
+     * Uses OS-specific commands to find and terminate the process.
+     */
+    private fun killProcessOnPort(port: Int) {
+        val isWindows = System.getProperty("os.name").lowercase().contains("win")
+        
+        try {
+            if (isWindows) {
+                val pb = ProcessBuilder("cmd", "/c", "netstat -ano | findstr :$port | findstr LISTENING")
+                pb.redirectErrorStream(true)
+                val p = pb.start()
+                
+                val reader = BufferedReader(InputStreamReader(p.inputStream))
+                var line: String?
+                val pids = mutableSetOf<String>()
+                
+                while (reader.readLine().also { line = it } != null) {
+                    line?.let { 
+                        val parts = it.trim().split(Regex("\\s+"))
+                        if (parts.isNotEmpty()) {
+                            val pid = parts.last()
+                            if (pid.matches(Regex("\\d+"))) {
+                                pids.add(pid)
+                            }
+                        }
+                    }
+                }
+                p.waitFor()
+                
+                pids.forEach { pid ->
+                    try {
+                        LogUtils.info("Terminating process $pid on port $port")
+                        val killPb = ProcessBuilder("taskkill", "/F", "/PID", pid)
+                        killPb.start().waitFor(3, TimeUnit.SECONDS)
+                    } catch (e: Exception) {
+                        LogUtils.debug("Failed to kill process $pid: ${e.message}")
+                    }
+                }
+            } else {
+                val pb = ProcessBuilder("sh", "-c", "lsof -t -i:$port || netstat -tlnp 2>/dev/null | grep ':$port ' | awk '{print \\$7}' | cut -d'/' -f1")
+                pb.redirectErrorStream(true)
+                val p = pb.start()
+                
+                val reader = BufferedReader(InputStreamReader(p.inputStream))
+                var line: String?
+                val pids = mutableSetOf<String>()
+                
+                while (reader.readLine().also { line = it } != null) {
+                    line?.trim()?.let { if (it.matches(Regex("\\d+"))) pids.add(it) }
+                }
+                p.waitFor()
+                
+                pids.forEach { pid ->
+                    try {
+                        LogUtils.info("Terminating process $pid on port $port")
+                        val killPb = ProcessBuilder("kill", "-9", pid)
+                        killPb.start().waitFor(2, TimeUnit.SECONDS)
+                    } catch (e: Exception) {
+                        LogUtils.debug("Failed to kill process $pid: ${e.message}")
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            LogUtils.debug("Error killing process on port $port: ${e.message}")
         }
     }
 }

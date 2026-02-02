@@ -62,6 +62,7 @@ All tools support pagination via the `page` parameter.
 - `get_method_source(method_name, smali=False, page=1)` - Get method source code using full signature
 - `get_class_info(class_name, page=1)` - Get class information (fields and methods)
 - `get_method_xref(method_name, page=1)` - Find method usage locations
+- `get_field_xref(field_name, page=1)` - Find field usage locations
 - `get_class_xref(class_name, page=1)` - Find class usage locations
 - `get_implement(interface_name, page=1)` - Get interface implementations
 - `get_sub_classes(class_name, page=1)` - Get subclasses
@@ -74,7 +75,12 @@ All tools support pagination via the `page` parameter.
 - `get_app_manifest(page=1)` - Get Android manifest content
 - `get_main_activity(page=1)` - Get main activity source
 - `get_application(page=1)` - Get Android application class and information
+- `get_exported_components(page=1)` - Get exported components (activities, services, receivers, providers) with permissions
+- `get_deep_links(page=1)` - Get app URL schemes and intent filters
 - `get_system_service_impl(interface_name, page=1)` - Get system service implementations
+
+**Vulnerability Mining**
+- `get_dynamic_receivers(page=1)` - Get dynamically registered BroadcastReceivers
 
 **System**
 - `health_check()` - Verify server connection status
@@ -199,21 +205,14 @@ cd jiap_core
 
 # Test MCP Server (optional, for development)
 cd mcp_server
-python jiap_mcp_server.py --jiap-url "http://127.0.0.1:25419"
+python jiap_mcp_server.py --url "http://127.0.0.1:25419"
 ```
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
 
 ## License
 
 GNU License 3.0 - see the LICENSE file for details.
 
-## Repository
+## Credits
 
-https://github.com/jygzyc/jiap
+- [skylot/jadx](https://github.com/skylot/jadx) - The foundation of this project, a powerful JADX decompiler with plugin support
+- [zinja-coder/jadx-ai-mcp](https://github.com/zinja-coder/jadx-ai-mcp) - Inspired many ideas and approaches for JADX MCP integration

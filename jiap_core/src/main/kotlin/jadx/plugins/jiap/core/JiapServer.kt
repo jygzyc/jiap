@@ -111,6 +111,8 @@ class JiapServer(
             try {
                 CacheUtils.reinitializeCache()
                 LogUtils.info("Restarting server...")
+                sidecarManager.stop()
+                sidecarManager.cleanupMcpFiles()
                 stop()
                 Thread.sleep(RESTART_DELAY_MS)
                 start(PreferencesManager.getPort()) 

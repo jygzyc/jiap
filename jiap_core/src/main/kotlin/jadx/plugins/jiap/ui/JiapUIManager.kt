@@ -12,7 +12,6 @@ import jadx.plugins.jiap.core.SidecarProcessManager
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
 import java.awt.Insets
-import java.io.File
 import javax.swing.*
 
 class JiapUIManager(
@@ -31,7 +30,6 @@ class JiapUIManager(
     }
 
     private fun restartServer() {
-        // Run in background thread to avoid blocking UI
         Thread({
             if (server.isRunning) {
                 server.restart()
@@ -44,91 +42,7 @@ class JiapUIManager(
     }
 
     private fun showServerStatus() {
-        val isServerRunning = server.isRunning
-        val serverStatus = if (isServerRunning) "Running" else "Stopped"
-        
-        val isSidecarRunning = sidecarManager.isRunning()
-        val sidecarStatus = if (isSidecarRunning) "Running" else "Stopped"
-        
-        val currentPort = server.currentPort
-        val url = PluginUtils.buildServerUrl(port = currentPort)
-
-        // Create main panel with GridBagLayout
-        val panel = JPanel(GridBagLayout())
-        val gbc = GridBagConstraints()
-        gbc.anchor = GridBagConstraints.WEST
-        gbc.insets = Insets(5, 5, 5, 5)
-
-        // JIAP Server Status
-        gbc.gridx = 0
-        gbc.gridy = 0
-        panel.add(JLabel("JIAP Server Status:"), gbc)
-        gbc.gridx = 1
-        panel.add(JLabel(serverStatus), gbc)
-
-        // MCP Sidecar Status
-        gbc.gridx = 0
-        gbc.gridy = 1
-        panel.add(JLabel("MCP Sidecar Status:"), gbc)
-        gbc.gridx = 1
-        
-        panel.add(JLabel(sidecarStatus), gbc)
-
-        // Current Port
-        gbc.gridx = 0
-        gbc.gridy = 2
-        panel.add(JLabel("Current Port:"), gbc)
-        gbc.gridx = 1
-        panel.add(JLabel(currentPort.toString()), gbc)
-
-        // New Port Input
-        gbc.gridx = 0
-        gbc.gridy = 3
-        panel.add(JLabel("New Port:"), gbc)
-
-        val portTextField = JTextField(currentPort.toString(), 10)
-        gbc.gridx = 1
-        panel.add(portTextField, gbc)
-
-        // MCP Server Path
-        gbc.gridx = 0
-        gbc.gridy = 4
-        gbc.gridwidth = 1
-        panel.add(JLabel("MCP Server Path:"), gbc)
-
-        val mcpPath = PreferencesManager.getMcpPath()
-        val mcpPathField = JTextField(mcpPath, 20)
-        gbc.gridx = 1
-        panel.add(mcpPathField, gbc)
-
-        val browseButton = JButton("Browse")
-        gbc.gridx = 2
-        panel.add(browseButton, gbc)
-
-        browseButton.addActionListener {
-            val fileChooser = JFileChooser()
-            if (mcpPath.isNotEmpty()) {
-                val f = File(mcpPath)
-                if (f.exists()) {
-                     fileChooser.selectedFile = f
-                } else {
-                    fileChooser.currentDirectory = File(System.getProperty("user.home"))
-                }
-            }
-            val selection = fileChooser.showOpenDialog(panel)
-            if (selection == JFileChooser.APPROVE_OPTION) {
-                mcpPathField.text = fileChooser.selectedFile.absolutePath
-            }
-        }
-
-        // Health Check URL
-        gbc.gridx = 0
-        gbc.gridy = 5
-        gbc.gridwidth = 3
-        panel.add(JLabel("Health Check: $url (MCP Port: ${currentPort + 1})"), gbc)
-
-        // Create dialog
-        val options = arrayOf("OK", "Cancel")
+        val panel = createStatusPanel()
         val result = JOptionPane.showOptionDialog(
             pluginContext.guiContext?.mainFrame,
             panel,
@@ -136,110 +50,155 @@ class JiapUIManager(
             JOptionPane.DEFAULT_OPTION,
             JOptionPane.INFORMATION_MESSAGE,
             null,
-            options,
-            options[0]
+            arrayOf("OK", "Cancel"),
+            "OK"
         )
 
-        // Handle user response
-        if (result == 0) { // OK button
-            handleSettingsChange(portTextField.text, mcpPathField.text, currentPort, mcpPath)
+        if (result == 0) {
+            val statusPanel = panel as JPanel
+            val portField = statusPanel.components
+                .filterIsInstance<JTextField>()
+                .firstOrNull { it.isEditable }
+            portField?.let { handleSettingsChange(it.text, server.currentPort) }
         }
     }
 
-    private fun handleSettingsChange(portText: String, mcpPath: String, currentPort: Int, currentMcpPath: String) {
+    private fun createStatusPanel(): JPanel {
+        val isServerRunning = server.isRunning
+        val serverStatus = if (isServerRunning) "Running" else "Stopped"
+        val isSidecarRunning = sidecarManager.isRunning()
+        val sidecarStatus = if (isSidecarRunning) "Running" else "Stopped"
+        val currentPort = server.currentPort
+        val url = PluginUtils.buildServerUrl(port = currentPort)
+
+        val panel = JPanel(GridBagLayout())
+        val gbc = GridBagConstraints()
+        gbc.anchor = GridBagConstraints.WEST
+        gbc.insets = Insets(5, 5, 5, 5)
+
+        addLabelField(panel, gbc, 0, "JIAP Server Status:", serverStatus)
+        addLabelField(panel, gbc, 1, "MCP Server Status:", sidecarStatus)
+        addLabelField(panel, gbc, 2, "Current Port:", currentPort.toString())
+
+        val portTextField = JTextField(currentPort.toString(), 10)
+        addComponent(panel, gbc, 3, "New Port:", portTextField)
+
+        val mcpPath = PreferencesManager.getMcpPath()
+        val mcpPathField = JTextField(mcpPath, 20)
+        mcpPathField.isEditable = false
+        addComponent(panel, gbc, 4, "MCP Server Path:", mcpPathField)
+
+        gbc.gridx = 0
+        gbc.gridy = 5
+        gbc.gridwidth = 3
+        panel.add(JLabel("Health Check: $url (MCP Port: ${currentPort + 1})"), gbc)
+
+        return panel
+    }
+
+    private fun addLabelField(panel: JPanel, gbc: GridBagConstraints, row: Int, labelText: String, value: String) {
+        gbc.gridx = 0
+        gbc.gridy = row
+        gbc.gridwidth = 1
+        panel.add(JLabel(labelText), gbc)
+        gbc.gridx = 1
+        panel.add(JLabel(value), gbc)
+    }
+
+    private fun addComponent(panel: JPanel, gbc: GridBagConstraints, row: Int, labelText: String, component: JComponent) {
+        gbc.gridx = 0
+        gbc.gridy = row
+        gbc.gridwidth = 1
+        panel.add(JLabel(labelText), gbc)
+        gbc.gridx = 1
+        gbc.gridwidth = 1
+        panel.add(component, gbc)
+    }
+
+    private fun handleSettingsChange(portText: String, currentPort: Int) {
         try {
             val newPort = portText.trim().toInt()
-            val newMcpPath = mcpPath.trim()
 
-            // Validate port range
             if (newPort !in 1024..65535) {
-                JOptionPane.showMessageDialog(
-                    pluginContext.guiContext?.mainFrame,
-                    "Port must be between 1024 and 65535",
-                    "Invalid Port",
-                    JOptionPane.ERROR_MESSAGE
-                )
+                showErrorDialog("Port must be between 1024 and 65535", "Invalid Port")
                 return
             }
 
-            // Check if settings changed
-            if (newPort != currentPort || newMcpPath != currentMcpPath) {
-                val confirm = JOptionPane.showConfirmDialog(
-                    pluginContext.guiContext?.mainFrame,
-                    "Settings changed. Servers will restart. Continue?",
-                    "Confirm Changes",
-                    JOptionPane.YES_NO_OPTION,
-                    JOptionPane.QUESTION_MESSAGE
-                )
-
-                if (confirm == JOptionPane.YES_OPTION) {
-                    PreferencesManager.setMcpPath(newMcpPath)
-                    PreferencesManager.setPort(newPort)
-                    
-                    val progressDialog = JDialog(pluginContext.guiContext?.mainFrame, "Restarting Servers...", true)
-                    val label = JLabel("Applying changes...")
-                    label.horizontalAlignment = SwingConstants.CENTER
-                    progressDialog.contentPane.add(label)
-                    progressDialog.size = java.awt.Dimension(300, 100)
-                    progressDialog.setLocationRelativeTo(pluginContext.guiContext?.mainFrame)
-
-                    Thread({
-                        var success = false
-                        var error: String? = null
-
-                        try {
-                            // Stop server (which will also stop sidecar)
-                            if (server.isRunning) server.stop()
-                            
-                            // Start server (which will also start sidecar)
-                            success = server.start(newPort)
-                        } catch (e: Exception) {
-                            error = e.message
-                        }
-
-                        SwingUtilities.invokeLater {
-                            progressDialog.isVisible = false
-                            progressDialog.dispose()
-
-                            if (success) {
-                                JOptionPane.showMessageDialog(
-                                    pluginContext.guiContext?.mainFrame,
-                                    "Settings applied successfully",
-                                    "Success",
-                                    JOptionPane.INFORMATION_MESSAGE
-                                )
-                            } else {
-                                JOptionPane.showMessageDialog(
-                                    pluginContext.guiContext?.mainFrame,
-                                    "Failed to apply changes\n${error ?: "Error during server restart"}",
-                                    "Error",
-                                    JOptionPane.ERROR_MESSAGE
-                                )
-                            }
-                        }
-                    }, "JiapUI-SettingsChangeThread").apply {
-                        isDaemon = true
-                    }.start()
-
-                    SwingUtilities.invokeLater {
-                        progressDialog.isVisible = true
-                    }
+            if (newPort != currentPort) {
+                if (showConfirmDialog("Settings changed. Servers will restart. Continue?", "Confirm Changes")) {
+                    applyPortChange(newPort)
                 }
             }
         } catch (e: NumberFormatException) {
-            JOptionPane.showMessageDialog(
-                pluginContext.guiContext?.mainFrame,
-                "Invalid port number: $portText",
-                "Error",
-                JOptionPane.ERROR_MESSAGE
-            )
+            showErrorDialog("Invalid port number: $portText", "Error")
         } catch (e: Exception) {
-            JOptionPane.showMessageDialog(
-                pluginContext.guiContext?.mainFrame,
-                "Error applying settings: ${e.message}",
-                "Error",
-                JOptionPane.ERROR_MESSAGE
-            )
+            showErrorDialog("Error applying settings: ${e.message}", "Error")
         }
+    }
+
+    private fun showConfirmDialog(message: String, title: String): Boolean {
+        return JOptionPane.showConfirmDialog(
+            pluginContext.guiContext?.mainFrame,
+            message,
+            title,
+            JOptionPane.YES_NO_OPTION,
+            JOptionPane.QUESTION_MESSAGE
+        ) == JOptionPane.YES_OPTION
+    }
+
+    private fun showErrorDialog(message: String, title: String) {
+        JOptionPane.showMessageDialog(
+            pluginContext.guiContext?.mainFrame,
+            message,
+            title,
+            JOptionPane.ERROR_MESSAGE
+        )
+    }
+
+    private fun applyPortChange(newPort: Int) {
+        PreferencesManager.setPort(newPort)
+        showProgressDialog {
+            var success = false
+            var error: String? = null
+
+            try {
+                if (server.isRunning) server.stop()
+                success = server.start(newPort)
+            } catch (e: Exception) {
+                error = e.message
+            }
+
+            if (success) {
+                showErrorDialog("Settings applied successfully", "Success", JOptionPane.INFORMATION_MESSAGE)
+            } else {
+                showErrorDialog("Failed to apply changes\n${error ?: "Error during server restart"}", "Error")
+            }
+        }
+    }
+
+    private fun showProgressDialog(block: () -> Unit) {
+        val progressDialog = JDialog(pluginContext.guiContext?.mainFrame, "Restarting Servers...", true)
+        val label = JLabel("Applying changes...")
+        label.horizontalAlignment = SwingConstants.CENTER
+        progressDialog.contentPane.add(label)
+        progressDialog.size = java.awt.Dimension(300, 100)
+        progressDialog.setLocationRelativeTo(pluginContext.guiContext?.mainFrame)
+
+        Thread(block, "JiapUI-ProgressDialog").apply {
+            isDaemon = true
+        }.start()
+
+        SwingUtilities.invokeLater {
+            progressDialog.isVisible = true
+        }
+    }
+
+    private fun showErrorDialog(message: String, title: String, messageType: Int) {
+        JOptionPane.showMessageDialog(
+            pluginContext.guiContext?.mainFrame,
+            message,
+            title,
+            messageType
+        )
     }
 }
