@@ -4,6 +4,8 @@ import jadx.api.plugins.JadxPluginContext
 import jadx.plugins.jiap.service.CommonService
 import jadx.plugins.jiap.service.AndroidFrameworkService
 import jadx.plugins.jiap.service.AndroidAppService
+import jadx.plugins.jiap.service.VulnMiningService
+import jadx.plugins.jiap.service.UIService
 import kotlin.collections.mapOf
 
 /**
@@ -18,6 +20,8 @@ class JiapConfig(
     val commonService: CommonService = CommonService(pluginContext)
     val androidFrameworkService: AndroidFrameworkService = AndroidFrameworkService(pluginContext)
     val androidAppService: AndroidAppService = AndroidAppService(pluginContext)
+    val vulnMiningService: VulnMiningService = VulnMiningService(pluginContext)
+    val uiService: UIService = UIService(pluginContext)
 
     // Route mappings
     val routeMap: Map<String, RouteTarget>
@@ -31,13 +35,13 @@ class JiapConfig(
             "/api/jiap/get_class_info" to RouteTarget(
                 service = commonService,
                 methodName = "handleGetClassInfo",
-                params = setOf("class"),
+                params = setOf("cls"),
                 cacheable = true
             ),
             "/api/jiap/get_class_source" to RouteTarget(
                 service = commonService,
                 methodName = "handleGetClassSource",
-                params = setOf("class", "smali")
+                params = setOf("cls", "smali")
             ),
             "/api/jiap/search_class_key" to RouteTarget(
                 service = commonService,
@@ -48,46 +52,55 @@ class JiapConfig(
             "/api/jiap/search_method" to RouteTarget(
                 service = commonService,
                 methodName = "handleSearchMethod",
-                params = setOf("method"),
+                params = setOf("mth"),
                 cacheable = true
             ),
             "/api/jiap/get_method_xref" to RouteTarget(
                 service = commonService,
                 methodName = "handleGetMethodXref",
-                params = setOf("method"),
+                params = setOf("mth"),
+                cacheable = true
+            ),
+            "/api/jiap/get_field_xref" to RouteTarget(
+                service = commonService,
+                methodName = "handleGetFieldXref",
+                params = setOf("fld"),
                 cacheable = true
             ),
             "/api/jiap/get_class_xref" to RouteTarget(
                 service = commonService,
                 methodName = "handleGetClassXref",
-                params = setOf("class"),
+                params = setOf("cls"),
                 cacheable = true
             ),
             "/api/jiap/get_implement" to RouteTarget(
                 service = commonService,
                 methodName = "handleGetImplementOfInterface",
-                params = setOf("interface"),
+                params = setOf("iface"),
                 cacheable = true
             ),
             "/api/jiap/get_sub_classes" to RouteTarget(
                 service = commonService,
                 methodName = "handleGetSubclasses",
-                params = setOf("class"),
+                params = setOf("cls"),
                 cacheable = true
             ),
             "/api/jiap/get_method_source" to RouteTarget(
                 service = commonService,
                 methodName = "handleGetMethodSource",
-                params = setOf("method", "smali")
+                params = setOf("mth", "smali")
             ),
+
+            // UI Service
             "/api/jiap/selected_text" to RouteTarget(
-                service = commonService,
+                service = uiService,
                 methodName = "handleGetSelectedText"
             ),
             "/api/jiap/selected_class" to RouteTarget(
-                service = commonService,
+                service = uiService,
                 methodName = "handleGetSelectedClass"
             ),
+
             // Android App Service
             "/api/jiap/get_app_manifest" to RouteTarget(
                 service = androidAppService,
@@ -101,12 +114,26 @@ class JiapConfig(
                 service = androidAppService,
                 methodName = "handleGetApplication"
             ),
+            "/api/jiap/get_exported_components" to RouteTarget(
+                service = androidAppService,
+                methodName = "handleGetExportedComponents"
+            ),
+            "/api/jiap/get_deep_links" to RouteTarget(
+                service = androidAppService,
+                methodName = "handleGetDeepLinks"
+            ),
 
             // Android Framework Service
             "/api/jiap/get_system_service_impl" to RouteTarget(
                 service = androidFrameworkService,
                 methodName = "handleGetSystemServiceImpl",
-                params = setOf("interface")
+                params = setOf("iface")
+            ),
+
+            // Vulnerability Mining Service
+            "/api/jiap/get_dynamic_receivers" to RouteTarget(
+                service = vulnMiningService,
+                methodName = "handleGetDynamicReceivers"
             )
         )
 

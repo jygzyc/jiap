@@ -2,8 +2,13 @@ package jadx.plugins.jiap.utils
 
 import jadx.api.JadxDecompiler
 import jadx.api.JavaClass
+import jadx.api.JavaField
 import jadx.api.JavaMethod
+import jadx.api.JavaNode
 import jadx.core.dex.instructions.args.ArgType
+import jadx.core.dex.visitors.prepare.CollectConstValues
+import java.util.ArrayList
+import java.util.HashMap
 import java.util.regex.Pattern
 
 object CodeUtils {
@@ -15,6 +20,49 @@ object CodeUtils {
             }
         }
         return null
+    }
+
+    fun findField(decompiler: JadxDecompiler, fldSig: String): Pair<JavaClass, JavaField>? {
+        decompiler.classesWithInners?.forEach { clazz ->
+            clazz.fields.find { it.toString() == fldSig }?.let { field ->
+                return clazz to field
+            }
+        }
+        return null
+    }
+
+
+    // From jadx core - usage analysis
+    fun buildUsageQuery(decompiler: JadxDecompiler, node: JavaNode): Map<JavaNode, List<JavaNode>> {
+        node.declaringClass?.decompile()
+        val map = HashMap<JavaNode, List<JavaNode>>()
+        map[node] = node.useIn
+
+        if (node is JavaClass) {
+            node.methods.forEach { mth ->
+                if (mth.isConstructor) {
+                    map[mth] = mth.useIn
+                }
+            }
+        } else if (node is JavaMethod) {
+            node.overrideRelatedMethods.forEach { overrideMth ->
+                map[overrideMth] = overrideMth.useIn
+            }
+        } else if (node is JavaField && decompiler.args.isReplaceConsts) {
+            val fld = node.fieldNode
+            val isPrivate = fld.accessFlags.isPrivate
+            val constValue = CollectConstValues.getFieldConstValue(fld)
+            val constField = constValue != null
+
+            if (constField && !isPrivate) {
+                // When constants are inlined, search all classes to collect usages
+                // of replaced constant values throughout the codebase
+                val allClasses = decompiler.classesWithInners ?: emptyList()
+                map[node] = allClasses
+            }
+        }
+        
+        return map
     }
 
     fun extractMethodSmaliCode(clazz: JavaClass, mth: JavaMethod): String {

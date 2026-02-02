@@ -128,88 +128,88 @@ object PluginUtils {
         }
     }
 
-    /**
-     * Calculate total pages needed for pagination
-     */
+    private const val MAX_OUTPUT_LENGTH = 50000
+    private const val INITIAL_SLICE_SIZE = 1000
+    private const val MIN_SLICE_SIZE = 10
+
     private fun calculateTotalPages(responseMap: Map<String, Any>, type: String?): Int {
-        return when (type) {
-            "list" -> {
-                // Find all list fields
-                val listFields = responseMap.filter { (key, value) ->
-                    key.endsWith("-list") && value is List<*>
-                }
-
-                if (listFields.isNotEmpty()) {
-                    listFields.values.maxOf { list ->
-                        @Suppress("UNCHECKED_CAST")
-                        (list as List<*>).size
-                    }.let { size ->
-                        (size + 1000 - 1) / 1000  // 1000 items per page
-                    }
-                } else {
-                    1
-                }
-            }
-            "code" -> {
-                // Check for code or content field
-                val codeField = responseMap["code"]
-                if (codeField != null) {
-                    val codeLines = codeField.toString().split('\n')
-                    (codeLines.size + 1000 - 1) / 1000  // 1000 lines per page
-                } else {
-                    1
-                }
-            }
-            else -> 1
-        }
+        val sliceSize = findOptimalSliceSize(responseMap, type)
+        val count = getTotalCount(responseMap, type)
+        return if (count <= 0) 1 else (count + sliceSize - 1) / sliceSize
     }
 
-    /**
-     * Create sliced data for the given page
-     */
+    private fun getTotalCount(responseMap: Map<String, Any>, type: String?): Int = when (type) {
+        "list" -> getMaxListSize(responseMap)
+        "code" -> responseMap["code"]?.toString()?.split('\n')?.size ?: 0
+        else -> 0
+    }
+
+    private fun getMaxListSize(responseMap: Map<String, Any>): Int {
+        @Suppress("UNCHECKED_CAST")
+        return responseMap
+            .filter { (k, v) -> k.endsWith("-list") && v is List<*> }
+            .map { (_, v) -> (v as List<*>).size }
+            .maxOrNull() ?: 0
+    }
+
+    private fun findOptimalSliceSize(responseMap: Map<String, Any>, type: String?): Int {
+        var low = MIN_SLICE_SIZE
+        var high = INITIAL_SLICE_SIZE
+        var bestSize = MIN_SLICE_SIZE
+
+        repeat(10) {
+            if (low > high) return@repeat
+            val mid = (low + high) / 2
+            val testData = createSliceWithSize(responseMap, 1, type, mid)
+
+            if (gson.toJson(testData).length <= MAX_OUTPUT_LENGTH) {
+                bestSize = mid
+                low = mid + 1
+            } else {
+                high = mid - 1
+            }
+        }
+
+        return bestSize
+    }
+
     private fun createSliceData(responseMap: Map<String, Any>, page: Int, type: String?): Map<String, Any> {
-        val sliceData = mutableMapOf<String, Any>()
-
-        // Process each field in the response based on type
-        responseMap.forEach { (key, value) ->
-            when (type) {
-                "list" -> {
-                    if (key.endsWith("-list") && value is List<*>) {
-                        // Slice the list
-                        @Suppress("UNCHECKED_CAST")
-                        val list = value as List<*>
-                        val start = (page - 1) * 1000  // 1000 items per slice
-                        val end = (start + 1000).coerceAtMost(list.size)
-                        sliceData[key] = list.subList(start, end)
-                    } else {
-                        sliceData[key] = value
-                    }
-                }
-                "code" -> {
-                    if (key == "code") {
-                        // Slice the code
-                        val codeLines = value.toString().split('\n')
-                        val startLine = (page - 1) * 1000  // 1000 lines per slice
-                        val endLine = (startLine + 1000).coerceAtMost(codeLines.size)
-                        val codeSlice = codeLines.subList(startLine, endLine).joinToString("\n")
-
-                        // Truncate if too long
-                        sliceData[key] = if (codeSlice.length > 60000) {
-                            codeSlice.take(60000)
-                        } else {
-                            codeSlice
-                        }
-                    } else {
-                        sliceData[key] = value
-                    }
-                }
-                else -> {
-                    // Copy other fields as-is (including type, count, name, etc.)
-                    sliceData[key] = value
-                }
-            }
-        }
-
-        return sliceData
+        val sliceSize = findOptimalSliceSize(responseMap, type)
+        return createSliceWithSize(responseMap, page, type, sliceSize)
     }
+
+    private fun createSliceWithSize(
+        responseMap: Map<String, Any>,
+        page: Int,
+        type: String?,
+        sliceSize: Int
+    ): Map<String, Any> = responseMap.mapValues { (key, value) ->
+        when (type) {
+            "list" -> sliceList(key, value, page, sliceSize)
+            "code" -> sliceCode(key, value, page, sliceSize)
+            else -> value
+        }
+    }
+
+    private fun sliceList(key: String, value: Any, page: Int, sliceSize: Int): Any {
+        if (!key.endsWith("-list") || value !is List<*>) return value
+        @Suppress("UNCHECKED_CAST")
+        val list = value as List<*>
+        val start = (page - 1) * sliceSize
+        if (start >= list.size) return emptyList<Any>()
+        val end = (start + sliceSize).coerceAtMost(list.size)
+        return list.subList(start, end)
+    }
+
+    private fun sliceCode(key: String, value: Any, page: Int, sliceSize: Int): Any {
+        if (key != "code") return value
+        val lines = value.toString().split('\n')
+        val start = (page - 1) * sliceSize
+        if (start >= lines.size) return ""
+        val end = (start + sliceSize).coerceAtMost(lines.size)
+        val code = lines.subList(start, end).joinToString("\n")
+        return code.take(MAX_OUTPUT_LENGTH)
+    }
+
+    private val gson by lazy { com.google.gson.Gson() }
 }

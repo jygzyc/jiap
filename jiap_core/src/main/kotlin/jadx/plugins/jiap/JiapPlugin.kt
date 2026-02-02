@@ -59,7 +59,7 @@ class JiapPlugin : JadxPlugin {
             LogUtils.info("Cleaning up JIAP plugin resources...")
 
             CacheUtils.clearCache()
-            server?.stop() // stop 会自动停止 sidecar
+            server?.stop()
 
         } catch (e: Exception) {
             LogUtils.error(JiapError.SERVER_INTERNAL_ERROR, "Error during plugin unload", e)
