@@ -1,100 +1,133 @@
 ---
 name: jiap-analyst
-description: This skill should be used when the user asks to "analyze Android APK", "audit Android app security", "reverse engineer Android", "analyze Android framework", "find Android vulnerabilities", "security audit with JADX", "use JIAP tools", or mentions JIAP, JADX security analysis, Android reverse engineering, APK security, or framework vulnerability research.
-version: 1.0.0
+description: Use when user asks to "analyze Android APK", "audit Android app security", "reverse engineer Android", "analyze Android framework", "find Android vulnerabilities", "security audit with JADX", or mentions JIAP, JADX security analysis, Android reverse engineering, APK security, or framework vulnerability research.
 ---
 
 # JIAP Analyst
 
-Android reverse engineering and security analysis skill using **JIAP (Java Intelligence Analysis Platform)**. Routes to specialized workflows for App (APK) security auditing or Framework (ROM) vulnerability research.
+Android reverse engineering and security analysis using JADX and JIAP plugin.
 
 ## Prerequisites
 
-Ensure JIAP plugin is active:
-1. Run `health_check()` to verify connection
-2. Confirm JADX has loaded target file (APK, JAR, or DEX)
+### Step 1: Environment Check
 
-## Target Type Routing (Mandatory First Step)
+Use `jadx_check.py` to verify JADX and JIAP are available:
 
-Before analysis, determine the target type to select the correct workflow:
+```bash
+python scripts/jadx_check.py --help
+python scripts/jadx_check.py
+python scripts/jadx_check.py --install  # Install if missing
+```
 
-| Target Type | Package Indicators | Action |
-|-------------|-------------------|--------|
-| **User Application (APK)** | `com.facebook.*`, `com.google.android.gms`, `com.tencent.mm`, third-party packages | Use **App Audit Workflow** (`references/app-audit.md`) |
-| **Android Framework (ROM)** | `com.android.server.*`, `android.os.IPowerManager`, `com.android.internal.*` | Use **Framework Audit Workflow** (`references/framework-audit.md`) |
+**Checks:** JADX binary, JIAP plugin, JIAP server health endpoint
 
-### Discovery Protocol (If Target Unknown)
+---
 
-1. `get_all_classes(page=1)` - Inspect package names
-   - `com.android.server.*` → Framework
-   - Third-party names → App
-2. `get_app_manifest()` - Check for manifest
-   - Contains `<manifest>` / `<application>` → App or System App
-   - Empty/Error → Likely Framework JAR
+### Step 2: Decompile Target
 
-## Core Tool Categories
+Use `jadx_analyze.py` to decompile APK, DEX, JAR, or AAR files:
 
-| Category | Tools | Purpose |
-|----------|-------|---------|
-| **Code Retrieval** | `get_class_source`, `get_method_source` | Read Java/Smali code |
-| **Search** | `search_class_key`, `search_method` | Find patterns/keywords |
-| **Structure** | `get_class_info`, `get_sub_classes`, `get_implement` | Class hierarchies |
-| **Cross-Reference** | `get_method_xref`, `get_class_xref` | Trace usage/data flow |
-| **Android-Specific** | `get_app_manifest`, `get_main_activity`, `get_application`, `get_system_service_impl` | Android analysis |
-| **UI Integration** | `selected_text`, `selected_class` | JADX GUI interaction |
+```bash
+python scripts/jadx_analyze.py --help
+python scripts/jadx_analyze.py /path/to/app.apk
+python scripts/jadx_analyze.py /path/to/app.apk --output ./analysis --threads 8
+```
 
-For complete tool documentation, see `references/tool-reference.md`.
+**Output:** `<filename>_jadx/` directory with decompiled Java code
 
-## Analysis Best Practices
+---
 
-1. **Context First**: Ground analysis in manifest (Apps) or interface mapping (Framework)
-2. **Pagination Awareness**: Check `page` parameter; results may span multiple pages
-3. **Evidence-Based Reporting**: Cite specific code with method signatures
-4. **Risk Classification**: High/Medium/Low with exploitability reasoning
+## Security Audit
 
-## Workflow Quick Reference
+After decompilation, load the appropriate reference and start analysis:
 
-### App Security Audit (APK)
+### Target Type Routing
 
-**Focus**: Component security, IPC vulnerabilities, WebViews, data storage
+| Target Type | Package Indicators | Load Reference |
+|-------------|-------------------|----------------|
+| **User Application (APK)** | Third-party packages (com.facebook.*, etc.) | `references/app-audit.md` |
+| **Android Framework (ROM)** | System packages (com.android.server.*) | `references/framework-audit.md` |
 
-1. **Map Attack Surface**: `get_app_manifest()` → identify exported components
-2. **Analyze Entry Points**: `get_main_activity()`, `get_class_source(activity)`
-3. **Search Vulnerabilities**:
-   - Intent Redirection: Look for `getParcelableExtra("intent")` + `startActivity()`
-   - WebView RCE: `search_method("addJavascriptInterface")`
-   - Secrets: `search_class_key("api_key")`, `search_class_key("password")`
-4. **Trace Data Flow**: `get_method_xref()` for sensitive sinks
+### App Audit Workflow
 
-Detailed protocols: `references/app-audit.md`
+**Focus:** IPC vulnerabilities, exported components, WebViews, SQL injection
 
-### Framework Vulnerability Research (ROM)
+```python
+# 1. Map attack surface
+get_exported_components(1)
+get_deep_links(1)
+get_app_manifest(1)
 
-**Focus**: Privilege escalation, Binder IPC security, denial-of-service
+# 2. Find vulnerable patterns
+search_method("addJavascriptInterface", 1)  # WebView RCE
+search_method("rawQuery", 1)                 # SQL injection
+search_method("startActivity", 1)            # Intent redirection
 
-1. **Map Interface to Implementation**: `get_system_service_impl("android.os.IInterface")`
-2. **Analyze Permission Checks**: Look for `enforceCallingPermission()` ordering
-3. **Check Identity Validation**: Verify `Binder.getCallingUid()` usage vs trusted `int uid` args
-4. **Find Side Channels**: Inconsistent error handling paths
+# 3. Trace to sensitive sinks
+get_method_xref("<signature>", 1)
+```
 
-Detailed protocols: `references/framework-audit.md`
+### Framework Audit Workflow
+
+**Focus:** Privilege escalation, Binder IPC, permission bypass
+
+```python
+# 1. Map system services
+get_system_service_impl("android.os.IInterface", 1)
+
+# 2. Check permission enforcement
+search_class_key("enforceCallingPermission")
+search_class_key("clearCallingIdentity")
+
+# 3. Find identity confusion
+search_method("int uid")
+get_method_source("methodWithUid")
+```
+
+---
+
+## Core Principle: Exploitability Only
+
+**Report ONLY findings with demonstrable exploitability.**
+
+A finding is a vulnerability **ONLY if** all 3 conditions are met:
+1. **Reachable** - Attacker can trigger the code path
+2. **Controllable** - Attacker can influence critical data
+3. **Impactful** - Causes security breach (privilege escalation, data theft, RCE, DoS)
+
+**If ANY condition is NOT met → Do NOT report.**
+
+---
 
 ## Reporting Template
 
 ```
-[SEVERITY] Finding Title
-Risk: HIGH/MEDIUM/LOW
-Component: class.method() or component name
-Cause: Brief description of the vulnerability
-Evidence: Code snippet or method signature
-Impact: What an attacker can achieve
-Mitigation: Recommended fix
+[SEVERITY] Vulnerability Title
+Risk: CRITICAL/HIGH/MEDIUM/LOW
+Component: com.package.ClassName.vulnerableMethod()
+Cause: Brief description of the flaw
+
+Evidence:
+  Intent intent = getIntent().getParcelableExtra("key");
+  startActivity(intent);  // No validation
+
+Exploit Path:
+  1. Attacker crafts malicious Intent
+  2. Application receives user-controlled input
+  3. Input flows to vulnerable sink without validation
+  4. Attacker achieves X
+
+Impact: What the attacker gains
+Mitigation: How to fix
 ```
 
-## Additional Resources
+---
 
-### Reference Files
+## References
 
-- **`references/app-audit.md`** - Complete APK security audit workflows
-- **`references/framework-audit.md`** - Complete framework vulnerability research protocols
-- **`references/tool-reference.md`** - Detailed tool documentation with examples
+| Reference | Content |
+|-----------|---------|
+| `references/app-audit.md` | App vulnerabilities: Intent, WebView, SQL injection |
+| `references/framework-audit.md` | Framework vulnerabilities: Permission bypass, IPC |
+| `references/tool-reference.md` | Tool usage, API documentation |
+| `references/vulnerabilities.md` | Vulnerability patterns, exploitation techniques |
