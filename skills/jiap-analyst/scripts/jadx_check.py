@@ -163,7 +163,7 @@ def main():
     # Print results
     max_len = max(len(name) for name, _, _ in results)
     for name, ok, info in results:
-        status = "✓" if ok else "✗"
+        status = "[OK]" if ok else "[FAIL]"
         print(f"{status} {name:<{max_len}} {info}")
 
     # Exit code

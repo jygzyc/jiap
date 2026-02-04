@@ -104,27 +104,18 @@ class SidecarProcessManager(private val pluginContext: JadxPluginContext) {
             _isRunning.set(true)
             lastStatus.set(true)
 
-            // 统一日志处理器
-            fun startLogger(inputStream: java.io.InputStream, prefix: String) {
+            if (isWindows) {
                 Thread({
                     try {
-                        val reader = BufferedReader(InputStreamReader(inputStream, java.nio.charset.StandardCharsets.UTF_8))
-                        var line: String?
-                        while (reader.readLine().also { line = it } != null) {
-                            LogUtils.info("$prefix $line")
-                        }
-                    } catch (e: Exception) {
-                        if (isRunning()) {
-                            LogUtils.debug("$prefix error: ${e.message}")
-                        }
-                    }
-                }, prefix).apply { isDaemon = true }.start()
+                        p.errorStream?.close()
+                    } catch (_: Exception) {}
+                }, "MCP-stderr-cleanup").apply { isDaemon = true }.start()
             }
-
-            startLogger(p.inputStream, "[MCP STDOUT]")
-            if (isWindows) {
-                startLogger(p.errorStream, "[MCP STDERR]")
-            }
+            Thread({
+                try {
+                    p.inputStream?.close()
+                } catch (_: Exception) {}
+            }, "MCP-stdout-cleanup").apply { isDaemon = true }.start()
 
             Thread.sleep(1000)
             if (!p.isAlive) {

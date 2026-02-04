@@ -47,17 +47,40 @@ class PluginLifecycleManager(
         try {
             ctx.decompiler?.let { decompiler ->
                 PreferencesManager.initializeJadxArgs(decompiler)
+                
+                val server = JiapServer(ctx)
+                server.start(PreferencesManager.getPort())
+                onReady(server, server.sidecarManager)
+                
+                warmupDecompilation(decompiler)
             }
-            
-            val server = JiapServer(ctx)
-            
-            server.start(PreferencesManager.getPort())
-            
-            onReady(server, server.sidecarManager)
-            
         } catch (e: Exception) {
             LogUtils.error(JiapError.SERVER_INTERNAL_ERROR, "Failed to initialize components", e)
             throw e
         }
+    }
+    
+    private fun warmupDecompilation(decompiler: jadx.api.JadxDecompiler) {
+        Thread({
+            try {
+                val classes = decompiler.classesWithInners ?: emptyList()
+                if (classes.isEmpty()) return@Thread
+                
+                val warmupCount = minOf(100, classes.size)
+                LogUtils.info("Starting light warmup for $warmupCount classes...")
+                val startTime = System.currentTimeMillis()
+                
+                classes.take(warmupCount).forEach { clazz ->
+                    try {
+                        clazz.decompile()
+                    } catch (_: Exception) {}
+                }
+                
+                val elapsed = System.currentTimeMillis() - startTime
+                LogUtils.info("Warmup completed in ${elapsed}ms, decompiler engine ready")
+            } catch (e: Exception) {
+                LogUtils.debug("Warmup failed: ${e.message}")
+            }
+        }, "Jiap-Warmup").apply { isDaemon = true }.start()
     }
 }
