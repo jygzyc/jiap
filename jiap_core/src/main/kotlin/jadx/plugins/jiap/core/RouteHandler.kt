@@ -2,6 +2,7 @@ package jadx.plugins.jiap.core
 
 import jadx.plugins.jiap.utils.CacheUtils
 import jadx.plugins.jiap.utils.PluginUtils
+import jadx.plugins.jiap.utils.LogUtils
 import jadx.plugins.jiap.model.JiapResult
 
 class RouteHandler(
@@ -12,6 +13,7 @@ class RouteHandler(
         payload: Map<String, Any>,
         page: Int
     ): Map<String, Any> {
+        LogUtils.info("[API] $path: $payload")
         val target = config.routeMap[path] 
             ?: throw IllegalArgumentException("Unknown endpoint: $path")
 
@@ -52,6 +54,4 @@ class RouteHandler(
             PluginUtils.convertValue(value, param.type)
         }.toTypedArray()
     }
-
-
 }

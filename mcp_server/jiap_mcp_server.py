@@ -366,4 +366,9 @@ if __name__ == "__main__":
     else:
         MCP_SERVER_PORT = 25420
 
-    mcp.run(transport="http", host="0.0.0.0", port=MCP_SERVER_PORT, show_banner=False)
+    mcp.run(
+        transport="http",
+        host="0.0.0.0",
+        port=MCP_SERVER_PORT,
+        show_banner=False
+    )

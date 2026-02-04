@@ -107,7 +107,12 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
             val lowerKeyword = key.lowercase()
             val classes = decompiler.classesWithInners?.parallelStream()
                 ?.filter { clazz ->
-                    clazz.code?.lowercase()?.contains(lowerKeyword) == true
+                    try {
+                        clazz.decompile()
+                        clazz.code?.lowercase()?.contains(lowerKeyword) == true
+                    } catch (_: Exception) {
+                        false
+                    }
                 }
                 ?.toList() ?: emptyList()
 
