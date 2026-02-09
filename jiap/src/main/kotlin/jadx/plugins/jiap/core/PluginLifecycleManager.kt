@@ -65,17 +65,39 @@ class PluginLifecycleManager(
             try {
                 val classes = decompiler.classesWithInners ?: emptyList()
                 if (classes.isEmpty()) return@Thread
-                
-                val warmupCount = minOf(100, classes.size)
-                LogUtils.info("Starting light warmup for $warmupCount classes...")
+
+                val sdkPackagePrefixes = listOf(
+                    "android.support.",
+                    "androidx.",
+                    "java.",
+                    "javax.",
+                    "kotlin.",
+                    "kotlinx."
+                )
+
+                val appClasses = classes.filter { clazz ->
+                    val fullName = clazz.fullName
+                    sdkPackagePrefixes.none { prefix -> fullName.startsWith(prefix) }
+                }
+
+                val targetCount = 15000
+                val classesToDecompile: List<jadx.api.JavaClass>
+
+                if (appClasses.size >= targetCount) {
+                    classesToDecompile = appClasses.shuffled().take(targetCount)
+                } else {
+                    classesToDecompile = classes
+                }
+                LogUtils.debug("Warmup classes count: ${classesToDecompile.size}")
+
                 val startTime = System.currentTimeMillis()
-                
-                classes.take(warmupCount).forEach { clazz ->
+
+                classesToDecompile.forEach { clazz ->
                     try {
                         clazz.decompile()
                     } catch (_: Exception) {}
                 }
-                
+
                 val elapsed = System.currentTimeMillis() - startTime
                 LogUtils.info("Warmup completed in ${elapsed}ms, decompiler engine ready")
             } catch (e: Exception) {

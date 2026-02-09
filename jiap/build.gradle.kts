@@ -49,7 +49,7 @@ sourceSets {
 
 tasks.processResources {
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-    from("../mcp_server") {
+    from("mcp_server") {
         include("jiap_mcp_server.py")
         include("pyproject.toml")
         include("requirements.txt")
@@ -90,8 +90,6 @@ tasks {
     }
     val shadowJar = withType(ShadowJar::class) {
         archiveClassifier = ""
-        // Don't minimize to preserve Jetty WebSocket service files
-        // minimize()
     }
 
     // copy result jar into "build/dist" directory

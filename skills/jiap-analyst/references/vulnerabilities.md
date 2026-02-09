@@ -2,6 +2,17 @@
 
 Quick reference for common Android security vulnerabilities.
 
+## Category Overview
+
+| Category | Target | Scope |
+|----------|--------|-------|
+| **App Vulnerabilities** | User Applications (APK) | IPC, Components, WebViews, Data Flow |
+| **Framework Vulnerabilities** | Android System (ROM) | Privilege Escalation, Permission Bypass, Binder IPC |
+
+---
+
+# Part 1: App Vulnerabilities
+
 ## Taint Tracking Fundamentals
 
 **Vulnerability = Untrusted Data (Source) → Exploitable Sink without Sanitization**
@@ -417,13 +428,160 @@ get_method_xref("execSQL", 1)
 
 ---
 
-## Severity Reference
+---
+
+# Part 2: Framework Vulnerabilities
+
+## Permission Bypass (Framework)
+
+**Vulnerability**: Framework privileged operation missing permission enforcement or incorrect permission check order.
+
+**Vulnerable:**
+```java
+public void sensitiveOperation() {
+    long token = Binder.clearCallingIdentity();  // Cleared FIRST
+    try {
+        privilegedWork();  // Already executed
+    } finally {
+        Binder.restoreCallingIdentity(token);
+    }
+    enforcePermission();  // Check AFTER - too late
+}
+```
+
+**Secure:**
+```java
+public void sensitiveOperation() {
+    enforceCallingPermission(MY_PERMISSION);  // Check FIRST
+    long token = Binder.clearCallingIdentity();  // Then clear
+    try {
+        privilegedWork();
+    } finally {
+        Binder.restoreCallingIdentity(token);
+    }
+}
+```
+
+**Detection:**
+```bash
+search_class_key("enforceCallingPermission")
+search_class_key("checkCallingPermission")
+search_class_key("clearCallingIdentity")
+```
+
+**Report IF:**
+- ✅ No permission check on privileged Binder-accessible method → **CRITICAL**
+- ✅ Permission check AFTER `clearCallingIdentity()` → **HIGH**
+- ❌ Check BEFORE `clearCallingIdentity()` → **NOT A VULNERABILITY**
+
+---
+
+## Identity Confusion (UID Spoofing)
+
+**Vulnerability**: Method trusts caller-supplied `uid` parameter instead of actual Binder caller.
+
+**Vulnerable:**
+```java
+public Data getDataForUser(int uid) {
+    return mDatabase.getDataForUid(uid);  // Trusts parameter blindly
+}
+```
+
+**Secure:**
+```java
+public Data getDataForUser(int requestedUid) {
+    int actualUid = Binder.getCallingUid();
+    if (actualUid != requestedUid) {
+        throw new SecurityException("UID mismatch");
+    }
+    return mDatabase.getDataForUid(actualUid);
+}
+```
+
+**Detection:**
+```bash
+search_method("int uid")
+get_method_source("methodWithUid")
+```
+
+**Report IF:**
+- ✅ Method accepts `int uid`/`int pid` AND uses it for access control WITHOUT validating against `Binder.getCallingUid()` → **HIGH**
+- ❌ Validates `uid == Binder.getCallingUid()` → **NOT A VULNERABILITY**
+
+---
+
+## Side Channel (Information Leak)
+
+**Vulnerability**: Different return paths leak sensitive information without permission.
+
+**Vulnerable:**
+```java
+public PackageInfo getPackageInfo(String pkg) {
+    if (pkg == null) return null;  // No permission check
+    enforcePermission(QUERY);     // Permission only on this path
+    return getPackage(pkg);
+}
+```
+
+**Report IF:**
+- ✅ Different return paths reveal sensitive state (package exists, user present) AND observable without permission → **MEDIUM/HIGH**
+- ❌ Consistent permission on ALL paths → **NOT A VULNERABILITY**
+
+---
+
+## Data Exposure
+
+**Vulnerability**: Returns sensitive data without proper permission.
+
+**Detection:**
+```bash
+search_method("getRunningAppProcesses")
+search_method("getRecentTasks")
+search_method("getLastLocation")
+```
+
+**Report IF:**
+- ✅ Returns sensitive data (foreground app, location, PII) without proper permission → **HIGH**
+- ❌ Requires system-level permission → **NOT A VULNERABILITY**
+- ❌ Data is anonymized/redacted → **NOT A VULNERABILITY**
+
+---
+
+## Race Condition
+
+**Vulnerability**: Check-use TOCTOU race on security-critical state.
+
+**Vulnerable Pattern:**
+```java
+if (isAllowed()) {  // Check
+    performAction();  // Use - window between check and use
+}
+```
+
+**Report IF:**
+- ✅ Check-use race on security-critical state AND attacker can influence between check and use → **HIGH**
+- ❌ State check and use are atomic/synchronized → **NOT A VULNERABILITY**
+
+---
+
+# Severity Reference
+
+## App Vulnerabilities
 
 | Severity | Vulnerability Types |
 |----------|-------------------|
-| **Critical** | Intent Redirection, WebView RCE, SQL Injection, Permission Bypass |
-| **High** | Deep Link Hijacking, Path Traversal, Dynamic Receivers, Identity Confusion |
+| **Critical** | Intent Redirection, WebView RCE, SQL Injection |
+| **High** | Deep Link Hijacking, Path Traversal, Dynamic Receivers |
 | **Medium** | Exported Components (with limited impact), Insecure Crypto |
-| **Low** | Hardcoded Secrets (requires reverse engineering), Insecure Logging |
+| **Low** | Hardcoded Secrets, Insecure Logging |
+
+## Framework Vulnerabilities
+
+| Severity | Vulnerability Types |
+|----------|-------------------|
+| **Critical** | Permission Bypass (missing check), Arbitrary Code Execution |
+| **High** | Identity Confusion, Data Exposure, Race Conditions |
+| **Medium** | Side Channel Information Leak |
+| **Low** | Debug Info Exposure |
 
 **Note:** Only report vulnerabilities that are **Reachable**, **Controllable**, and **Impactful**.

@@ -37,7 +37,7 @@ JIAP (Java Intelligence Analysis Platform) 是一个基于JADX反编译器的智
 jadx plugins --install-jar <path-to-jiap.jar>
 
 # 2. 构建 JIAP Core（从源码）
-cd jiap_core
+cd jiap
 chmod +x gradlew
 ./gradlew dist
 ```
@@ -126,6 +126,29 @@ chmod +x gradlew
 # 自动监控并在需要时重启
 ```
 
+**缓存配置：**
+JIAP 支持两种缓存模式以提升性能：
+- **disk**（默认）：将反编译缓存持久化到磁盘（`~/.jiap/cache/`）
+- **memory**：仅在内存中保留缓存，适用于小型项目
+
+**配置方式：**
+- **插件选项**：在 JADX 插件选项中设置 `jiap.cache` 为 `disk` 或 `memory`
+- **默认值**：`disk`，以在后续运行中提供更好的性能
+
+**性能优化：**
+JIAP 包含自动性能优化：
+
+**反编译器预热：**
+- JIAP 启动时自动预热反编译器引擎
+- 过滤掉 SDK 包（android.*、androidx.*、java.*、javax.*、kotlin.*）
+- 随机采样最多 15,000 个应用类
+- 确保后续查询的最佳性能
+
+**磁盘缓存：**
+- 反编译的代码缓存到磁盘以实现更快检索
+- 缓存跨 JADX 会话持久化
+- 大幅缩短大型项目的分析时间
+
 ### 错误码说明
 
 JIAP 使用结构化的错误码进行清晰的诊断：
@@ -167,14 +190,10 @@ JIAP 使用结构化的错误码进行清晰的诊断：
 ### 从源码构建
 
 ```bash
-# 构建 JIAP Core
-cd jiap_core
+# 2. 构建 JIAP Core（从源码）
+cd jiap
 chmod +x gradlew
 ./gradlew dist
-
-# 可选：测试 MCP Server（用于开发）
-cd mcp_server
-python jiap_mcp_server.py --jiap-url "http://127.0.0.1:25419"
 ```
 
 ### 增加自定义功能
