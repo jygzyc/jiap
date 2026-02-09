@@ -4,13 +4,13 @@ on:
   push:
     branches: [ main ]
     paths:
-      - 'jiap_core/**'
+      - 'jiap/**'
     tags:
       - 'v*'
   pull_request:
     branches: [ main ]
     paths:
-      - 'jiap_core/**'
+      - 'jiap/**'
   workflow_dispatch:
 
 jobs:
@@ -42,13 +42,13 @@ jobs:
 
     - name: Build with Gradle
       run: ./gradlew dist
-      working-directory: jiap_core
+      working-directory: jiap
       env:
         JIAP_VERSION: ${{ steps.version.outputs.version }}
 
     - name: Prepare release files
       run: |
-        cp jiap_core/build/dist/*.jar ./
+        cp jiap/build/dist/*.jar ./
         ls -la *.jar
 
     - name: Create Release

@@ -1,4 +1,4 @@
-# JIAP v1.1.0
+# JIAP v1.1.1
 
 ## Performance Improvements
 
