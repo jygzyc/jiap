@@ -60,6 +60,8 @@ class JiapPlugin : JadxPlugin {
 
             CacheUtils.clearCache()
             server?.stop()
+            
+            PreferencesManager.clearCache()
 
         } catch (e: Exception) {
             LogUtils.error(JiapError.SERVER_INTERNAL_ERROR, "Error during plugin unload", e)
