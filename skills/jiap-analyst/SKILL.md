@@ -50,39 +50,59 @@ After decompilation, load the appropriate reference and start analysis:
 
 ### App Audit Workflow
 
-**Focus:** IPC vulnerabilities, exported components, WebViews, SQL injection
+**Focus:** User-space application vulnerabilities - IPC, exported components, WebViews, data flow analysis
 
 ```python
-# 1. Map attack surface
-get_exported_components(1)
-get_deep_links(1)
-get_app_manifest(1)
+# 1. Identify exported components (entry points)
+get_exported_components(page=1)
+get_deep_links(page=1)
+get_dynamic_receivers(page=1)
 
-# 2. Find vulnerable patterns
-search_method("addJavascriptInterface", 1)  # WebView RCE
-search_method("rawQuery", 1)                 # SQL injection
-search_method("startActivity", 1)            # Intent redirection
+# 2. Extract Intent data sources
+search_method(method_name="getIntent", page=1)
+search_method(method_name="getStringExtra", page=1)
+search_method(method_name="getParcelableExtra", page=1)
 
-# 3. Trace to sensitive sinks
-get_method_xref("<signature>", 1)
+# 3. Trace taint propagation to sinks (use full method signature)
+get_method_xref(method_name="com.app.Activity.onCreate(android.os.Bundle):void", page=1)
+get_method_source(method_name="com.app.Helper.processData(java.lang.String):void", page=1)
+
+# 4. Check for sanitizers
+search_class_key(keyword="ALLOWED", page=1)
+search_method(method_name="getCanonicalPath", page=1)
 ```
+
+**Key Analysis Targets:**
+- **Activity**: `getIntent()` data flow via cross-reference
+- **Service**: AIDL interface implementation analysis
+- **ContentProvider**: `call()` function and file operations
 
 ### Framework Audit Workflow
 
-**Focus:** Privilege escalation, Binder IPC, permission bypass
+**Focus:** System-level vulnerabilities - privilege escalation, Binder IPC, permission bypass
 
 ```python
 # 1. Map system services
-get_system_service_impl("android.os.IInterface", 1)
+get_system_service_impl(interface_name="android.os.IPowerManager", page=1)
 
 # 2. Check permission enforcement
-search_class_key("enforceCallingPermission")
-search_class_key("clearCallingIdentity")
+search_class_key(keyword="enforceCallingPermission", page=1)
+search_class_key(keyword="clearCallingIdentity", page=1)
 
 # 3. Find identity confusion
-search_method("int uid")
-get_method_source("methodWithUid")
+search_method(method_name="processForUser", page=1)
+get_method_source(method_name="com.android.server.Service.processForUser(int,java.lang.String):void", page=1)
+
+# 4. Check for data exposure
+search_method(method_name="getRunningAppProcesses", page=1)
+search_method(method_name="getRecentTasks", page=1)
 ```
+
+**Key Analysis Targets:**
+- **Permission Bypass**: Missing or misordered permission checks
+- **Identity Confusion**: Trusting `uid` parameter without `Binder.getCallingUid()` validation
+- **Data Exposure**: Sensitive data returned without proper permission
+- **Side Channels**: Information leak through different return paths
 
 ---
 
@@ -104,30 +124,70 @@ A finding is a vulnerability **ONLY if** all 3 conditions are met:
 ```
 [SEVERITY] Vulnerability Title
 Risk: CRITICAL/HIGH/MEDIUM/LOW
-Component: com.package.ClassName.vulnerableMethod()
+Component: com.package.ClassName.vulnerableMethod(paramType):returnType
 Cause: Brief description of the flaw
 
 Evidence:
+  // Source: getIntent() receives attacker-controlled data
   Intent intent = getIntent().getParcelableExtra("key");
-  startActivity(intent);  // No validation
+  
+  // Sink: Reaches startActivity() without validation
+  startActivity(intent);  // No allowlist check
+
+Taint Flow:
+  Source: getIntent().getParcelableExtra("forward_intent")
+    ↓
+  Propagation: Helper.processIntent() stores in field
+    ↓
+  [NO SANITIZER] - No allowlist validation found
+    ↓
+  Sink: startActivity() launches arbitrary component
 
 Exploit Path:
-  1. Attacker crafts malicious Intent
-  2. Application receives user-controlled input
-  3. Input flows to vulnerable sink without validation
-  4. Attacker achieves X
+  1. Attacker crafts malicious Intent with internal component
+  2. Send to exported Activity via adb: adb shell am start -n com.app/.ExportedActivity --es forward_intent "..."
+  3. Activity extracts forward_intent without validation
+  4. startActivity() launches privileged internal component
+  5. Attacker gains unauthorized access
 
-Impact: What the attacker gains
-Mitigation: How to fix
+Impact: What the attacker gains (e.g., launch arbitrary components, privilege escalation)
+Mitigation: Implement allowlist validation before startActivity()
 ```
 
 ---
 
 ## References
 
-| Reference | Content |
-|-----------|---------|
-| `references/app-audit.md` | App vulnerabilities: Intent, WebView, SQL injection |
-| `references/framework-audit.md` | Framework vulnerabilities: Permission bypass, IPC |
-| `references/tool-reference.md` | Tool usage, API documentation |
-| `references/vulnerabilities.md` | Vulnerability patterns, exploitation techniques |
+| Reference | Content | When to Use |
+|-----------|---------|-------------|
+| `references/app-audit.md` | **App Audit Methodology**: How to analyze Activity/Service/ContentProvider for user applications | Target is APK file, third-party app |
+| `references/framework-audit.md` | **Framework Audit Methodology**: How to analyze Android system services | Target is framework.jar, system services |
+| `references/vulnerabilities.md` | **Vulnerability Catalog**: Complete list of App & Framework vulnerability types with detection patterns | Need to understand specific vulnerability patterns |
+| `references/tool-reference.md` | **Tool Reference**: Complete MCP tool API documentation with parameter formats | Need exact tool signatures or parameter details |
+
+### Tool Signature Format
+
+All tools use **named parameters** with `page` as the last parameter:
+
+```python
+# Search tools: (search_term, page)
+search_method(method_name="startActivity", page=1)
+search_class_key(keyword="ALLOWED", page=1)
+
+# Retrieval tools: (identifier, page)
+get_method_source(method_name="com.app.Activity.onCreate(android.os.Bundle):void", page=1)
+get_class_info(class_name="com.app.Helper", page=1)
+get_method_xref(method_name="com.app.Activity.onCreate(android.os.Bundle):void", page=1)
+
+# Android-specific: (page) or (interface_name, page)
+get_exported_components(page=1)
+get_deep_links(page=1)
+get_system_service_impl(interface_name="android.os.IPowerManager", page=1)
+```
+
+**Method Signature Format:** `package.Class.methodName(paramType1,paramType2):returnType`
+
+**Examples:**
+- `com.app.MainActivity.onCreate(android.os.Bundle):void`
+- `com.app.Helper.processData(java.lang.String):void`
+- `com.android.server.Service.processForUser(int,java.lang.String):void`
