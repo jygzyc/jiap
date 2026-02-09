@@ -14,7 +14,7 @@ A comprehensive platform for Java bytecode analysis and Android application reve
 
 ```bash
 # Build JIAP Core
-cd jiap_core
+cd jiap
 chmod +x gradlew
 ./gradlew dist
 
@@ -108,6 +108,29 @@ The companion process (MCP server) is automatically configured:
 # Auto-monitored and restarted if needed
 ```
 
+### Cache Configuration
+JIAP supports two cache modes for improved performance:
+- **disk** (default): Persists decompilation cache to disk (`~/.jiap/cache/`)
+- **memory**: Keeps cache in memory only, faster for small projects
+
+**Configuration:**
+- **Plugin Options**: Set `jiap.cache` to `disk` or `memory`
+- **Default**: `disk` for better performance on subsequent runs
+
+### Performance Optimization
+JIAP includes automatic performance optimizations:
+
+**Decompiler Warmup:**
+- When JIAP starts, it automatically warms up the decompiler engine
+- Filters out SDK packages (android.*, androidx.*, java.*, javax.*, kotlin.*)
+- Randomly samples up to 15,000 application classes
+- Ensures optimal performance for subsequent queries
+
+**Disk Caching:**
+- Decompiled code is cached to disk for faster retrieval
+- Cache persists across JADX sessions
+- Significantly reduces analysis time for large projects
+
 ## Error Codes
 
 JIAP uses structured error codes for clear diagnostics:
@@ -200,11 +223,11 @@ JIAP uses structured error codes for clear diagnostics:
 
 ```bash
 # Build JIAP Core
-cd jiap_core
+cd jiap
 ./gradlew dist
 
 # Test MCP Server (optional, for development)
-cd mcp_server
+cd jiap/mcp_server
 python jiap_mcp_server.py --url "http://127.0.0.1:25419"
 ```
 
