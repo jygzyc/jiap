@@ -62,9 +62,12 @@ class JiapServer(
             LogUtils.info("Server started")
             setupShutdownHook()
             
-            Thread({
-                sidecarManager.start()
-            }, "Jiap-Sidecar-Starter").apply { isDaemon = true }.start()
+            // Check auto-start setting from config file
+            if (PreferencesManager.getAutoStartMcp()) {
+                Thread({
+                    sidecarManager.start()
+                }, "Jiap-Sidecar-Starter").apply { isDaemon = true }.start()
+            }
             
             true
         } catch (e: Exception) {

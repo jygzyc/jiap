@@ -1,5 +1,13 @@
 [versions]
 kotlin = "2.2.0"
+jadx = "1.5.5"
+gson = "2.13.2"
+javalin = "6.7.0"
+jackson = "2.21.1"
+slf4j = "2.0.17"
+logback = "1.5.18"
+assertj = "3.27.3"
+junit = "5.12.1"
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
@@ -8,5 +16,15 @@ use-latest-versions = { id = "se.patrikerdes.use-latest-versions", version = "0.
 ben-manes-versions = { id = "com.github.ben-manes.versions", version = "0.51.0" }
 
 [libraries]
-jadx-core = { group = "io.github.skylot", name = "jadx-core", version = "1.5.2" }
-jadx-gui = { group = "io.github.skylot", name = "jadx-gui", version = "1.5.2" }
+jadx-core = { group = "io.github.skylot", name = "jadx-core", version.ref = "jadx" }
+jadx-gui = { group = "io.github.skylot", name = "jadx-gui", version.ref = "jadx" }
+jadx-cli = { group = "io.github.skylot", name = "jadx-cli", version.ref = "jadx" }
+jadx-smali-input = { group = "io.github.skylot", name = "jadx-smali-input", version.ref = "jadx" }
+gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
+javalin = { group = "io.javalin", name = "javalin", version.ref = "javalin" }
+jackson-databind = { group = "com.fasterxml.jackson.core", name = "jackson-databind", version.ref = "jackson" }
+slf4j-api = { group = "org.slf4j", name = "slf4j-api", version.ref = "slf4j" }
+logback-classic = { group = "ch.qos.logback", name = "logback-classic", version.ref = "logback" }
+assertj-core = { group = "org.assertj", name = "assertj-core", version.ref = "assertj" }
+junit-jupiter = { group = "org.junit.jupiter", name = "junit-jupiter", version.ref = "junit" }
+junit-platform-launcher = { group = "org.junit.platform", name = "junit-platform-launcher" }

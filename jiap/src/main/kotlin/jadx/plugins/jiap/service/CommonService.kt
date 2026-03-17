@@ -9,6 +9,7 @@ import jadx.plugins.jiap.model.JiapServiceInterface
 import jadx.plugins.jiap.utils.CodeUtils
 import kotlin.collections.forEach
 import java.awt.Component
+import java.util.stream.Collectors
 import java.awt.Container
 import javax.swing.JTextArea
 
@@ -114,9 +115,9 @@ class CommonService(override val pluginContext: JadxPluginContext) : JiapService
                         false
                     }
                 }
-                ?.toList() ?: emptyList()
+                ?.collect(Collectors.toList()) ?: emptyList()
 
-            val result = hashMapOf(
+            val result: HashMap<String, Any> = hashMapOf(
                 "type" to "list",
                 "count" to classes.size,
                 "classes-list" to classes.map { it.fullName }

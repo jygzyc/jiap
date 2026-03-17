@@ -9,34 +9,33 @@ plugins {
 }
 
 kotlin {
-    jvmToolchain(17)
+    jvmToolchain(11)
 }
 
-val jadxVersion = "1.5.3"
-val isJadxSnapshot = jadxVersion.endsWith("-SNAPSHOT")
+val isJadxSnapshot = libs.versions.jadx.get().endsWith("-SNAPSHOT")
 
 dependencies {
-    compileOnly("io.github.skylot:jadx-core:$jadxVersion") {
+    compileOnly(libs.jadx.core) {
         isChanging = false
     }
-    compileOnly("io.github.skylot:jadx-gui:$jadxVersion"){
+    compileOnly(libs.jadx.gui) {
         isChanging = false
     }
-    compileOnly("io.github.skylot:jadx-cli:$jadxVersion"){
+    compileOnly(libs.jadx.cli) {
         isChanging = false
     }
-    implementation("com.google.code.gson:gson:2.10.1")
-    implementation("io.javalin:javalin:6.7.0")
-    implementation("com.fasterxml.jackson.core:jackson-databind:2.17.2")
-    compileOnly("org.slf4j:slf4j-api:2.0.9")
+    implementation(libs.gson)
+    implementation(libs.javalin)
+    implementation(libs.jackson.databind)
+    compileOnly(libs.slf4j.api)
 
-	testImplementation("io.github.skylot:jadx-smali-input:$jadxVersion") {
+    testImplementation(libs.jadx.smali.input) {
         isChanging = isJadxSnapshot
     }
-    compileOnly("ch.qos.logback:logback-classic:1.5.18")
-	testImplementation("org.assertj:assertj-core:3.27.3")
-	testImplementation("org.junit.jupiter:junit-jupiter:5.12.1")
-	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    compileOnly(libs.logback.classic)
+    testImplementation(libs.assertj.core)
+    testImplementation(libs.junit.jupiter)
+    testRuntimeOnly(libs.junit.platform.launcher)
 }
 
 sourceSets {
