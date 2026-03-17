@@ -48,7 +48,7 @@ class JiapPlugin : JadxPlugin {
     override fun getPluginInfo(): JadxPluginInfo? {
         return JadxPluginInfoBuilder.pluginId(PLUGIN_ID)
             .name(PLUGIN_NAME)
-            .description("Java Intelligence Analysis Platform - Bridges JADX with AI assistants via MCP")
+            .description("Java Intelligence Analysis Platform - Bridges JADX with AI assistants via CLI(TODO) and MCP")
             .homepage("https://github.com/jygzyc/jiap")
             .requiredJadxVersion("1.5.2, r2472")
             .build()
