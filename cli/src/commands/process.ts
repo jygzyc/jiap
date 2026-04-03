@@ -125,6 +125,17 @@ export function makeProcessCommand(): Command {
         mgr.removeSession(fileName);
       }
 
+      // --- Check hash dedup: prevent same APK under different names ---
+      if (!opts.force) {
+        for (const s of mgr.listAliveSessions()) {
+          if (s.hash === fileHash && s.name !== fileName) {
+            throw new ProcessError(
+              `Already open as session '${s.name}'. Use --force to open again.`
+            );
+          }
+        }
+      }
+
       // --- Check port availability ---
       const [portInUse] = await checkJiapServer(port, 1);
       if (portInUse) {
