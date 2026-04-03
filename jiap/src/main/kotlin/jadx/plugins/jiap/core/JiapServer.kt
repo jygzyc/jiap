@@ -62,7 +62,7 @@ class JiapServer(
             LogUtils.info("Server started")
             setupShutdownHook()
             
-            // Check auto-start setting from config file
+            // Check auto-start setting: system property (-Djiap.mcp.enabled) > config.json
             if (PreferencesManager.getAutoStartMcp()) {
                 Thread({
                     sidecarManager.start()

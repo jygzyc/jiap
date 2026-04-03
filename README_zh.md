@@ -52,18 +52,13 @@ chmod +x gradlew
 * 启动 JIAP 插件
 
   - 启动 JADX 并启用 JIAP 插件
-  - 插件会自动启动 HTTP 服务器和 MCP 伴生进程
+  - 插件会自动启动 HTTP 服务器，MCP 服务器可手动确认启动
   - 确认服务器运行在 `http://127.0.0.1:25419`
-
-**伴生进程机制：**
-- JIAP 插件启动时，会自动启动 MCP 服务器作为**伴生进程**
-- 无需手动启动 MCP 服务器
-- 伴生进程会在 JIAP 插件卸载或 JADX 退出时自动停止
 
 **自动执行流程：**
 1. JIAP 插件启动 HTTP 服务器（端口 `25419`）
 2. 插件自动提取 MCP 脚本到 `~/.jiap/mcp/`
-3. 伴生进程（MCP 服务器）自动启动（端口 `25420`）
+3. 伴生进程（MCP 服务器）自动启动（端口 `25419 + 1`）
 4. 插件监控健康状态
 5. 两个进程在关闭时协同停止
 
@@ -97,11 +92,12 @@ chmod +x gradlew
 - `get_main_activity(page=1)` - 获取主 Activity 源代码
 - `get_application(page=1)` - 获取 Android 应用类及其信息
 - `get_exported_components(page=1)` - 获取导出的组件（Activity、Service、Receiver、Provider）及权限
-- `get_deep_links(page=1)` - 获取应用的 URL schemes 和 intent filters
-- `get_system_service_impl(interface_name, page=1)` - 获取系统服务实现
-
-**漏洞挖掘**
+- `get_deep_links(page=1)` - 获取应用的 URL Schemes 和 Intent Filters
+- `get_all_resources(page=1)` - 列出所有资源文件名（包括 resources.arsc 子文件）
+- `get_resource_file(resource_name, page=1)` - 按名称获取资源文件内容
+- `get_strings(page=1)` - 获取应用 strings.xml 内容
 - `get_dynamic_receivers(page=1)` - 获取动态注册的 BroadcastReceivers
+- `get_system_service_impl(interface_name, page=1)` - 获取系统服务实现
 
 **系统**
 - `health_check()` - 验证服务器连接状态
@@ -111,7 +107,7 @@ chmod +x gradlew
 **端口配置：**
 - **GUI 方式**：JIAP Server Status 菜单 → 设置新端口 → 自动重启
 - **插件选项**：在 JADX 插件选项中设置 `jiap.port`
-- **默认值**：`25419`（JIAP），`25420`（MCP 伴生进程）
+- **默认值**：`25419`（JIAP）
 
 **MCP 脚本路径：**
 - **GUI 方式**：JIAP Server Status 菜单 → 浏览并选择自定义脚本

@@ -143,7 +143,6 @@ object PreferencesManager {
         }
     }
 
-    // ========== Config File (JSON) ==========
 
     private fun ensureConfigLoaded() {
         if (!configInitialized) {

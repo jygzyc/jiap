@@ -1,5 +1,7 @@
 # Tools
 dex-tools/
+preprocessor/
+docs/
 
 # FileDump
 Source/
@@ -25,6 +27,11 @@ var/
 .installed.cfg
 *.egg
 .ruff_cache/
+.pytest_cache/
+
+# Node
+node_modules/
+dist/
 
 # Virtual Environment
 .env
