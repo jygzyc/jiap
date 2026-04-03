@@ -314,7 +314,38 @@ async def get_system_service_impl(
     )
 
 
-# Vulnerability Mining endpoints
+# Resource Analysis endpoints
+@mcp.tool(
+    name="get_all_resources",
+    description="List all resource files. Get all resource file names including resources.arsc sub-files.",
+)
+async def get_all_resources(
+    page: int = Field(1, description="Page number for pagination (default: 1)"),
+) -> ToolResult:
+    return await request_to_jiap("get_all_resources", page=page)
+
+
+@mcp.tool(
+    name="get_resource_file",
+    description="Get resource file content. View a specific resource file by name.",
+)
+async def get_resource_file(
+    resource_name: str = Field(description="Resource file name (e.g., res/values/strings.xml)"),
+    page: int = Field(1, description="Page number for pagination (default: 1)"),
+) -> ToolResult:
+    return await request_to_jiap("get_resource_file", json_data={"res": resource_name}, page=page)
+
+
+@mcp.tool(
+    name="get_strings",
+    description="Get app strings. Retrieve strings.xml content from app resources.",
+)
+async def get_strings(
+    page: int = Field(1, description="Page number for pagination (default: 1)"),
+) -> ToolResult:
+    return await request_to_jiap("get_strings", page=page)
+
+
 @mcp.tool(
     name="get_dynamic_receivers",
     description="Get dynamically registered BroadcastReceivers. Scan for registerReceiver calls.",
@@ -366,9 +397,4 @@ if __name__ == "__main__":
     else:
         MCP_SERVER_PORT = 25420
 
-    mcp.run(
-        transport="http",
-        host="0.0.0.0",
-        port=MCP_SERVER_PORT,
-        show_banner=False
-    )
+    mcp.run(transport="http", host="0.0.0.0", port=MCP_SERVER_PORT, show_banner=False)

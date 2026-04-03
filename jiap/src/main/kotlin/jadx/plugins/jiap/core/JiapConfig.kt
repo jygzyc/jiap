@@ -122,6 +122,23 @@ class JiapConfig(
                 service = androidAppService,
                 methodName = "handleGetDeepLinks"
             ),
+            "/api/jiap/get_dynamic_receivers" to RouteTarget(
+                service = androidAppService,
+                methodName = "handleGetDynamicReceivers"
+            ),
+            "/api/jiap/get_all_resources" to RouteTarget(
+                service = androidAppService,
+                methodName = "handleGetAllResources"
+            ),
+            "/api/jiap/get_resource_file" to RouteTarget(
+                service = androidAppService,
+                methodName = "handleGetResourceFile",
+                params = setOf("res")
+            ),
+            "/api/jiap/get_strings" to RouteTarget(
+                service = androidAppService,
+                methodName = "handleGetStrings"
+            ),
 
             // Android Framework Service
             "/api/jiap/get_system_service_impl" to RouteTarget(
@@ -131,10 +148,6 @@ class JiapConfig(
             ),
 
             // Vulnerability Mining Service
-            "/api/jiap/get_dynamic_receivers" to RouteTarget(
-                service = vulnMiningService,
-                methodName = "handleGetDynamicReceivers"
-            )
         )
 
     /**

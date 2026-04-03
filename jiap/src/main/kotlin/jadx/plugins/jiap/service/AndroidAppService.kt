@@ -5,6 +5,7 @@ import jadx.core.utils.android.AndroidManifestParser
 import jadx.core.utils.android.AppAttribute
 import jadx.api.ResourceFile
 import jadx.api.ResourceType
+import jadx.core.xmlgen.ResContainer
 import jadx.gui.JadxWrapper
 import jadx.gui.ui.MainWindow
 import jadx.plugins.jiap.model.JiapServiceInterface
@@ -19,35 +20,25 @@ import java.util.*
 class AndroidAppService(override val pluginContext: JadxPluginContext) : JiapServiceInterface {
 
     private fun getAppManifest(): ResourceFile? {
-        return try {
-            var manifest: ResourceFile?
-            if (this.gui) {
-                val mainWindow: MainWindow = pluginContext.guiContext?.mainFrame as MainWindow
-                val jadxWrapper: JadxWrapper = mainWindow.wrapper
-                manifest = AndroidManifestParser.getAndroidManifest(jadxWrapper.resources)
-            } else {
-                manifest = decompiler.resources
-                    ?.stream()
-                    ?.filter { resourceFile -> resourceFile.type == ResourceType.MANIFEST }
-                    ?.findFirst()
-                    ?.orElse(null)
-            }
-            manifest
-        } catch (e: Exception) {
-            throw e
+        return if (this.gui) {
+            val mainWindow = pluginContext.guiContext?.mainFrame as MainWindow
+            val jadxWrapper = mainWindow.wrapper
+            AndroidManifestParser.getAndroidManifest(jadxWrapper.resources)
+        } else {
+            decompiler.resources
+                ?.stream()
+                ?.filter { resourceFile -> resourceFile.type == ResourceType.MANIFEST }
+                ?.findFirst()
+                ?.orElse(null)
         }
     }
 
     private fun getManifestDocument(): Document? {
-        try {
-            val manifest = getAppManifest() ?: return null
-            val manifestContent = manifest.loadContent()?.text?.codeStr ?: return null
-            val factory = DocumentBuilderFactory.newInstance()
-            val builder = factory.newDocumentBuilder()
-            return builder.parse(ByteArrayInputStream(manifestContent.toByteArray(Charsets.UTF_8)))
-        } catch (e: Exception) {
-            throw e
-        }
+        val manifest = getAppManifest() ?: return null
+        val manifestContent = manifest.loadContent()?.text?.codeStr ?: return null
+        val factory = DocumentBuilderFactory.newInstance()
+        val builder = factory.newDocumentBuilder()
+        return builder.parse(ByteArrayInputStream(manifestContent.toByteArray(Charsets.UTF_8)))
     }
 
     private fun getTargetSdkVersion(doc: Document): Int {
@@ -62,18 +53,49 @@ class AndroidAppService(override val pluginContext: JadxPluginContext) : JiapSer
         return 1
     }
 
-    private fun getAppPackageFromManifest(manifest: ResourceFile): String? {
-        return try {
-            val manifestContent = manifest.loadContent()?.text?.codeStr ?: return null
-            val factory = DocumentBuilderFactory.newInstance()
-            val builder = factory.newDocumentBuilder()
-            val doc = builder.parse(ByteArrayInputStream(manifestContent.toByteArray(Charsets.UTF_8)))
-            val manifestElement = doc.getElementsByTagName("manifest").item(0) as? Element
-            manifestElement?.getAttribute("package")
-        } catch (e: Exception) {
-            null
+    private fun isDeepLinkIntentFilter(intentFilter: Element): Boolean {
+        val hasViewAction = intentFilter.getElementsByTagName("action").let { nodes ->
+            (0 until nodes.length).any { i ->
+                (nodes.item(i) as? Element)?.getAttribute("android:name") == "android.intent.action.VIEW"
+            }
         }
+        
+        val categories = intentFilter.getElementsByTagName("category")
+        val hasBrowsable = (0 until categories.length).any { i ->
+            (categories.item(i) as? Element)?.getAttribute("android:name") == "android.intent.category.BROWSABLE"
+        }
+        val hasDefault = (0 until categories.length).any { i ->
+            (categories.item(i) as? Element)?.getAttribute("android:name") == "android.intent.category.DEFAULT"
+        }
+        
+        return hasViewAction && hasBrowsable && hasDefault
     }
+    
+    private fun getComponentName(intentFilter: Element): String? {
+        val parent = intentFilter.parentNode as? Element ?: return null
+        return parent.getAttribute("android:name").takeIf { it.isNotEmpty() }
+    }
+    
+    private fun extractDataElements(intentFilter: Element): List<Map<String, String>> {
+        val dataTags = intentFilter.getElementsByTagName("data")
+        val dataList = mutableListOf<Map<String, String>>()
+        
+        for (i in 0 until dataTags.length) {
+            val data = dataTags.item(i) as? Element ?: continue
+            
+            dataList.add(mapOf(
+                "scheme" to data.getAttribute("android:scheme"),
+                "host" to data.getAttribute("android:host"),
+                "port" to data.getAttribute("android:port"),
+                "path" to data.getAttribute("android:path"),
+                "pathPrefix" to data.getAttribute("android:pathPrefix"),
+                "pathPattern" to data.getAttribute("android:pathPattern"),
+                "mimeType" to data.getAttribute("android:mimeType")
+            ))
+        }
+        
+        return dataList
+    }  
 
     fun handleGetAppManifest(): JiapResult {
         try {
@@ -81,11 +103,11 @@ class AndroidAppService(override val pluginContext: JadxPluginContext) : JiapSer
                 success = false,
                 data = hashMapOf("error" to "handleGetAppManifest: AndroidManifest not found.")
             )
-            val manifestContent = manifest.loadContent()?.text?.codeStr
+            val manifestContent = manifest.loadContent()?.text?.codeStr ?: ""
             val result = hashMapOf<String, Any>(
                 "type" to "code",
                 "name" to manifest.originalName,
-                "code" to manifestContent as Any
+                "code" to manifestContent
             )
             return JiapResult(success = true, data = result)
         } catch (e: Exception) {
@@ -95,15 +117,14 @@ class AndroidAppService(override val pluginContext: JadxPluginContext) : JiapSer
 
     fun handleGetMainActivity(): JiapResult {
         try {
-            var result: HashMap<String, Any>
             val manifest = getAppManifest() ?: return JiapResult(
                 success = false,
                 data = hashMapOf("error" to "handleGetAppMainActivity: AndroidManifest not found.")
             )
-            var parser: AndroidManifestParser?
+            val parser: AndroidManifestParser
             if (this.gui) {
-                val mainWindow: MainWindow = pluginContext.guiContext?.mainFrame as MainWindow
-                val jadxWrapper: JadxWrapper = mainWindow.wrapper
+                val mainWindow = pluginContext.guiContext?.mainFrame as MainWindow
+                val jadxWrapper = mainWindow.wrapper
                 parser = AndroidManifestParser(
                     manifest,
                     EnumSet.of(AppAttribute.MAIN_ACTIVITY),
@@ -124,14 +145,14 @@ class AndroidAppService(override val pluginContext: JadxPluginContext) : JiapSer
                 )
             )
 
-            var mainActivityClass = appParams.getMainActivityJavaClass(decompiler)?: return JiapResult(
+            val mainActivityClass = appParams.getMainActivityJavaClass(decompiler) ?: return JiapResult(
                 success = false,
                 data = hashMapOf(
                     "error" to "handleGetMainActivity: Failed to find Main Activity class '$mainActivityName'."
                 )
             )
             
-            result = hashMapOf(
+            val result: HashMap<String, Any> = hashMapOf(
                 "type" to "code",
                 "name" to mainActivityClass.fullName,
                 "code" to mainActivityClass.code
@@ -148,10 +169,10 @@ class AndroidAppService(override val pluginContext: JadxPluginContext) : JiapSer
                 success = false,
                 data = hashMapOf("error" to "handleGetApplication: AndroidManifest not found.")
             )
-            var parser: AndroidManifestParser?
+            val parser: AndroidManifestParser
             if (this.gui) {
-                val mainWindow: MainWindow = pluginContext.guiContext?.mainFrame as MainWindow
-                val jadxWrapper: JadxWrapper = mainWindow.wrapper
+                val mainWindow = pluginContext.guiContext?.mainFrame as MainWindow
+                val jadxWrapper = mainWindow.wrapper
                 parser = AndroidManifestParser(
                     manifest,
                     EnumSet.of(AppAttribute.APPLICATION),
@@ -164,7 +185,7 @@ class AndroidAppService(override val pluginContext: JadxPluginContext) : JiapSer
                     decompiler.args.security
                 )
             }
-            if(!parser.isManifestFound()) {
+            if (!parser.isManifestFound()) {
                 return JiapResult(
                     success = false,
                     data = hashMapOf("error" to "handleGetApplication: AndroidManifest not found.")
@@ -175,7 +196,7 @@ class AndroidAppService(override val pluginContext: JadxPluginContext) : JiapSer
                 success = false,
                 data = hashMapOf("error" to "handleGetApplication: Failed to get application class.")
             )
-            var result: HashMap<String, Any> = hashMapOf(
+            val result: HashMap<String, Any> = hashMapOf(
                 "type" to "code",
                 "name" to applicationClass.fullName,
                 "code" to applicationClass.code
@@ -339,48 +360,115 @@ class AndroidAppService(override val pluginContext: JadxPluginContext) : JiapSer
             JiapResult(false, hashMapOf("error" to "handleGetDeepLinks: ${e.message}"))
         }
     }
-    
-    private fun isDeepLinkIntentFilter(intentFilter: Element): Boolean {
-        val hasViewAction = intentFilter.getElementsByTagName("action").let { nodes ->
-            (0 until nodes.length).any { i ->
-                (nodes.item(i) as? Element)?.getAttribute("android:name") == "android.intent.action.VIEW"
+
+    /**
+     * Scan for dynamically registered BroadcastReceivers.
+     * Looks for 'registerReceiver' calls in the code.
+     */
+    fun handleGetDynamicReceivers(): JiapResult {
+        try {
+            val receivers = mutableListOf<HashMap<String, Any>>()
+            decompiler.classesWithInners.forEach { jcls ->
+                if ("registerReceiver" !in jcls.smali) return@forEach
+                for (jmth in jcls.methods) {
+                    val mthCode = jmth.codeStr
+                    if ("registerReceiver" !in mthCode) continue
+
+                    receivers.add(hashMapOf(
+                        "class" to jcls.fullName,
+                        "method" to mthCode
+                    ))
+                }
             }
-        }
-        
-        val categories = intentFilter.getElementsByTagName("category")
-        val hasBrowsable = (0 until categories.length).any { i ->
-            (categories.item(i) as? Element)?.getAttribute("android:name") == "android.intent.category.BROWSABLE"
-        }
-        val hasDefault = (0 until categories.length).any { i ->
-            (categories.item(i) as? Element)?.getAttribute("android:name") == "android.intent.category.DEFAULT"
-        }
-        
-        return hasViewAction && hasBrowsable && hasDefault
-    }
-    
-    private fun getComponentName(intentFilter: Element): String? {
-        val parent = intentFilter.parentNode as? Element ?: return null
-        return parent.getAttribute("android:name").takeIf { it.isNotEmpty() }
-    }
-    
-    private fun extractDataElements(intentFilter: Element): List<Map<String, String>> {
-        val dataTags = intentFilter.getElementsByTagName("data")
-        val dataList = mutableListOf<Map<String, String>>()
-        
-        for (i in 0 until dataTags.length) {
-            val data = dataTags.item(i) as? Element ?: continue
-            
-            dataList.add(mapOf(
-                "scheme" to data.getAttribute("android:scheme"),
-                "host" to data.getAttribute("android:host"),
-                "port" to data.getAttribute("android:port"),
-                "path" to data.getAttribute("android:path"),
-                "pathPrefix" to data.getAttribute("android:pathPrefix"),
-                "pathPattern" to data.getAttribute("android:pathPattern"),
-                "mimeType" to data.getAttribute("android:mimeType")
+            return JiapResult(true, hashMapOf(
+                "type" to "list",
+                "count" to receivers.size,
+                "code-list" to receivers
             ))
+        } catch (e: Exception) {
+            return JiapResult(false, hashMapOf("error" to "handleGetDynamicReceivers error: ${e.message}"))
         }
-        
-        return dataList
-    }  
+    }
+    
+    fun handleGetAllResources(): JiapResult {
+        return try {
+            val resources = decompiler.resources
+                ?: return JiapResult(false, hashMapOf("error" to "handleGetAllResources: No resources found."))
+            val fileNames = mutableListOf<String>()
+            for (resFile in resources) {
+                try {
+                    if (resFile.deobfName == "resources.arsc") {
+                        resFile.loadContent()?.subFiles?.forEach { sub ->
+                            fileNames.add(sub.name)
+                        }
+                    }
+                    fileNames.add(resFile.deobfName)
+                } catch (_: Exception) {
+                    fileNames.add(resFile.deobfName)
+                }
+            }
+            if (fileNames.isEmpty()) {
+                return JiapResult(false, hashMapOf("error" to "handleGetAllResources: No resources found."))
+            }
+            JiapResult(true, hashMapOf(
+                "type" to "list",
+                "count" to fileNames.size,
+                "resources-list" to fileNames
+            ))
+        } catch (e: Exception) {
+            JiapResult(false, hashMapOf("error" to "handleGetAllResources: ${e.message}"))
+        }
+    }
+
+    fun handleGetResourceFile(res: String): JiapResult {
+        return try {
+            val resources = decompiler.resources
+                ?: return JiapResult(false, hashMapOf("error" to "handleGetResourceFile: No resources found."))
+            for (resFile in resources) {
+                // Direct match
+                if (resFile.deobfName == res) {
+                    val content = resFile.loadContent()?.text?.codeStr ?: continue
+                    return JiapResult(true, hashMapOf("type" to "code", "name" to res, "code" to content))
+                }
+                // Search inside resources.arsc sub-files
+                if (resFile.deobfName == "resources.arsc") {
+                    for (sub in resFile.loadContent()?.subFiles ?: continue) {
+                        if (sub.name == res) {
+                            val content = sub.text?.codeStr ?: continue
+                            return JiapResult(true, hashMapOf("type" to "code", "name" to res, "code" to content))
+                        }
+                    }
+                }
+            }
+            JiapResult(false, hashMapOf("error" to "handleGetResourceFile: Resource '$res' not found."))
+        } catch (e: Exception) {
+            JiapResult(false, hashMapOf("error" to "handleGetResourceFile: ${e.message}"))
+        }
+    }
+
+    fun handleGetStrings(): JiapResult {
+        return try {
+            val resources = decompiler.resources
+                ?: return JiapResult(false, hashMapOf("error" to "handleGetStrings: No resources found."))
+            val stringsList = resources.mapNotNull { resFile ->
+                runCatching {
+                    when (resFile.deobfName) {
+                        "resources.arsc" -> {
+                            val sub = resFile.loadContent()?.subFiles?.find { it.name == "res/values/strings.xml" }
+                            sub?.text?.codeStr?.let { content -> hashMapOf("file" to sub.name, "content" to content) }
+                        }
+                        "res/values/strings.xml" -> {
+                            resFile.loadContent()?.text?.codeStr
+                                ?.let { content -> hashMapOf("file" to resFile.deobfName, "content" to content) }
+                        }
+                        else -> null
+                    }
+                }.getOrNull()
+            }
+            if (stringsList.isEmpty()) return JiapResult(false, hashMapOf("error" to "handleGetStrings: No strings.xml resource found."))
+            JiapResult(true, hashMapOf("type" to "list", "count" to stringsList.size, "strings-list" to stringsList))
+        } catch (e: Exception) {
+            JiapResult(false, hashMapOf("error" to "handleGetStrings: ${e.message}"))
+        }
+    }
 }

@@ -5,7 +5,7 @@ A comprehensive platform for Java bytecode analysis and Android application reve
 ## Installation
 
 ### Prerequisites
-- Java 17+ for JIAP Core
+- Java 11+ for JIAP Core
 - Python 3.10+ for MCP Server (optional - auto-managed)
 - JADX decompiler with plugin support (v1.5.2+)
 - Python dependencies: `requests`, `fastmcp`, `pydantic`
@@ -43,7 +43,7 @@ jadx plugins --install-jar <path-to-jiap.jar>
 **What happens automatically:**
 1. JIAP plugin starts HTTP server on port `25419`
 2. Plugin extracts MCP scripts to `~/.jiap/mcp/`
-3. Companion process (MCP server) starts on port `25420`
+3. Companion process (MCP server) starts on `JIAP port + 1` 
 4. Plugin monitors companion process health
 5. Both processes stop together on shutdown
 
@@ -77,10 +77,11 @@ All tools support pagination via the `page` parameter.
 - `get_application(page=1)` - Get Android application class and information
 - `get_exported_components(page=1)` - Get exported components (activities, services, receivers, providers) with permissions
 - `get_deep_links(page=1)` - Get app URL schemes and intent filters
-- `get_system_service_impl(interface_name, page=1)` - Get system service implementations
-
-**Vulnerability Mining**
+- `get_all_resources(page=1)` - List all resource file names (including resources.arsc sub-files)
+- `get_resource_file(resource_name, page=1)` - Get resource file content by name
+- `get_strings(page=1)` - Get strings.xml content from app resources
 - `get_dynamic_receivers(page=1)` - Get dynamically registered BroadcastReceivers
+- `get_system_service_impl(interface_name, page=1)` - Get system service implementations
 
 **System**
 - `health_check()` - Verify server connection status
@@ -91,7 +92,7 @@ All tools support pagination via the `page` parameter.
 The JIAP server port can be configured via:
 - **GUI**: JIAP Server Status menu → Set new port → Auto-restart
 - **Plugin Options**: Set `jiap.port` in JADX plugin options
-- **Default**: `25419` (JIAP), `25420` (MCP companion)
+- **Default**: `25419` (JIAP)
 
 ### MCP Script Path
 If you want to use a custom MCP server script:
@@ -181,7 +182,7 @@ JIAP uses structured error codes for clear diagnostics:
 │              ▼                                          │
 │  ┌─────────────────────────────────────────────────┐   │
 │  │ MCP Companion Process (Python)                  │   │
-│  │  - FastMCP Server (Port 25420)                  │   │
+│  │  - FastMCP Server (Port 25419 + 1)              │   │
 │  │  - HTTP Client to JIAP                          │   │
 │  │  - Tool Definitions                             │   │
 │  └─────────────────────────────────────────────────┘   │
