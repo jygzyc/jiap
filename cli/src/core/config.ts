@@ -81,8 +81,7 @@ export class Manager {
 
   // --- Session delegates ---
 
-  async createSession(name: string, apkPath: string, pid: number, port: number) {
-    const hash = await hashFile(apkPath);
+  async createSession(name: string, hash: string, apkPath: string, pid: number, port: number) {
     return session.createSession(name, hash, apkPath, pid, port);
   }
 

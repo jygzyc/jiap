@@ -176,7 +176,7 @@ export function makeProcessCommand(): Command {
 
       proc.unref();
 
-      const session = await mgr.createSession(fileName, resolvedFile, proc.pid, port);
+      const session = await mgr.createSession(fileName, fileHash, resolvedFile, proc.pid, port);
       fmt.success(`Started (name: ${session.name}, PID: ${proc.pid}, Port: ${port})`);
 
       // Wait for server — both GUI and headless
