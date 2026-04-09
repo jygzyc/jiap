@@ -1,0 +1,60 @@
+{
+  "name": "jiap-cli",
+  "version": "2.0.0",
+  "description": "JIAP CLI - Java Intelligence Analysis Platform (TypeScript)",
+  "type": "module",
+  "bin": {
+    "jiap": "./dist/src/index.js"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "tsc --watch",
+    "start": "node --import tsx src/index.ts",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --forceExit",
+    "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch --forceExit",
+    "lint": "eslint src/**/*.ts",
+    "format": "prettier --write src/**/*.ts",
+    "prepare": "husky install",
+    "precommit": "lint-staged"
+  },
+  "dependencies": {
+    "commander": "^13.0.0",
+    "picocolors": "^1.1.0"
+  },
+  "devDependencies": {
+    "@jest/globals": "^30.3.0",
+    "@types/jest": "^29.0.0",
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.28.0",
+    "eslint": "^8.0.0",
+    "husky": "^8.0.0",
+    "jest": "^29.0.0",
+    "prettier": "^3.0.0",
+    "ts-jest": "^29.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "android",
+    "security",
+    "analysis",
+    "jadx",
+    "decompiler",
+    "cli"
+  ],
+  "author": "Yves",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jygzyc/jiap"
+  },
+  "bugs": {
+    "url": "https://github.com/jygzyc/jiap/issues"
+  },
+  "homepage": "https://github.com/jygzyc/jiap#readme"
+}
