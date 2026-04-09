@@ -1,7 +1,5 @@
 # Tools
-dex-tools/
-preprocessor/
-docs/
+.archive/
 
 # FileDump
 Source/
