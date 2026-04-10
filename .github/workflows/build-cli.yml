@@ -1,0 +1,88 @@
+name: Build JIAP CLI
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'cli/**'
+    tags:
+      - 'cli-v*'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'cli/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cli
+    steps:
+    - uses: actions/checkout@v6
+
+    - uses: pnpm/action-setup@v4
+      with:
+        version: 10
+
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+        cache: 'pnpm'
+        cache-dependency-path: cli/pnpm-lock.yaml
+
+    - name: Install dependencies
+      run: pnpm install --frozen-lockfile
+
+    - name: Type check
+      run: pnpm typecheck
+
+    - name: Lint
+      run: pnpm lint
+
+    - name: Test
+      run: pnpm test
+
+    - name: Build
+      run: pnpm build
+
+    - name: Verify dist
+      run: |
+        ls -la dist/
+        node -e "const pkg = require('./dist/package.json'); console.log('name:', pkg.name, 'version:', pkg.version, 'bin:', JSON.stringify(pkg.bin))"
+
+  publish-npm:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/cli-v')
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+    - uses: actions/checkout@v6
+
+    - uses: pnpm/action-setup@v4
+      with:
+        version: 10
+
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+        cache: 'pnpm'
+        cache-dependency-path: cli/pnpm-lock.yaml
+        registry-url: 'https://registry.npmjs.org'
+
+    - name: Install dependencies
+      run: pnpm install --frozen-lockfile
+      working-directory: cli
+
+    - name: Build
+      run: pnpm build
+      working-directory: cli
+
+    - name: Publish to npm
+      run: npm publish --access public --provenance
+      working-directory: cli/dist
+      env:
+        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

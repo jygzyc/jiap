@@ -10,21 +10,20 @@ import { createWriteStream, existsSync, mkdirSync } from "fs";
 import { createHash } from "crypto";
 import { JIAPClient } from "../core/client.js";
 import { Formatter } from "../utils/formatter.js";
-import { Manager, hashFile } from "../core/config.js";
-import { FileError, ProcessError, DecompileError, JiapError, ServerError, withErrorHandler } from "../utils/errors.js";
-import { findJadx } from "../jadx/finder.js";
-import { installJadx, installJiapPlugin, checkAllComponents, checkJiapServer } from "../jadx/installer.js";
-import { decompile } from "../jadx/decompiler.js";
+import { Manager } from "../core/config.js";
+import { hashFile } from "../utils/hash.js";
+import { FileError, ProcessError, JiapError, ServerError, withErrorHandler } from "../utils/errors.js";
+import { findJiapServerJar, installJiapServer } from "../server/installer.js";
 import { isSessionAlive } from "../core/session.js";
 
 export function makeProcessCommand(): Command {
   const cmd = new Command("process");
-  cmd.description("Manage JADX+JIAP processes and installation");
+  cmd.description("Manage JIAP server processes and installation");
 
   // check
   cmd
     .command("check")
-    .description("Check JADX, JIAP plugin, and server status")
+    .description("Check JIAP server status")
     .option("-P, --port <port>", "Server port", String)
     .option("--install", "Install missing components")
     .option("--json", "JSON output")
@@ -33,7 +32,19 @@ export function makeProcessCommand(): Command {
       const mgr = Manager.get();
       const port = opts.port ? parseInt(opts.port) : mgr.server.defaultPort;
 
-      const results = await checkAllComponents(port);
+      // Check jiap-server.jar
+      const jarPath = findJiapServerJar();
+      const jarOk = jarPath !== null;
+      const jarInfo = jarOk ? jarPath! : "Not found. Use --install or 'jiap process install' to install.";
+
+      // Check running server
+      const [serverOk, serverInfo] = await checkServer(port);
+
+      const results = {
+        server: { ok: serverOk, info: serverInfo },
+        jar: { ok: jarOk, info: jarInfo },
+      };
+
       if (opts.json) {
         fmt.output(results);
         return;
@@ -44,18 +55,9 @@ export function makeProcessCommand(): Command {
         console.log(`  [${status}] ${name.padEnd(10)} ${info.info}`);
       }
 
-      if (opts.install) {
-        if (!results.jadx.ok) {
-          fmt.info("Installing JADX...");
-          const [ok, msg] = await installJadx();
-          ok ? fmt.success(msg) : fmt.error(msg);
-        }
-        const jadxPath = findJadx();
-        if (jadxPath && !results.plugin.ok) {
-          fmt.info("Installing JIAP plugin...");
-          const [ok, msg] = await installJiapPlugin(jadxPath);
-          ok ? fmt.success(msg) : fmt.error(msg);
-        }
+      if (opts.install && !jarOk) {
+        const [ok, msg] = await installJiapServer(fmt);
+        ok ? fmt.success(msg) : fmt.error(msg);
       }
     });
 
@@ -64,10 +66,6 @@ export function makeProcessCommand(): Command {
     .command("open <file>")
     .description("Open and analyze a file (APK, DEX, JAR, etc.)")
     .option("-P, --port <port>", "Server port")
-    .option("--gui", "Launch with GUI")
-    .option("-o, --output <dir>", "Output directory (headless decompilation)")
-    .option("--threads <n>", "Number of decompilation threads", String)
-    .option("--no-res", "Skip decoding resources")
     .option("--force", "Force start even if a session already exists")
     .option("-n, --name <name>", "Session name (default: APK filename without extension)")
     .option("--json", "JSON output")
@@ -76,29 +74,15 @@ export function makeProcessCommand(): Command {
       const mgr = Manager.get();
       const port = opts.port ? parseInt(opts.port) : mgr.server.defaultPort;
 
-      const jadxPath = findJadx();
-      if (!jadxPath) {
-        throw new FileError("JADX not found. Run 'jiap process check --install' to install.");
+      const jarPath = findJiapServerJar();
+      if (!jarPath) {
+        throw new FileError("jiap-server.jar not found. Run 'jiap process check --install' to install.");
       }
 
       // Resolve input: local file or URL
       const resolvedFile = await resolveFileInput(filePath);
       if (!existsSync(resolvedFile)) {
         throw new FileError(`File not found: ${resolvedFile}`, resolvedFile);
-      }
-
-      // Pure headless decompilation mode (no server)
-      if (opts.output || opts.noRes) {
-        const [ok, msg] = await decompile({
-          input_file: resolvedFile,
-          output_dir: opts.output,
-          no_res: opts.noRes,
-          threads: opts.threads ? parseInt(opts.threads) : 4,
-        });
-        if (!ok) throw new DecompileError(msg, resolvedFile);
-        fmt.success(msg);
-        if (opts.json) fmt.output({ input: resolvedFile, output: opts.output });
-        return;
       }
 
       // --- Server mode: check for existing session ---
@@ -137,7 +121,7 @@ export function makeProcessCommand(): Command {
       }
 
       // --- Check port availability ---
-      const [portInUse] = await checkJiapServer(port, 1);
+      const [portInUse] = await checkServer(port, 1);
       if (portInUse) {
         // Port is occupied — see if it's one of our sessions
         const aliveSessions = mgr.listAliveSessions();
@@ -156,18 +140,14 @@ export function makeProcessCommand(): Command {
         );
       }
 
-      // --- Spawn JADX ---
-      const jadxArgs = [resolvedFile];
-      if (!opts.gui) jadxArgs.unshift("--cmd");
-      jadxArgs.push(`-Pjadx.plugins.install=github:jygzyc:jiap`);
-      jadxArgs.push(`-Djiap.port=${port}`);
-      jadxArgs.push(`-Djiap.gui=${String(opts.gui ?? false)}`);
+      // --- Spawn jiap-server ---
+      const javaArgs = ["-jar", jarPath, resolvedFile, "--port", String(port)];
 
       let proc;
       try {
-        proc = spawn(jadxPath, jadxArgs, { detached: true, stdio: "ignore" });
+        proc = spawn("java", javaArgs, { detached: true, stdio: "ignore" });
       } catch (err) {
-        throw new ProcessError(`Failed to start JADX: ${err}`);
+        throw new ProcessError(`Failed to start jiap-server: ${err}`);
       }
 
       if (!proc.pid) {
@@ -179,17 +159,13 @@ export function makeProcessCommand(): Command {
       const session = await mgr.createSession(fileName, fileHash, resolvedFile, proc.pid, port);
       fmt.success(`Started (name: ${session.name}, PID: ${proc.pid}, Port: ${port})`);
 
-      // Wait for server — both GUI and headless
-      const timeout = opts.gui ? 10 : 30;
+      // Wait for server
+      const timeout = 30;
       const ready = await waitForServer(port, timeout);
       if (ready) {
         fmt.success(`Server ready at http://127.0.0.1:${port}`);
-      } else if (!opts.gui) {
-        // Headless mode: server MUST start — error if it didn't
-        throw new ServerError(`Server did not start within ${timeout}s on port ${port}`, port);
       } else {
-        // GUI mode: just warn — GUI may take longer or user might not need the server
-        fmt.warning(`Server not responding after ${timeout}s (GUI mode — may still be starting)`);
+        throw new ServerError(`Server did not start within ${timeout}s on port ${port}`, port);
       }
 
       if (opts.json) {
@@ -200,7 +176,7 @@ export function makeProcessCommand(): Command {
   // close
   cmd
     .command("close [name]")
-    .description("Stop JADX process by session name")
+    .description("Stop JIAP server by session name")
     .option("-a, --all", "Kill all processes")
     .option("--json", "JSON output")
     .action(withErrorHandler(async (name: string | undefined, opts) => {
@@ -317,9 +293,38 @@ export function makeProcessCommand(): Command {
       }
     }, (_name, opts) => new Formatter(Boolean(opts.json))));
 
-
+  // install
+  cmd
+    .command("install")
+    .description("Install or update jiap-server.jar")
+    .option("--json", "JSON output")
+    .action(withErrorHandler(async (opts) => {
+      const fmt = new Formatter(opts.json);
+      const [ok, msg] = await installJiapServer(fmt);
+      if (ok) {
+        fmt.success(msg);
+      } else {
+        throw new ServerError(msg);
+      }
+    }, (opts) => new Formatter(Boolean(opts.json))));
 
   return cmd;
+}
+
+/**
+ * Check if JIAP server is reachable on the given port.
+ */
+async function checkServer(port: number, retries: number = 3): Promise<[boolean, string]> {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/health`, { signal: AbortSignal.timeout(2000) });
+      if (res.ok) return [true, `Server running on port ${port}`];
+    } catch { /* retry */ }
+    if (i < retries - 1) {
+      await new Promise(r => setTimeout(r, 500));
+    }
+  }
+  return [false, `No server on port ${port}`];
 }
 
 async function waitForServer(port: number, timeout: number = 30): Promise<boolean> {

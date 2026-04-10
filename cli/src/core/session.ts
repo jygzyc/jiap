@@ -23,10 +23,10 @@ function sessionFilePath(name: string): string {
 }
 
 /**
- * Verify that a PID still belongs to a JADX/JIAP process (not a reused PID).
+ * Verify that a PID still belongs to a JIAP server process (not a reused PID).
  * Checks the process command on macOS/Linux.
  */
-function isJadxProcess(pid: number): boolean {
+function isJiapProcess(pid: number): boolean {
   try {
     // Signal 0 just checks liveness
     process.kill(pid, 0);
@@ -37,15 +37,14 @@ function isJadxProcess(pid: number): boolean {
   // Verify command name to guard against PID reuse
   try {
     if (process.platform === "win32") return true; // Skip on Windows
-    const psCmd = process.platform === "darwin" ? "ps" : "ps";
-    const result = spawnSync(psCmd, ["-p", String(pid), "-o", "comm="], {
+    const result = spawnSync("ps", ["-p", String(pid), "-o", "comm="], {
       encoding: "utf-8",
       timeout: 3000,
     });
     if (result.status !== 0 || !result.stdout.trim()) return false;
     const comm = result.stdout.trim().toLowerCase();
-    // Match java, jadx, or any JVM process
-    return comm.includes("java") || comm.includes("jadx") || comm.includes("node");
+    // Match java (jiap-server runs as JVM process)
+    return comm.includes("java");
   } catch {
     // If ps fails, assume it's still valid (conservative)
     return true;
@@ -105,10 +104,10 @@ export function autoSelectSession(): Session | null {
 }
 
 /**
- * Check if a session's process is still alive AND is actually a JADX process.
+ * Check if a session's process is still alive AND is actually a JIAP process.
  */
 export function isSessionAlive(session: Session): boolean {
-  return isJadxProcess(session.pid);
+  return isJiapProcess(session.pid);
 }
 
 export function cleanupDead(): number {
@@ -116,7 +115,7 @@ export function cleanupDead(): number {
   const now = Date.now();
   for (const s of listAllSessions()) {
     const expired = now - s.startedAt > SESSION_MAX_AGE_MS;
-    if (expired || !isJadxProcess(s.pid)) {
+    if (expired || !isJiapProcess(s.pid)) {
       deleteSession(s.name);
       n++;
     }

@@ -1,56 +1,71 @@
 # JIAP - Java Intelligence Analysis Platform
 
-A comprehensive platform for Java bytecode analysis and Android application reverse engineering, integrating JADX decompiler with AI assistant capabilities through MCP (Model Context Protocol).
+<div align="center">
 
-## Installation
+![JIAP Logo](https://img.shields.io/badge/JIAP-Java%20Intelligence%20Analysis%20Platform-blue?style=for-the-badge&logo=java&logoColor=white)
+![Release](https://img.shields.io/github/v/release/jygzyc/jiap?style=for-the-badge&logo=github&color=green)
+![License](https://img.shields.io/github/license/jygzyc/jiap?style=for-the-badge&logo=gnu&color=orange)
+
+**A JADX-based Java Intelligence Analysis Platform - Designed for AI-assisted code analysis**
+
+</div>
+
+---
+
+## Overview
+
+JIAP (Java Intelligence Analysis Platform) is a smart code analysis platform built on the JADX decompiler, designed specifically for AI-assisted code analysis. The platform provides powerful Java code analysis capabilities to AI assistants through HTTP API and MCP (Model Context Protocol).
+
+---
+
+## Quick Start
 
 ### Prerequisites
-- Java 11+ for JIAP Core
-- Python 3.10+ for MCP Server (optional - auto-managed)
-- JADX decompiler with plugin support (v1.5.2+)
-- Python dependencies: `requests`, `fastmcp`, `pydantic`
 
-### Build from Source
+- **Java**: JDK 11+ (for JIAP Core)
+- **Python**: 3.10+ (optional - auto-managed)
+- **JADX**: v1.5.2+ with plugin support
+- **Python dependencies**: `requests`, `fastmcp`, `pydantic` (auto-installed)
+
+### Installation
 
 ```bash
-# Build JIAP Core
+# 1. Install plugin in JADX GUI
+# JADX -> Settings -> Plugins -> Install JIAP
+
+# Or install via command line
+jadx plugins --install-jar <path-to-jiap.jar>
+
+# 2. Build JIAP Core (from source)
 cd jiap
 chmod +x gradlew
 ./gradlew dist
-
-# The MCP server is bundled and auto-managed by the plugin
-# No manual Python dependency installation required
 ```
 
-## Usage
+**MCP Server Auto-Management:**
+- Plugin automatically extracts and manages MCP server scripts
+- No manual Python dependency installation or MCP server startup required
+- No manual environment variable configuration required
 
-### 1. Install and Start JIAP Plugin
+### Usage
 
-```bash
-# JADX Command Line 
-jadx plugins --install-jar <path-to-jiap.jar>
+* Start JIAP Plugin
 
-# JADX GUI 
-# JADX -> Settings -> Plugins -> Enable JIAP
-```
+  - Launch JADX and enable the JIAP plugin
+  - The plugin automatically starts the HTTP server, MCP server can be manually confirmed to start
+  - Verify the server is running at `http://127.0.0.1:25419`
 
-**Companion Process Mechanism:**
-- When JIAP plugin starts, it automatically launches the MCP server as a **companion process**
-- The MCP server runs as a sidecar process managed by the plugin
-- No manual MCP server startup required
-- The companion process automatically stops when JIAP plugin unloads or JADX exits
-
-**What happens automatically:**
-1. JIAP plugin starts HTTP server on port `25419`
+**Automatic Process:**
+1. JIAP plugin starts HTTP server (port `25419`)
 2. Plugin extracts MCP scripts to `~/.jiap/mcp/`
-3. Companion process (MCP server) starts on `JIAP port + 1` 
-4. Plugin monitors companion process health
-5. Both processes stop together on shutdown
+3. If auto-start is enabled, companion process (MCP server) starts automatically (port `25419 + 1`)
+4. Both processes stop together on shutdown
 
-### 2. Verify Connection
-Use `health_check()` to verify the connection between MCP server and JIAP plugin.
+* Verify Connection
 
-### 3. Available Tools
+Use `health_check()` to verify the connection between MCP server and JIAP plugin
+
+* Available Tools
 
 All tools support pagination via the `page` parameter.
 
@@ -59,7 +74,7 @@ All tools support pagination via the `page` parameter.
 - `search_class_key(key, page=1)` - Search for classes by keyword in source code (case-insensitive)
 - `get_class_source(class_name, smali=False, page=1)` - Get class source code in Java or Smali format
 - `search_method(method_name, page=1)` - Search for methods matching the name
-- `get_method_source(method_name, smali=False, page=1)` - Get method source code using full signature
+- `get_method_source(method_name, smali=False, page=1)` - Get method source code
 - `get_class_info(class_name, page=1)` - Get class information (fields and methods)
 - `get_method_xref(method_name, page=1)` - Find method usage locations
 - `get_field_xref(field_name, page=1)` - Find field usage locations
@@ -86,43 +101,39 @@ All tools support pagination via the `page` parameter.
 **System**
 - `health_check()` - Verify server connection status
 
-## Configuration
+### Configuration
 
-### Port Configuration
-The JIAP server port can be configured via:
+**Port Configuration:**
 - **GUI**: JIAP Server Status menu → Set new port → Auto-restart
 - **Plugin Options**: Set `jiap.port` in JADX plugin options
 - **Default**: `25419` (JIAP)
 
-### MCP Script Path
-If you want to use a custom MCP server script:
+**MCP Script Path:**
 - **GUI**: JIAP Server Status menu → Browse and select custom script
 - **Plugin Options**: Set `jiap.mcp_path` to custom script path
 - **Default**: Auto-extracted to `~/.jiap/mcp/jiap_mcp_server.py`
 
-### Companion Process Configuration
-The companion process (MCP server) is automatically configured:
+**Companion Process Configuration:**
 ```bash
 # Auto-detected executor: uv, python3, or python
 # Auto-extracted scripts to ~/.jiap/mcp/
 # Auto-started with correct JIAP_URL and MCP_PORT
-# Auto-monitored and restarted if needed
 ```
 
-### Cache Configuration
+**Cache Configuration:**
 JIAP supports two cache modes for improved performance:
 - **disk** (default): Persists decompilation cache to disk (`~/.jiap/cache/`)
-- **memory**: Keeps cache in memory only, faster for small projects
+- **memory**: Keeps cache in memory only, suitable for small projects
 
 **Configuration:**
 - **Plugin Options**: Set `jiap.cache` to `disk` or `memory`
 - **Default**: `disk` for better performance on subsequent runs
 
-### Performance Optimization
+**Performance Optimization:**
 JIAP includes automatic performance optimizations:
 
 **Decompiler Warmup:**
-- When JIAP starts, it automatically warms up the decompiler engine
+- JIAP automatically warms up the decompiler engine on startup
 - Filters out SDK packages (android.*, androidx.*, java.*, javax.*, kotlin.*)
 - Randomly samples up to 15,000 application classes
 - Ensures optimal performance for subsequent queries
@@ -132,111 +143,182 @@ JIAP includes automatic performance optimizations:
 - Cache persists across JADX sessions
 - Significantly reduces analysis time for large projects
 
-## Error Codes
+### Error Codes
 
 JIAP uses structured error codes for clear diagnostics:
 
 | Code | Description | Common Cause |
 |------|-------------|--------------|
 | **E001** | Internal server error | Unexpected server state |
-| **E002** | Port in use | Another service using the port |
-| **E003** | Server start failed | Port binding or initialization error |
-| **E004** | Server stop failed | Graceful shutdown timeout |
-| **E005** | Server restart failed | Restart sequence error |
-| **E006** | JADX unavailable | Decompiler not initialized |
-| **E007** | JADX init failed | Decompiler initialization error |
-| **E008** | Python not found | No Python/uv executable found |
-| **E009** | Sidecar script not found | MCP script extraction failed |
-| **E010** | Sidecar start failed | Companion process failed to start |
-| **E011** | Sidecar process error | Companion process crashed |
-| **E012** | Sidecar stop failed | Companion process won't stop |
-| **E013** | Service error | General service failure |
-| **E014** | Health check failed | Cannot reach JIAP server |
-| **E015** | Method not found | Requested method doesn't exist |
-| **E016** | Missing parameter | Required parameter not provided |
-| **E017** | Invalid parameter | Parameter format/value invalid |
-| **E018** | Unknown endpoint | Requested API endpoint doesn't exist |
-| **E019** | Connection error | Network/HTTP connection failed |
+| **E002** | Service error | General service failure |
+| **E003** | Health check failed | Cannot reach JIAP server |
+| **E004** | Method not found | Requested method doesn't exist |
+| **E005** | Invalid parameter | Parameter format/value invalid |
 
 **Error Response Format:**
 ```json
 {
-  "error": "E010",
-  "message": "Sidecar start failed: Python executable not found"
+  "error": "E001",
+  "message": "Internal error: Start failed"
 }
 ```
 
-## Architecture
+---
 
-### Component Overview
-```
-┌─────────────────────────────────────────────────────────┐
-│                    JADX GUI                              │
-│  ┌─────────────────────────────────────────────────┐   │
-│  │ JIAP Plugin (Kotlin)                            │   │
-│  │  - HTTP Server (Port 25419)                     │   │
-│  │  - Sidecar Manager                              │   │
-│  │  - UI Integration                               │   │
-│  └─────────────────────────────────────────────────┘   │
-│              │  Process Management                      │
-│              ▼                                          │
-│  ┌─────────────────────────────────────────────────┐   │
-│  │ MCP Companion Process (Python)                  │   │
-│  │  - FastMCP Server (Port 25419 + 1)              │   │
-│  │  - HTTP Client to JIAP                          │   │
-│  │  - Tool Definitions                             │   │
-│  └─────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────┘
-              │
-              ▼
-       AI Assistant (Claude, etc.)
+## CLI
+
+JIAP provides a TypeScript CLI for programmatic access to the analysis platform.
+
+**Installation:**
+
+```bash
+cd cli
+npm install
+npm run build
+npm link  # Register 'jiap' command globally
 ```
 
-### Companion Process Lifecycle
-1. **Plugin Init**: JIAP plugin loads and initializes
-2. **Server Start**: HTTP server starts on configured port
-3. **Script Extraction**: MCP scripts extracted to `~/.jiap/mcp/`
-4. **Companion Launch**: Background thread starts companion process
-5. **Health Monitoring**: Process monitored for crashes
-6. **Auto-Restart**: Failed processes automatically restarted
-7. **Clean Shutdown**: Both processes stop together on unload
+**Process Management:**
+- `jiap process check` - Check JIAP server status
+- `jiap process open <file>` - Open and analyze a file (APK, DEX, JAR, etc.)
+- `jiap process close [name]` - Stop JIAP server by session name
+- `jiap process list` - List running processes
+- `jiap process install` - Install or update jiap-server.jar
 
-## Troubleshooting
+**Code Analysis:**
+- `jiap code all-classes` - Get all classes
+- `jiap code class-info <class>` - Get class information
+- `jiap code class-source <class>` - Get class source code
+- `jiap code search-class <keyword>` - Search in class content
+- `jiap code search-method <name>` - Find methods by name
+- `jiap code method-source <signature>` - Get method source
+- `jiap code xref-method <signature>` - Find method callers
+- `jiap code xref-class <class>` - Find class usages
+- `jiap code xref-field <field>` - Find field usages
+- `jiap code implement <interface>` - Find implementations
+- `jiap code subclass <class>` - Find subclasses
 
-### Companion Process Issues
-- **Check logs**: Look for `[MCP Sidecar STDOUT]` messages in JIAP logs
-- **Verify Python**: Ensure Python 3.10+ or `uv` is installed
-- **Check dependencies**: Plugin auto-checks for `requests`, `fastmcp`, `pydantic`
-- **Manual path**: Configure custom script path via GUI if needed
+**Android Analysis:**
+- `jiap ard app-manifest` - Get AndroidManifest.xml
+- `jiap ard main-activity` - Get main activity name
+- `jiap ard app-application` - Get Application class name
+- `jiap ard exported-components` - List exported components
+- `jiap ard app-deeplinks` - List deep link schemes
+- `jiap ard receivers` - List dynamic broadcast receivers
+- `jiap ard system-service-impl <interface>` - Find system service implementations
+- `jiap ard all-resources` - List all resource file names
+- `jiap ard resource-file <res>` - Get resource file content by name
+- `jiap ard strings` - Get strings.xml content
 
-### Connection Issues
-- Use `health_check()` to verify both servers are running
-- Check port conflicts with `netstat -tlnp | grep 25419`
-- Verify firewall allows localhost connections
-
-### Common Errors
-- **E008**: Install Python 3.10+ or `uv`
-- **E009/E010**: Check `~/.jiap/mcp/` permissions
-- **E002**: Change port in JIAP settings GUI
-- **E014**: Ensure JIAP plugin is enabled and loaded
+---
 
 ## Development
+
+### Build from Source
 
 ```bash
 # Build JIAP Core
 cd jiap
+chmod +x gradlew
 ./gradlew dist
 
-# Test MCP Server (optional, for development)
-cd jiap/mcp_server
-python jiap_mcp_server.py --url "http://127.0.0.1:25419"
+# Build CLI
+cd cli
+npm install
+npm run build
 ```
+
+### Adding Custom Features
+
+JIAP's architecture consists of three layers: `JiapApi` interface definition → `JiapApiImpl` implementation → `RouteHandler` HTTP routing.
+
+**1. Add method in `JiapApi` interface**
+
+File: `jiap/jiap-core/src/main/kotlin/jadx/plugins/jiap/api/JiapApi.kt`
+
+```kotlin
+interface JiapApi {
+    // ... existing methods ...
+
+    fun doSomething(param: String): JiapApiResult
+}
+```
+
+**2. Implement method in `JiapApiImpl`**
+
+File: `jiap/jiap-core/src/main/kotlin/jadx/plugins/jiap/api/JiapApiImpl.kt`
+
+```kotlin
+override fun doSomething(param: String): JiapApiResult {
+    val result = // business logic
+    return JiapApiResult.ok(mapOf("data" to result))
+}
+```
+
+**3. Register route in `JiapServer.ALL_ROUTES`, add dispatch in `RouteHandler.dispatch()`**
+
+File: `jiap/jiap-core/src/main/kotlin/jadx/plugins/jiap/http/JiapServer.kt`
+
+```kotlin
+val ALL_ROUTES = setOf(
+    // ... existing routes ...
+    "/api/jiap/do_something",
+)
+```
+
+File: `jiap/jiap-core/src/main/kotlin/jadx/plugins/jiap/http/RouteHandler.kt`
+
+```kotlin
+"/api/jiap/do_something" -> requireParam(payload, "param") { api.doSomething(it) }
+```
+
+### Troubleshooting
+
+**Companion Process Issues:**
+- **Check logs**: Look for `[MCP]` messages in JIAP logs
+- **Verify Python**: Ensure Python 3.10+ or `uv` is installed
+- **Check dependencies**: Plugin auto-checks for `requests`, `fastmcp`, `pydantic`
+- **Manual path**: Configure custom script path via GUI if needed
+
+**Connection Issues:**
+- Use `health_check()` to verify both servers are running
+- Check port conflicts: `lsof -i :25419`
+- Verify firewall allows localhost connections
+
+**Common Errors:**
+- **E001**: Check JIAP logs for internal server errors
+- **E003**: Ensure JIAP plugin is enabled and loaded
+- **E005**: Check parameter format and values
+
+## Contributing
+
+1. Fork this repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests if applicable
+5. Submit a Pull Request
+
+---
 
 ## License
 
-GNU License 3.0 - see the LICENSE file for details.
+This project is licensed under [GNU License](LICENSE) - see the [LICENSE](LICENSE) file for details.
+
+---
 
 ## Credits
 
-- [skylot/jadx](https://github.com/skylot/jadx) - The foundation of this project, a powerful JADX decompiler with plugin support
-- [zinja-coder/jadx-ai-mcp](https://github.com/zinja-coder/jadx-ai-mcp) - Inspired many ideas and approaches for JADX MCP integration
+- **[skylot/jadx](https://github.com/skylot/jadx)** - The foundation of this project, a powerful JADX decompiler with plugin support
+- **[zinja-coder/jadx-ai-mcp](https://github.com/zinja-coder/jadx-ai-mcp)** - Provided many ideas and inspiration, excellent practices for JADX MCP integration
+- **[FastMCP](https://github.com/modelcontextprotocol/servers)**: MCP protocol implementation
+- **[Javalin](https://javalin.io/)**: Lightweight web framework
+
+---
+
+<div align="center">
+
+**⭐ If this project helps you, please give it a Star!**
+
+![Star History](https://img.shields.io/github/stars/jygzyc/jiap?style=social)
+
+</div>

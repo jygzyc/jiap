@@ -3,7 +3,6 @@
  */
 
 import { Manager, expandPath } from "../src/core/config.js";
-import { existsSync, writeFileSync, unlinkSync, mkdirSync, rmSync } from "fs";
 import * as path from "path";
 import * as os from "os";
 
@@ -32,11 +31,11 @@ describe("Manager", () => {
     expect(a).toBe(b);
   });
 
-  it("has jadx config", () => {
+  it("has serverJar config", () => {
     const mgr = Manager.get();
-    expect(mgr.jadx).toBeDefined();
-    expect(mgr.jadx.version).toBeDefined();
-    expect(mgr.jadx.installDir).toBeDefined();
+    expect(mgr.serverJar).toBeDefined();
+    expect(mgr.serverJar.version).toBeDefined();
+    expect(mgr.serverJar.installDir).toBeDefined();
   });
 
   it("has server config with defaultPort", () => {
@@ -50,17 +49,6 @@ describe("Manager", () => {
     const mgr = Manager.get();
     expect(mgr.output).toBeDefined();
     expect(mgr.output.defaultDir).toBeDefined();
-  });
-
-  describe("getJadxPath", () => {
-    it("returns null when no jadx is configured/found", () => {
-      const mgr = Manager.get();
-      // In test environment, jadx likely not installed
-      // This just tests it doesn't throw
-      const result = mgr.getJadxPath();
-      // Can be null or a path — just verify it returns
-      expect(typeof result === "string" || result === null).toBe(true);
-    });
   });
 
   describe("session delegation", () => {

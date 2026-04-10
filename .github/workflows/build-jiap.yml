@@ -64,3 +64,62 @@ jobs:
         generate_release_notes: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  prerelease:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    permissions:
+      contents: write
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 0
+
+    - name: Generate prerelease version
+      id: version
+      run: |
+        TIMESTAMP=$(date +%Y%m%d%H%M%S)
+        echo "version=0.0.0-${TIMESTAMP}" >> $GITHUB_OUTPUT
+        echo "Prerelease version: 0.0.0-${TIMESTAMP}"
+
+    - name: Set up JDK 11
+      uses: actions/setup-java@v5
+      with:
+        java-version: '11'
+        distribution: 'temurin'
+
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v5
+
+    - name: Build with Gradle
+      run: ./gradlew dist
+      working-directory: jiap
+      env:
+        JIAP_VERSION: ${{ steps.version.outputs.version }}
+
+    - name: Prepare release files
+      run: |
+        cp jiap/build/dist/*.jar ./
+        ls -la *.jar
+
+    - name: Delete old prereleases
+      run: |
+        gh release list --limit 100 | grep "prerelease" | awk '{print $1}' | while read -r tag; do
+          gh release delete "$tag" --yes || true
+          git push origin ":refs/tags/$tag" || true
+        done
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Create Prerelease
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: "prerelease-${{ steps.version.outputs.version }}"
+        name: "Prerelease ${{ steps.version.outputs.version }}"
+        files: |
+          *.jar
+        draft: false
+        prerelease: true
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

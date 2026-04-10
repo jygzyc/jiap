@@ -1,60 +1,8 @@
-import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
-
 plugins {
-	`java-library`
-	alias(libs.plugins.kotlin.jvm)
-	alias(libs.plugins.shadow)
-	alias(libs.plugins.use.latest.versions)
-	alias(libs.plugins.ben.manes.versions)
-}
-
-kotlin {
-    jvmToolchain(11)
-}
-
-val isJadxSnapshot = libs.versions.jadx.get().endsWith("-SNAPSHOT")
-
-dependencies {
-    compileOnly(libs.jadx.core) {
-        isChanging = false
-    }
-    compileOnly(libs.jadx.gui) {
-        isChanging = false
-    }
-    compileOnly(libs.jadx.cli) {
-        isChanging = false
-    }
-    implementation(libs.gson)
-    implementation(libs.javalin)
-    implementation(libs.jackson.databind)
-    compileOnly(libs.slf4j.api)
-
-    testImplementation(libs.jadx.smali.input) {
-        isChanging = isJadxSnapshot
-    }
-    compileOnly(libs.logback.classic)
-    testImplementation(libs.assertj.core)
-    testImplementation(libs.junit.jupiter)
-    testRuntimeOnly(libs.junit.platform.launcher)
-}
-
-sourceSets {
-    main {
-        resources {
-            srcDirs("src/main/resources")
-        }
-    }
-}
-
-tasks.processResources {
-    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-    from("mcp_server") {
-        include("jiap_mcp_server.py")
-        include("pyproject.toml")
-        include("requirements.txt")
-        include(".python-version")
-        into("mcp")
-    }
+    alias(libs.plugins.kotlin.jvm) apply false
+    alias(libs.plugins.shadow) apply false
+    alias(libs.plugins.use.latest.versions)
+    alias(libs.plugins.ben.manes.versions)
 }
 
 repositories {
@@ -65,39 +13,47 @@ repositories {
     maven(url = "https://jitpack.io")
 }
 
-version = System.getenv("JIAP_VERSION") ?: "dev"
+val projectVersion = System.getenv("JIAP_VERSION") ?: "dev"
+version = projectVersion
 
-// Configure Java compiler to preserve parameter names
-tasks.withType<JavaCompile> {
-    options.compilerArgs.add("-parameters")
-}
+subprojects {
+    version = projectVersion
 
-// Configure Kotlin compiler to preserve parameter names
-tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
-    compilerOptions {
-        javaParameters = true
+    repositories {
+        mavenLocal()
+        mavenCentral()
+        maven(url = "https://s01.oss.sonatype.org/content/repositories/snapshots/")
+        google()
+        maven(url = "https://jitpack.io")
     }
-}
 
-tasks {
-    withType(Test::class) {
+    pluginManager.withPlugin("org.jetbrains.kotlin.jvm") {
+        configure<org.jetbrains.kotlin.gradle.dsl.KotlinProjectExtension> {
+            jvmToolchain(11)
+        }
+    }
+
+    tasks.withType<JavaCompile> {
+        options.compilerArgs.add("-parameters")
+    }
+
+    tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
+        compilerOptions {
+            javaParameters = true
+        }
+    }
+
+    tasks.withType<Test> {
         useJUnitPlatform()
     }
+}
 
-    named<Delete>("clean") {
-        delete(layout.buildDirectory)
-    }
-    val shadowJar = withType(ShadowJar::class) {
-        archiveClassifier = ""
-    }
+tasks.register<Copy>("dist") {
+    group = "build"
+    dependsOn(":jiap-plugin:dist")
+    dependsOn(":jiap-server:dist")
 
-    // copy result jar into "build/dist" directory
-    register<Copy>("dist") {
-		group = "build"
-        dependsOn(shadowJar)
-        dependsOn(withType(Jar::class))
-
-        from(shadowJar)
-        into(layout.buildDirectory.dir("dist"))
-    }
+    from("${project(":jiap-plugin").projectDir}/build/dist")
+    from("${project(":jiap-server").projectDir}/build/dist")
+    into(layout.buildDirectory.dir("dist"))
 }

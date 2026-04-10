@@ -2,18 +2,16 @@
  * Configuration management for JIAP CLI.
  */
 
-import { existsSync, mkdirSync, writeFileSync, readFileSync } from "fs";
+import { existsSync, readFileSync } from "fs";
 import * as path from "path";
 import * as os from "os";
 import type { Config } from "./types.js";
-import { hashFile } from "../utils/hash.js";
 import * as session from "./session.js";
 
 const HOME = os.homedir();
 const CONFIG_DIR = path.join(HOME, ".jiap");
 const CONFIG_FILE = path.join(CONFIG_DIR, "config.json");
 
-export { hashFile } from "../utils/hash.js";
 export * from "./session.js";
 
 export function expandPath(p: string): string {
@@ -23,7 +21,7 @@ export function expandPath(p: string): string {
 
 function defaultConfig(): Config {
   return {
-    jadx: { path: null, version: "1.5.3", installDir: "~/.jiap/jadx" },
+    serverJar: { path: null, version: "1.0.0", installDir: "~/.jiap/bin" },
     server: { defaultPort: 25419, timeout: 30 },
     output: { defaultDir: "~/.jiap/output", decompileDir: "~/.jiap/decompiled" },
   };
@@ -37,11 +35,6 @@ function readConfig(): Config {
   } catch {
     return defaultConfig();
   }
-}
-
-function writeConfig(config: Config): void {
-  mkdirSync(CONFIG_DIR, { recursive: true });
-  writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), "utf-8");
 }
 
 export class Manager {
@@ -61,23 +54,9 @@ export class Manager {
     Manager._instance = null;
   }
 
-  get jadx() { return this.config.jadx; }
+  get serverJar() { return this.config.serverJar; }
   get server() { return this.config.server; }
   get output() { return this.config.output; }
-
-  getJadxPath(): string | null {
-    // Only check config override — full search logic is in finder.ts
-    if (this.config.jadx.path) {
-      const p = expandPath(this.config.jadx.path);
-      if (existsSync(p)) return p;
-    }
-    return null;
-  }
-
-  setJadxPath(p: string): void {
-    this.config.jadx.path = p;
-    writeConfig(this.config);
-  }
 
   // --- Session delegates ---
 
