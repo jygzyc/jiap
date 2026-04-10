@@ -71,7 +71,7 @@ const prodPkg = {
   version: pkg.version,
   description: pkg.description,
   type: pkg.type,
-  bin: { ...pkg.bin },
+  bin: { jiap: "./index.js" },
   engines: pkg.engines,
   keywords: pkg.keywords,
   author: pkg.author,

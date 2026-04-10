@@ -5,13 +5,13 @@ import jadx.plugins.jiap.model.JiapServiceInterface
 import jadx.plugins.jiap.api.JiapApiResult
 
 class AndroidFrameworkService(override val decompiler: JadxDecompiler) : JiapServiceInterface {
-    
+
     fun handleGetSystemServiceImpl(iface: String): JiapApiResult {
         try {
             val interfaceClazz = decompiler.searchJavaClassOrItsParentByOrigFullName(iface)
                 ?: return JiapApiResult(success = false, data = hashMapOf("error" to "handleGetSystemServiceImpl: $iface not found"))
             val serviceClazz = decompiler.classes.firstOrNull {
-                it.smali.contains(".super L${interfaceClazz.fullName.replace('.', '/')}\$Stub;") 
+                it.smali.contains(".super L${interfaceClazz.fullName.replace('.', '/')}\$Stub;")
             } ?: return JiapApiResult(success = false, data = hashMapOf("error" to "handleGetSystemServiceImpl: Service implementation not found"))
 
             val result = hashMapOf<String, Any>(

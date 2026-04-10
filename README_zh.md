@@ -22,7 +22,7 @@ JIAP (Java Intelligence Analysis Platform) 是一个基于JADX反编译器的智
 
 ### 环境要求
 
-- **Java**: JDK 17+ （用于 JIAP Core）
+- **Java**: JDK 11+ （用于 JIAP Core）
 - **Python**: 3.10+ （可选 - 自动管理）
 - **JADX**: v1.5.2+ 支持插件的 JADX 反编译器
 - **Python 依赖**: `requests`, `fastmcp`, `pydantic`（自动安装）
@@ -58,9 +58,8 @@ chmod +x gradlew
 **自动执行流程：**
 1. JIAP 插件启动 HTTP 服务器（端口 `25419`）
 2. 插件自动提取 MCP 脚本到 `~/.jiap/mcp/`
-3. 伴生进程（MCP 服务器）自动启动（端口 `25419 + 1`）
-4. 插件监控健康状态
-5. 两个进程在关闭时协同停止
+3. 若启用自动启动，伴生进程（MCP 服务器）将自动启动（端口 `25419 + 1`）
+4. 两个进程在关闭时协同停止
 
 * 验证连接
 
@@ -119,7 +118,6 @@ chmod +x gradlew
 # 自动检测执行器：uv、python3 或 python
 # 自动提取脚本到 ~/.jiap/mcp/
 # 自动启动并配置正确的 JIAP_URL 和 MCP_PORT
-# 自动监控并在需要时重启
 ```
 
 **缓存配置：**
@@ -152,32 +150,65 @@ JIAP 使用结构化的错误码进行清晰的诊断：
 | 错误码 | 描述 | 常见原因 |
 |--------|------|----------|
 | **E001** | 内部服务器错误 | 意外的服务器状态 |
-| **E002** | 端口被占用 | 其他服务正在使用该端口 |
-| **E003** | 服务器启动失败 | 端口绑定或初始化错误 |
-| **E004** | 服务器停止失败 | 优雅关闭超时 |
-| **E005** | 服务器重启失败 | 重启序列错误 |
-| **E006** | JADX 不可用 | 反编译器未初始化 |
-| **E007** | JADX 初始化失败 | 反编译器初始化错误 |
-| **E008** | 未找到 Python | 未找到 Python/uv 可执行文件 |
-| **E009** | 侧车脚本未找到 | MCP 脚本提取失败 |
-| **E010** | 侧车启动失败 | 伴生进程启动失败 |
-| **E011** | 侧车进程错误 | 伴生进程崩溃 |
-| **E012** | 侧车停止失败 | 伴生进程无法停止 |
-| **E013** | 服务错误 | 通用服务错误 |
-| **E014** | 健康检查失败 | 无法连接 JIAP 服务器 |
-| **E015** | 方法未找到 | 请求的方法不存在 |
-| **E016** | 缺少参数 | 未提供必需参数 |
-| **E017** | 参数无效 | 参数格式/值无效 |
-| **E018** | 未知端点 | 请求的 API 端点不存在 |
-| **E019** | 连接错误 | 网络/HTTP 连接失败 |
+| **E002** | 服务错误 | 通用服务错误 |
+| **E003** | 健康检查失败 | 无法连接 JIAP 服务器 |
+| **E004** | 方法未找到 | 请求的方法不存在 |
+| **E005** | 参数无效 | 参数格式/值无效 |
 
 **错误响应格式：**
 ```json
 {
-  "error": "E010",
-  "message": "侧车启动失败: 未找到 Python 可执行文件"
+  "error": "E001",
+  "message": "内部错误: 启动失败"
 }
 ```
+
+---
+
+## CLI 命令行工具
+
+JIAP 提供了一个 TypeScript CLI 工具，用于通过命令行访问分析平台。
+
+**安装：**
+
+```bash
+cd cli
+npm install
+npm run build
+npm link  # 将 'jiap' 命令注册为全局命令
+```
+
+**进程管理：**
+- `jiap process check` - 检查 JIAP 服务器状态
+- `jiap process open <file>` - 打开并分析文件（APK、DEX、JAR 等）
+- `jiap process close [name]` - 按会话名停止 JIAP 服务器
+- `jiap process list` - 列出运行中的进程
+- `jiap process install` - 安装或更新 jiap-server.jar
+
+**代码分析：**
+- `jiap code all-classes` - 获取所有类
+- `jiap code class-info <class>` - 获取类信息
+- `jiap code class-source <class>` - 获取类源代码
+- `jiap code search-class <keyword>` - 搜索类内容
+- `jiap code search-method <name>` - 按名称搜索方法
+- `jiap code method-source <signature>` - 获取方法源代码
+- `jiap code xref-method <signature>` - 查找方法调用者
+- `jiap code xref-class <class>` - 查找类使用位置
+- `jiap code xref-field <field>` - 查找字段使用位置
+- `jiap code implement <interface>` - 查找接口实现
+- `jiap code subclass <class>` - 查找子类
+
+**Android 分析：**
+- `jiap ard app-manifest` - 获取 AndroidManifest.xml
+- `jiap ard main-activity` - 获取主 Activity 名称
+- `jiap ard app-application` - 获取 Application 类名
+- `jiap ard exported-components` - 列出导出组件
+- `jiap ard app-deeplinks` - 列出深度链接
+- `jiap ard receivers` - 列出动态广播接收器
+- `jiap ard system-service-impl <interface>` - 查找系统服务实现
+- `jiap ard all-resources` - 列出所有资源文件名
+- `jiap ard resource-file <res>` - 按名称获取资源文件内容
+- `jiap ard strings` - 获取 strings.xml 内容
 
 ---
 
@@ -186,70 +217,78 @@ JIAP 使用结构化的错误码进行清晰的诊断：
 ### 从源码构建
 
 ```bash
-# 2. 构建 JIAP Core（从源码）
+# 构建 JIAP Core
 cd jiap
 chmod +x gradlew
 ./gradlew dist
+
+# 构建 CLI
+cd cli
+npm install
+npm run build
 ```
 
 ### 增加自定义功能
 
-在`jadx/plugins/jiap/service`下创建自定义`service`，实现`JiapServiceInterface`, 其中接口的实现返回值均为`JiapResult`
+JIAP 的架构分为三层：`JiapApi` 接口定义 → `JiapApiImpl` 实现 → `RouteHandler` HTTP 路由分发。
+
+**1. 在 `JiapApi` 接口中添加方法**
+
+文件：`jiap/jiap-core/src/main/kotlin/jadx/plugins/jiap/api/JiapApi.kt`
 
 ```kotlin
-class CustomService(override val pluginContext: JadxPluginContext) : JiapServiceInterface {
-    fun doSomething(): JiapResult {
-        //...
-    }
+interface JiapApi {
+    // ... 已有方法 ...
+
+    fun doSomething(param: String): JiapApiResult
 }
 ```
 
-在`jadx/plugins/jiap/core/JiapConfig.kt`中注册自定义`service`，并在`routeMap`中添加路由映射即可实现自定义接口功能
+**2. 在 `JiapApiImpl` 中实现方法**
+
+文件：`jiap/jiap-core/src/main/kotlin/jadx/plugins/jiap/api/JiapApiImpl.kt`
 
 ```kotlin
-// Service instances
-val commonService: CommonService = CommonService(pluginContext)
-val androidFrameworkService: AndroidFrameworkService = AndroidFrameworkService(pluginContext)
-val androidAppService: AndroidAppService = AndroidAppService(pluginContext)
-val customService: CustomService = CustomService(pluginContext) // 注册自定义功能
+override fun doSomething(param: String): JiapApiResult {
+    val result = // 业务逻辑
+    return JiapApiResult.ok(mapOf("data" to result))
+}
+```
 
-// Route mappings
-val routeMap: Map<String, RouteTarget>
-get() = mapOf(
-    // Common Service
-    "/api/jiap/get_all_classes" to RouteTarget(
-        service = commonService,
-        methodName = "handleGetAllClasses",
-        cacheable = true
-    ),
-    //...
-    // Custom Service
-    "/api/jiap/custom_service/do_something" to RouteTarget(
-        service = customService,
-        methodName = "doSomething",
-    ),
-    //...
+**3. 在 `JiapServer.ALL_ROUTES` 中注册路由，在 `RouteHandler.dispatch()` 中添加分发**
+
+文件：`jiap/jiap-core/src/main/kotlin/jadx/plugins/jiap/http/JiapServer.kt`
+
+```kotlin
+val ALL_ROUTES = setOf(
+    // ... 已有路由 ...
+    "/api/jiap/do_something",
 )
+```
+
+文件：`jiap/jiap-core/src/main/kotlin/jadx/plugins/jiap/http/RouteHandler.kt`
+
+```kotlin
+"/api/jiap/do_something" -> requireParam(payload, "param") { api.doSomething(it) }
 ```
 
 ### 故障排查
 
 **伴生进程问题：**
-- **查看日志**：在 JIAP 日志中查找 `[MCP Sidecar STDOUT]` 消息
+- **查看日志**：在 JIAP 日志中查找 `[MCP]` 消息
 - **验证 Python**：确保已安装 Python 3.10+ 或 `uv`
 - **检查依赖**：插件会自动检查 `requests`、`fastmcp`、`pydantic`
 - **手动路径**：如有需要，可通过 GUI 配置自定义脚本路径
 
 **连接问题：**
 - 使用 `health_check()` 验证两个服务器是否都在运行
-- 检查端口冲突：`netstat -tlnp | grep 25419`
+- 检查端口冲突：`lsof -i :25419`
 - 验证防火墙是否允许 localhost 连接
 
 **常见错误：**
-- **E008**：安装 Python 3.10+ 或 `uv`
-- **E009/E010**：检查 `~/.jiap/mcp/` 权限
-- **E002**：在 JIAP 设置 GUI 中更改端口
-- **E014**：确保 JIAP 插件已启用并加载
+- **E001**：查看 JIAP 日志中的内部错误信息
+- **E003**：确保 JIAP 插件已启用并加载
+- **E005**：检查参数格式和值
 
 ## 贡献
 

@@ -47,16 +47,15 @@ jobs:
     - name: Build
       run: pnpm build
 
-    - name: List dist
-      run: ls -laR dist/
+    - name: Verify dist
+      run: |
+        ls -la dist/
+        node -e "const pkg = require('./dist/package.json'); console.log('name:', pkg.name, 'version:', pkg.version, 'bin:', JSON.stringify(pkg.bin))"
 
   publish-npm:
     needs: build
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/cli-v')
-    defaults:
-      run:
-        working-directory: cli
     permissions:
       contents: read
       id-token: write
@@ -76,12 +75,14 @@ jobs:
 
     - name: Install dependencies
       run: pnpm install --frozen-lockfile
+      working-directory: cli
 
     - name: Build
       run: pnpm build
+      working-directory: cli
 
     - name: Publish to npm
       run: npm publish --access public --provenance
-      working-directory: dist
+      working-directory: cli/dist
       env:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

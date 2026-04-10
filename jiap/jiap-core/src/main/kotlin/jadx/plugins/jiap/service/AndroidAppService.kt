@@ -289,7 +289,7 @@ class AndroidAppService(override val decompiler: JadxDecompiler) : JiapServiceIn
     }
 
     fun handleGetDeepLinks(): JiapApiResult {
-        return try {
+        try {
             val manifestDoc = getManifestDocument()
                 ?: return JiapApiResult(false, hashMapOf("error" to "handleGetDeepLinks: Manifest not found"))
             
@@ -356,7 +356,7 @@ class AndroidAppService(override val decompiler: JadxDecompiler) : JiapServiceIn
     }
     
     fun handleGetAllResources(): JiapApiResult {
-        return try {
+        try {
             val resources = decompiler.resources
                 ?: return JiapApiResult(false, hashMapOf("error" to "handleGetAllResources: No resources found."))
             val fileNames = mutableListOf<String>()
@@ -386,7 +386,7 @@ class AndroidAppService(override val decompiler: JadxDecompiler) : JiapServiceIn
     }
 
     fun handleGetResourceFile(res: String): JiapApiResult {
-        return try {
+        try {
             val resources = decompiler.resources
                 ?: return JiapApiResult(false, hashMapOf("error" to "handleGetResourceFile: No resources found."))
             for (resFile in resources) {
@@ -410,7 +410,7 @@ class AndroidAppService(override val decompiler: JadxDecompiler) : JiapServiceIn
     }
 
     fun handleGetStrings(): JiapApiResult {
-        return try {
+        try {
             val resources = decompiler.resources
                 ?: return JiapApiResult(false, hashMapOf("error" to "handleGetStrings: No resources found."))
             val stringsList = resources.mapNotNull { resFile ->
