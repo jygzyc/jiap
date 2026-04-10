@@ -10,6 +10,7 @@ import jadx.plugins.jiap.lifecycle.PluginLifecycleManager
 import jadx.plugins.jiap.model.JiapError
 import jadx.plugins.jiap.ui.JiapUIManager
 import jadx.plugins.jiap.ui.UIService
+import jadx.plugins.jiap.mcp.SidecarProcessManager
 import jadx.plugins.jiap.utils.CacheUtils
 import jadx.plugins.jiap.utils.LogUtils
 import jadx.plugins.jiap.utils.PreferencesManager
@@ -22,6 +23,7 @@ class JiapPlugin : JadxPlugin {
     }
 
     private var server: JiapServer? = null
+    private var sidecarManager: SidecarProcessManager? = null
 
     override fun init(ctx: JadxPluginContext) {
         try {
@@ -31,10 +33,12 @@ class JiapPlugin : JadxPlugin {
 
             PluginLifecycleManager(ctx) { srv, api ->
                 this.server = srv
+                val mcp = SidecarProcessManager(PreferencesManager.getPort())
+                this.sidecarManager = mcp
 
                 val uiService = UIService(ctx, api)
                 ctx.guiContext?.let { guiContext ->
-                    JiapUIManager(ctx, srv, api, uiService).initializeGuiComponents(guiContext)
+                    JiapUIManager(ctx, srv, api, uiService, mcp).initializeGuiComponents(guiContext)
                 }
             }.start()
 
@@ -57,6 +61,8 @@ class JiapPlugin : JadxPlugin {
     override fun unload() {
         try {
             LogUtils.info("Cleaning up JIAP plugin resources...")
+            sidecarManager?.stop()
+            sidecarManager?.cleanupMcpFiles()
             CacheUtils.clearCache()
             server?.stop()
             PreferencesManager.clearCache()
@@ -66,6 +72,7 @@ class JiapPlugin : JadxPlugin {
     }
 
     private fun cleanupOnError() {
+        sidecarManager?.stop()
         server?.stop()
     }
 }

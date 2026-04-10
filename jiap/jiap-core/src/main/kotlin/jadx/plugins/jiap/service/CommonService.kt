@@ -50,7 +50,7 @@ class CommonService(override val decompiler: JadxDecompiler) : JiapServiceInterf
     }
 
     fun handleGetClassInfo(cls: String): JiapApiResult {
-        return try {
+        try {
             val clazz = decompiler.searchJavaClassOrItsParentByOrigFullName(cls)
             if (clazz != null) {
                 val result = hashMapOf(

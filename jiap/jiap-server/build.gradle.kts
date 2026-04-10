@@ -22,11 +22,19 @@ tasks.processResources {
 
 tasks {
     named<com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar>("shadowJar") {
+        archiveBaseName = "jadx-server"
         archiveClassifier = ""
         archiveVersion = project.version.toString()
         mergeServiceFiles()
         manifest {
             attributes("Main-Class" to "jadx.plugins.jiap.server.JiapServerApp")
         }
+    }
+
+    register<Copy>("dist") {
+        group = "build"
+        dependsOn(shadowJar)
+        from(shadowJar)
+        into(layout.buildDirectory.dir("dist"))
     }
 }

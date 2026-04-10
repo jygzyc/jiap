@@ -5,5 +5,5 @@
 build
 bin
 
-# Ignore bundled MCP server resources (copied from root during build)
-src/main/resources/mcp/
+# Ignore kotlin build output directory
+.kotlin

@@ -15,11 +15,11 @@ class JiapUIManager(
     private val pluginContext: JadxPluginContext,
     private val server: JiapServer,
     private val api: JiapApi,
-    private val uiService: UIService
+    private val uiService: UIService,
+    private val sidecarManager: SidecarProcessManager
 ) {
     private var mcpAutoStartCheckbox: JCheckBox? = null
     private var portField: JTextField? = null
-    private val sidecarManager = SidecarProcessManager(PreferencesManager.getPort())
 
     init {
         McpPreferences // ensure loaded
