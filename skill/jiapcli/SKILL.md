@@ -1,14 +1,14 @@
 ---
 name: jiapcli
-description: Android APK/DEX/JAR 安全审计 CLI。基于 JADX 反编译器，支持代码检索、交叉引用、组件分析、漏洞挖掘。当用户提到 jiap、jadx、android analysis、android security、APK audit、安全审计、漏洞挖掘时使用。
+description: Android APK/DEX/JAR 通用分析 CLI。基于 JADX 反编译器，支持代码检索、交叉引用、组件分析。当用户提到 jiap、jadx、android analysis、APK 分析、反编译、decompile、代码审查、code review 时使用。
 metadata:
   requires:
     bins: ["jiap"]
 ---
 
-# JIAP CLI
+# JIAP CLI — 通用分析
 
-基于 JADX 的 Android 安全分析工具。分析 APK/框架时使用此 skill 获取工具命令和漏洞挖掘方法论。
+基于 JADX 的 Android 通用分析工具。用于 APK/DEX/JAR 的反编译、代码检索、交叉引用和组件分析。
 
 ## 命令参考
 
@@ -81,58 +81,41 @@ package.Class.methodName(paramType1,paramType2):returnType
 典型流程：
 1. jiap ard exported-components     → 定位目标组件
 2. jiap code class-source <Class>   → 获取源码，找到关键方法
-3. jiap code xref-method <sig>      → 追踪数据流
+3. jiap code xref-method <sig>      → 追踪调用链
 4. jiap code implement <Interface>  → 查找所有实现
 
-必要时可使用 `search-class` 搜索全局关键字， `search-method` 按名称搜索方法。找到具体实现后，再查找接口的所有实现类。
+必要时可使用 `search-class` 搜索全局关键字，`search-method` 按名称搜索方法。
+找到具体实现后，再查找接口的所有实现类。
 ```
 
-## 核心原则：可利用性
+## 常见分析场景
 
-只报告满足以下全部条件的发现：
-
-1. **可达** — 攻击者能触发该代码路径
-2. **可控** — 攻击者能影响关键数据
-3. **有影响** — 造成安全后果
-
-任一条件不满足 → 不报告。
-
-## 报告模板
-
+### 理解应用结构
 ```
-[严重性] 漏洞标题
-Risk: CRITICAL/HIGH/MEDIUM/LOW
-Component: com.package.ClassName.vulnerableMethod(paramType):returnType
-Cause: 缺陷简述
-
-Evidence:
-  // Source
-  Intent intent = getIntent().getParcelableExtra("key");
-  // Sink
-  startActivity(intent);
-
-Taint Flow:
-  Source → Propagation → [NO SANITIZER] → Sink
-
-Exploit Path:
-  1. 攻击步骤...
-  2. ...
-
-Impact: 攻击者获得什么
-Mitigation: 修复建议
+jiap ard app-manifest              → 了解组件注册和权限声明
+jiap ard exported-components       → 查看对外暴露的组件
+jiap ard app-deeplinks             → 查看 Deep Link 入口
+jiap code all-classes              → 浏览包结构
 ```
 
-## References
+### 追踪特定功能
+```
+jiap code search-method "login"    → 定位登录相关方法
+jiap code class-source <Class>     → 阅读实现
+jiap code xref-method <sig>        → 追踪谁调用了它
+jiap code xref-field <field>       → 追踪字段读写
+```
 
-分析特定组件时，先阅读对应的组件总览文件，再根据目标组件类型定位具体风险文件。每个组件总览包含风险清单、分析流程和交叉引用。
+### 分析继承和实现
+```
+jiap code subclass <BaseClass>     → 查找所有子类
+jiap code implement <Interface>    → 查找接口实现
+jiap code class-info <Class>       → 查看类的方法和字段列表
+```
 
-| 文件 | 组件 | 适用场景 |
-|------|------|----------|
-| `references/app-activity.md` | Activity | 分析导出 Activity |
-| `references/app-intent.md` | Intent | 追踪 Intent 数据流 |
-| `references/app-broadcast.md` | Broadcast | 分析广播接收器 |
-| `references/app-provider.md` | ContentProvider | 分析导出 Provider |
-| `references/app-service.md` | Service | 分析导出 Service |
-| `references/app-webview.md` | WebView | 分析 WebView 使用 |
-| `references/framework-service.md` | 系统服务 | 审计框架服务 |
-| `references/risk-rating.md` | 风险评级 | 判断漏洞严重性 |
+### 检查资源和配置
+```
+jiap ard all-resources             → 浏览资源文件
+jiap ard resource-file <res>       → 查看具体资源内容
+jiap ard strings                   → 查看字符串资源
+```
