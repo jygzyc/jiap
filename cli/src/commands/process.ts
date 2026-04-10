@@ -57,7 +57,7 @@ export function makeProcessCommand(): Command {
 
       if (opts.install && !jarOk) {
         const [ok, msg] = await installJiapServer(fmt);
-        ok ? fmt.success(msg) : fmt.error(msg);
+        if (ok) { fmt.success(msg); } else { fmt.error(msg); }
       }
     });
 
@@ -223,7 +223,7 @@ export function makeProcessCommand(): Command {
 
       const alive = await killProcessGroup(session.pid);
       mgr.removeSession(name);
-      alive ? fmt.success(`Killed ${name}`) : fmt.info(`Removed dead session ${name}`);
+      if (alive) { fmt.success(`Killed ${name}`); } else { fmt.info(`Removed dead session ${name}`); }
     }, (_name, opts) => new Formatter(Boolean(opts.json))));
 
   // list

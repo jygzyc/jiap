@@ -59,10 +59,8 @@ export async function installJiapServer(fmt: Formatter): Promise<[boolean, strin
     const tmpPath = `${INSTALL_PATH}.tmp`;
     const fileStream = createWriteStream(tmpPath);
 
-    let downloaded = 0;
     for await (const chunk of downloadRes.body as AsyncIterable<Buffer>) {
       fileStream.write(chunk);
-      downloaded += chunk.length;
     }
     fileStream.end();
 
