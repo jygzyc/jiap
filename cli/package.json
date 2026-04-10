@@ -16,7 +16,7 @@
     "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch --forceExit",
     "lint": "eslint src/**/*.ts",
     "format": "prettier --write src/**/*.ts",
-    "prepare": "husky install",
+    "prepare": "husky install 2>/dev/null || true",
     "precommit": "lint-staged"
   },
   "dependencies": {
