@@ -2,7 +2,7 @@
  * Process command unit tests.
  *
  * Tests command structure, option registration, and error handling.
- * Does NOT spawn real JADX processes — server interaction is mocked.
+ * Does NOT spawn real JIAP server processes — server interaction is mocked.
  */
 
 import { Command } from "commander";
@@ -60,6 +60,12 @@ describe("process command structure", () => {
       expect(flags.some(f => f.includes("--port"))).toBe(true);
       expect(flags.some(f => f.includes("--json"))).toBe(true);
     });
+
+    it("has --install option", () => {
+      const check = findCommand(processCmd, ["check"])!;
+      const flags = getOptionFlags(check);
+      expect(flags.some(f => f.includes("--install"))).toBe(true);
+    });
   });
 
   // ── open ─────────────────────────────────────────────────────────────────
@@ -83,7 +89,7 @@ describe("process command structure", () => {
   // ── close ────────────────────────────────────────────────────────────────
 
   describe("close", () => {
-    it("has optional [hash] argument and --all option", () => {
+    it("has optional [name] argument and --all option", () => {
       const close = findCommand(processCmd, ["close"])!;
       expect(close.registeredArguments.length).toBeGreaterThanOrEqual(1);
       const flags = getOptionFlags(close);
@@ -104,11 +110,21 @@ describe("process command structure", () => {
   // ── status ───────────────────────────────────────────────────────────────
 
   describe("status", () => {
-    it("has optional [hash] argument and --port option", () => {
+    it("has optional [name] argument and --port option", () => {
       const status = findCommand(processCmd, ["status"])!;
       expect(status.registeredArguments.length).toBeGreaterThanOrEqual(1);
       const flags = getOptionFlags(status);
       expect(flags.some(f => f.includes("--port"))).toBe(true);
+    });
+  });
+
+  // ── install ──────────────────────────────────────────────────────────────
+
+  describe("install", () => {
+    it("has --json option", () => {
+      const install = findCommand(processCmd, ["install"])!;
+      const flags = getOptionFlags(install);
+      expect(flags.some(f => f.includes("--json"))).toBe(true);
     });
   });
 });

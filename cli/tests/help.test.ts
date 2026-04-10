@@ -78,7 +78,7 @@ describe("process", () => {
     expect(flags.some(f => f.includes("--force"))).toBe(true);
   });
 
-  it("close has optional [hash] argument", () => {
+  it("close has optional [name] argument", () => {
     const close = findCommand(cmd, ["close"])!;
     expect(close.registeredArguments.length).toBeGreaterThanOrEqual(1);
   });
@@ -154,4 +154,8 @@ describe("ard", () => {
     expect(ssi.registeredArguments.length).toBeGreaterThanOrEqual(1);
   });
 
+  it("resource-file has <res> argument", () => {
+    const rf = findCommand(cmd, ["resource-file"])!;
+    expect(rf.registeredArguments.length).toBeGreaterThanOrEqual(1);
+  });
 });

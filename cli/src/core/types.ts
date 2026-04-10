@@ -9,7 +9,7 @@ export interface Session {
   startedAt: number;
 }
 
-export interface JadxConfig {
+export interface ServerJarConfig {
   path: string | null;
   version: string;
   installDir: string;
@@ -26,42 +26,7 @@ export interface OutputConfig {
 }
 
 export interface Config {
-  jadx: JadxConfig;
+  serverJar: ServerJarConfig;
   server: ServerConfig;
   output: OutputConfig;
-}
-
-export interface DecompileOptions {
-  input_file: string;
-  output_dir?: string;
-  jadx_bin?: string;
-  no_res?: boolean;
-  threads?: number;
-  timeout?: number;
-  extra_args?: string[];
-}
-
-export interface ComponentCheckResult {
-  ok: boolean;
-  info: string;
-}
-
-export interface ComponentCheckResults {
-  server: ComponentCheckResult;
-  jadx: ComponentCheckResult;
-  plugin: ComponentCheckResult;
-}
-
-export interface OemPaths {
-  [oem: string]: string[];
-}
-
-export interface FrameworkFile {
-  name: string;
-  size_mb: number;
-}
-
-export interface FrameworkFiles {
-  apks: FrameworkFile[];
-  dexes: FrameworkFile[];
 }

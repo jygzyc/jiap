@@ -1,7 +1,5 @@
 import { Command } from "commander";
-import { Formatter } from "../utils/formatter.js";
 import { resolveClient } from "../core/client-helper.js";
-import { withErrorHandler } from "../utils/errors.js";
 
 export function makeArdCommand(): Command {
   const cmd = new Command("ard");
@@ -114,91 +112,6 @@ export function makeArdCommand(): Command {
       const page = opts.page ? parseInt(opts.page) : 1;
       fmt.output(await client.getStrings(page));
     });
-
-  // ── Framework collection ──────────────────────────────────────────────────
-  // TODO: temporarily disabled — re-enable when ready
-
-  // cmd
-  //   .command("framework-collect")
-  //   .description("Collect framework files from device (pulls files)")
-  //   .option("--oem <oem>", "OEM (vivo, oppo, xiaomi, honor, google)", String, "google")
-  //   .option("-o, --output <dir>", "Output directory", String)
-  //   .option("--device <id>", "ADB device ID", String)
-  //   .option("--json", "JSON output")
-  //   .action(withErrorHandler(async (opts) => {
-  //     if (process.platform === "win32") {
-  //       throw new Error("framework-collect is not supported on Windows");
-  //     }
-  //     const fmt = new Formatter(opts.json ?? false);
-  //     const outputDir = expandPath(opts.output ?? "~/.jiap/framework");
-  //     const collector = opts.device
-  //       ? new FrameworkCollector(opts.device)
-  //       : new FrameworkCollector();
-  //
-  //     if (!collector.checkDevice()) {
-  //       throw new AdbOperationError("No device connected");
-  //     }
-  //
-  //     const results = collector.collect(undefined, outputDir, opts.oem);
-  //     const successCount = results.filter(r => r.success).length;
-  //     const failCount = results.length - successCount;
-  //
-  //     fmt.success(`Collected ${successCount} files → ${outputDir}`);
-  //     if (failCount > 0) {
-  //       fmt.warning(`Failed: ${failCount}`);
-  //       for (const r of results.filter(r => !r.success).slice(0, 10)) {
-  //         fmt.info(`  ${r.taskId}: ${r.error}`);
-  //       }
-  //     }
-  //     if (opts.json) {
-  //       fmt.output({ success: successCount, failed: failCount, output: outputDir });
-  //     }
-  //   }, (opts) => new Formatter(Boolean(opts.json))));
-
-  // ── Framework processing ─────────────────────────────────────────────────
-
-  // cmd
-  //   .command("framework-process")
-  //   .description("Process collected framework files and pack into out.jar")
-  //   .option("--source <dir>", "Source directory with collected files", String)
-  //   .option("-o, --output <dir>", "Output directory", String)
-  //   .option("--oem <oem>", "OEM (vivo, oppo, xiaomi, honor, google)", String, "google")
-  //   .option("--clean", "Remove temp directories after processing")
-  //   .option("--json", "JSON output")
-  //   .action(withErrorHandler(async (opts) => {
-  //     if (process.platform === "win32") {
-  //       throw new Error("framework-process is not supported on Windows (requires extract.erofs / debugfs)");
-  //     }
-  //     const sourceDir = expandPath(opts.source ?? "~/.jiap/framework");
-  //     const outDir = expandPath(opts.output ?? "~/.jiap/out");
-  //     const fmt = new Formatter(opts.json ?? false);
-  //
-  //     if (!existsSync(sourceDir)) {
-  //       throw new AdbOperationError(`Source directory does not exist: ${sourceDir}`);
-  //     }
-  //
-  //     fmt.info(`Processing ${sourceDir} ...`);
-  //
-  //     const processor = new FrameworkProcessor({
-  //       sourceDir,
-  //       outDir,
-  //       oem: opts.oem,
-  //       clean: opts.clean ?? false,
-  //     });
-  //
-  //     const { success, failed, errors, jarPath } = await processor.run();
-  //
-  //     fmt.success(`Done: ${success} succeeded, ${failed} failed`);
-  //     if (jarPath) {
-  //       fmt.info(`Output: ${jarPath}`);
-  //     }
-  //     if (errors.length > 0) {
-  //       fmt.warning(`Errors (${errors.length}):`);
-  //       for (const err of errors.slice(0, 10)) {
-  //         fmt.info(`  ${err}`);
-  //       }
-  //     }
-  //   }, (opts) => new Formatter(Boolean(opts.json))));
 
   return cmd;
 }

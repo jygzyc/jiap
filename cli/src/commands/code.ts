@@ -103,26 +103,6 @@ export function makeCodeCommand(): Command {
     });
 
   cmd
-    .command("selected-text")
-    .description("Get currently selected text from JADX GUI editor")
-    .option("--page <n>", "Page number", String)
-    .action(async (opts) => {
-      const { fmt, client } = resolveClient(opts);
-      const page = opts.page ? parseInt(opts.page) : 1;
-      fmt.output(await client.getSelectedText(page));
-    });
-
-  cmd
-    .command("selected-class")
-    .description("Get currently selected class from JADX GUI editor")
-    .option("--page <n>", "Page number", String)
-    .action(async (opts) => {
-      const { fmt, client } = resolveClient(opts);
-      const page = opts.page ? parseInt(opts.page) : 1;
-      fmt.output(await client.getSelectedClass(page));
-    });
-
-  cmd
     .command("implement <interface>")
     .description("Find implementations")
     .option("--page <n>", "Page number", String)
