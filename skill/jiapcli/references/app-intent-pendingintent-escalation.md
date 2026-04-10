@@ -74,10 +74,10 @@ PendingIntent pi = PendingIntent.getActivity(this, 0, intent,
 
 | 组合 | 链条效果 | 参考文件 |
 |------|----------|----------|
-| + Activity Intent 重定向 | 填充 PendingIntent 指向非导出特权 Activity，绕过访问控制 | → [Activity Intent 重定向](./app-activity-intent-redirect.md) |
-| + Provider 数据窃取 | 以受害者身份访问其 ContentProvider，读取数据库全量数据 | → [Provider 数据泄露](./app-provider-data-leak.md) |
-| + Framework 权限绕过 | 以受害者（可能是系统应用）身份调用系统服务接口 | → [Framework 权限缺失](./framework-service-permission-missing.md) |
-| + URI 权限写入 | 修改 PendingIntent 的 data 为攻击者 content:// URI + FLAG_GRANT_WRITE_URI_PERMISSION，以系统权限写入任意文件 | → [URI 权限授予](./app-intent-uri-permission.md) |
+| + Activity Intent 重定向 | 填充 PendingIntent 指向非导出特权 Activity，绕过访问控制 | → [[app-activity-intent-redirect]] |
+| + Provider 数据窃取 | 以受害者身份访问其 ContentProvider，读取数据库全量数据 | → [[app-provider-data-leak]] |
+| + Framework 权限绕过 | 以受害者（可能是系统应用）身份调用系统服务接口 | → [[framework-service-permission-missing]] |
+| + URI 权限写入 | 修改 PendingIntent 的 data 为攻击者 content:// URI + FLAG_GRANT_WRITE_URI_PERMISSION，以系统权限写入任意文件 | → [[app-intent-uri-permission]] |
 
 
 ## Related

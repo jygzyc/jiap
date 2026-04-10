@@ -1,11 +1,11 @@
-# 系统服务安全审计总览
+# 系统服务安全审计
 
 系统服务运行于 system_server 或特权进程，拥有高权限。身份混淆、权限检查缺失、Intent 重定向等漏洞可导致本地提权、数据泄露和系统服务崩溃。
 
 ## 风险清单
 
-| 风险 | 严重性 | 文件 |
-|------|--------|------|
+| 风险 | 等级 | 详情 |
+|------|------|------|
 | clearCallingIdentity 滥用 | HIGH | [[framework-service-clear-identity]] |
 | 权限检查缺失 | HIGH | [[framework-service-permission-missing]] |
 | 身份混淆 | HIGH | [[framework-service-identity-confusion]] |
@@ -40,8 +40,11 @@
 - **Intent 重定向**：以 system 权限启动攻击者控制的 Intent
 - **竞态条件**：多线程访问共享状态缺少同步
 
-## 交叉引用
+## Related
 
-- Activity 重定向 → [[app-activity]]
-- Intent 数据流 → [[app-intent]]
-- Provider 数据访问 → [[app-provider]]
+[[app-activity]]
+[[app-intent]]
+[[app-service]]
+[[app-provider]]
+[[app-broadcast]]
+[[risk-rating]]

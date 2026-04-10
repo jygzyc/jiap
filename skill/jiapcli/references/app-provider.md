@@ -1,11 +1,11 @@
-# ContentProvider 安全审计总览
+# ContentProvider 安全审计
 
 ContentProvider 是 Android 数据共享的核心机制。导出的 Provider 可被任意应用查询，SQL 注入、路径遍历、数据泄露等漏洞直接影响应用数据安全。
 
 ## 风险清单
 
-| 风险 | 严重性 | 文件 |
-|------|--------|------|
+| 风险 | 等级 | 详情 |
+|------|------|------|
 | 数据泄露 | HIGH | [[app-provider-data-leak]] |
 | SQL 注入 | HIGH | [[app-provider-sql-injection]] |
 | 路径遍历 | HIGH | [[app-provider-path-traversal]] |
@@ -37,8 +37,10 @@ ContentProvider 是 Android 数据共享的核心机制。导出的 Provider 可
 - **FileProvider**：`file_paths.xml` 中 `root-path` / `external-path` 配置范围
 - **call() 暴露**：自定义 call 方法是否执行敏感操作
 
-## 交叉引用
+## Related
 
-- Intent URI 权限 → [[app-intent]]
-- Activity 路径遍历 → [[app-activity]]
-- 系统服务数据访问 → [[framework-service]]
+[[app-activity]]
+[[app-intent]]
+[[app-webview]]
+[[framework-service]]
+[[risk-rating]]

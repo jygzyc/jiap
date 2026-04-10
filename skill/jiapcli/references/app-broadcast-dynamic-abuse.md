@@ -69,9 +69,9 @@ LocalBroadcastManager.getInstance(this).registerReceiver(receiver, filter);
 
 | 组合 | 链条效果 | 参考文件 |
 |------|----------|----------|
-| + Service 命令注入 | 接收器收到命令后转发给导出 Service，扩大攻击面 | → [Service Intent 注入](./app-service-intent-inject.md) |
-| + URI 权限授予 | 广播 Intent 携带 content:// URI + FLAG_GRANT_READ，授予文件访问权 | → [URI 权限授予滥用](./app-intent-uri-permission.md) |
-| + 权限绕过 | 动态接收器未指定 RECEIVER_NOT_EXPORTED，外部恶意应用可直接发送 | → [广播权限绕过](./app-broadcast-permission-bypass.md) |
+| + Service 命令注入 | 接收器收到命令后转发给导出 Service，扩大攻击面 | → [[app-service-intent-inject]] |
+| + URI 权限授予 | 广播 Intent 携带 content:// URI + FLAG_GRANT_READ，授予文件访问权 | → [[app-intent-uri-permission]] |
+| + 权限绕过 | 动态接收器未指定 RECEIVER_NOT_EXPORTED，外部恶意应用可直接发送 | → [[app-broadcast-permission-bypass]] |
 | + WebView URL 加载 | 接收器处理 URL 参数后传递给 WebView 加载 | → [[app-webview-url-bypass]] |
 
 

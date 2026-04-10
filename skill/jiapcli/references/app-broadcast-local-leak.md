@@ -68,10 +68,10 @@ LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
 
 | 组合 | 链条效果 | 参考文件 |
 |------|----------|----------|
-| + 隐式 Intent 劫持 | 同一条链：sendBroadcast 隐式发送 → 恶意应用截获 → 获取内部通信数据 | → [隐式 Intent 劫持](./app-intent-implicit-hijack.md) |
-| + Provider 数据窃取 | 广播泄露的 URI/Authority 用于直接访问 ContentProvider | → [Provider 数据泄露](./app-provider-data-leak.md) |
-| + PendingIntent 窃取 | 广播中携带的 PendingIntent 被截获后篡改执行 | → [隐式 Intent 劫持](./app-intent-pendingintent-escalation.md) |
-| + 有序广播劫持 | 截获敏感数据后篡改并转发给后续接收器 | → [有序广播劫持](./app-broadcast-ordered-hijack.md) |
+| + 隐式 Intent 劫持 | 同一条链：sendBroadcast 隐式发送 → 恶意应用截获 → 获取内部通信数据 | → [[app-intent-implicit-hijack]] |
+| + Provider 数据窃取 | 广播泄露的 URI/Authority 用于直接访问 ContentProvider | → [[app-provider-data-leak]] |
+| + PendingIntent 窃取 | 广播中携带的 PendingIntent 被截获后篡改执行 | → [[app-intent-pendingintent-escalation]] |
+| + 有序广播劫持 | 截获敏感数据后篡改并转发给后续接收器 | → [[app-broadcast-ordered-hijack]] |
 
 
 ## Related

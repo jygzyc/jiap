@@ -1,11 +1,11 @@
-# Service 安全审计总览
+# Service 安全审计
 
 Service 是 Android 后台执行组件。导出 Service 可被任意应用绑定或启动，AIDL 接口暴露、Messenger 滥用、Intent 注入等漏洞可导致权限提升和敏感操作执行。
 
 ## 风险清单
 
-| 风险 | 严重性 | 文件 |
-|------|--------|------|
+| 风险 | 等级 | 详情 |
+|------|------|------|
 | AIDL 接口暴露 | HIGH | [[app-service-aidl-expose]] |
 | Messenger 消息滥用 | MEDIUM | [[app-service-messenger-abuse]] |
 | Intent 命令注入 | HIGH | [[app-service-intent-inject]] |
@@ -36,8 +36,10 @@ Service 是 Android 后台执行组件。导出 Service 可被任意应用绑定
 - **Intent 注入**：`onStartCommand()` / `onHandleIntent()` 对传入 Intent 的处理
 - **绑定提权**：恶意应用通过 `bindService()` 获取高权限接口
 
-## 交叉引用
+## Related
 
-- Intent 数据流 → [[app-intent]]
-- Activity 入口 → [[app-activity]]
-- 系统服务接口 → [[framework-service]]
+[[app-activity]]
+[[app-intent]]
+[[app-broadcast]]
+[[framework-service]]
+[[risk-rating]]
