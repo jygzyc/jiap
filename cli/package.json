@@ -1,5 +1,5 @@
 {
-  "name": "jiap-cli",
+  "name": "@jygzyc/jiap-cli",
   "version": "1.0.0",
   "description": "JIAP CLI - Java Intelligence Analysis Platform (TypeScript)",
   "type": "module",
