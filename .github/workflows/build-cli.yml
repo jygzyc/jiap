@@ -5,8 +5,6 @@ on:
     branches: [ main ]
     paths:
       - 'cli/**'
-    tags:
-      - 'cli-v*'
   pull_request:
     branches: [ main ]
     paths:
@@ -55,7 +53,7 @@ jobs:
   publish-npm:
     needs: build
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/cli-v')
+    if: github.ref == 'refs/heads/main'
     permissions:
       contents: read
       id-token: write

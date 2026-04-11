@@ -1,6 +1,6 @@
 {
   "name": "jiap-cli",
-  "version": "2.0.0",
+  "version": "1.0.0",
   "description": "JIAP CLI - Java Intelligence Analysis Platform (TypeScript)",
   "type": "module",
   "bin": {
@@ -47,10 +47,11 @@
     "analysis",
     "jadx",
     "decompiler",
-    "cli"
+    "cli",
+    "jiap"
   ],
   "author": "Yves",
-  "license": "Apache-2.0",
+  "license": "GNU-3.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/jygzyc/jiap"

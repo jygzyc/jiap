@@ -100,12 +100,18 @@ class SidecarProcessManager(private var serverPort: Int) {
 
             if (isWindows) {
                 Thread({
-                    try { p.errorStream?.close() } catch (_: Exception) {}
-                }, "MCP-stderr-cleanup").apply { isDaemon = true }.start()
+                    try {
+                        val buffer = ByteArray(4096)
+                        while (p.errorStream.read(buffer) != -1) {}
+                    } catch (_: Exception) {}
+                }, "MCP-stderr-consumer").apply { isDaemon = true }.start()
             }
             Thread({
-                try { p.inputStream?.close() } catch (_: Exception) {}
-            }, "MCP-stdout-cleanup").apply { isDaemon = true }.start()
+                try {
+                    val buffer = ByteArray(4096)
+                    while (p.inputStream.read(buffer) != -1) {}
+                } catch (_: Exception) {}
+            }, "MCP-stdout-consumer").apply { isDaemon = true }.start()
 
             Thread.sleep(1000)
             if (!p.isAlive) {
