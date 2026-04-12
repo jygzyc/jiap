@@ -64,7 +64,8 @@ export function makeProcessCommand(): Command {
   // open
   cmd
     .command("open <file>")
-    .description("Open and analyze a file (APK, DEX, JAR, etc.)")
+    .allowUnknownOption(true)
+    .description("Open and analyze a file (APK, DEX, JAR, etc.). Standard jadx-cli options are passed through.")
     .option("-P, --port <port>", "Server port")
     .option("--force", "Force start even if a session already exists")
     .option("-n, --name <name>", "Session name (default: APK filename without extension)")
@@ -141,7 +142,8 @@ export function makeProcessCommand(): Command {
       }
 
       // --- Spawn jiap-server ---
-      const javaArgs = ["-jar", jarPath, resolvedFile, "--port", String(port)];
+      const jadxArgs = extractPassthroughArgs();
+      const javaArgs = ["-jar", jarPath, resolvedFile, "--port", String(port), ...jadxArgs];
 
       let proc;
       try {
@@ -297,10 +299,11 @@ export function makeProcessCommand(): Command {
   cmd
     .command("install")
     .description("Install or update jiap-server.jar")
+    .option("-p, --prerelease", "Install prerelease version")
     .option("--json", "JSON output")
     .action(withErrorHandler(async (opts) => {
       const fmt = new Formatter(opts.json);
-      const [ok, msg] = await installJiapServer(fmt);
+      const [ok, msg] = await installJiapServer(fmt, opts.prerelease);
       if (ok) {
         fmt.success(msg);
       } else {
@@ -438,6 +441,56 @@ async function resolveFileInput(input: string): Promise<string> {
   fmt.success(`Saved to ${localPath} (${formatBytes(downloaded)})`);
 
   return localPath;
+}
+
+/**
+ * Extract non-JIAP args from process.argv for passthrough to jiad-server.
+ * Filters out JIAP-specific flags and the file argument, keeping everything else
+ * (standard jadx-cli options) for direct passthrough.
+ */
+function extractPassthroughArgs(): string[] {
+  const cmdArgs = process.argv.slice(2); // skip node and script
+  const openIdx = cmdArgs.indexOf("open");
+  if (openIdx === -1) return [];
+
+  const raw = cmdArgs.slice(openIdx + 1);
+  const jiapFlagsWithValue = ["-P", "--port", "-n", "--name"];
+  const jiapFlags = ["--force", "--json"];
+
+  const result: string[] = [];
+  let fileSkipped = false;
+  let i = 0;
+
+  while (i < raw.length) {
+    const arg = raw[i];
+
+    // Skip the first non-flag arg (file path)
+    if (!fileSkipped && !arg.startsWith("-")) {
+      fileSkipped = true;
+      i++;
+      continue;
+    }
+
+    // Skip JIAP flags with values (--flag value or --flag=value)
+    const isJiapWithValue = jiapFlagsWithValue.some(
+      (f) => arg === f || arg.startsWith(f + "=")
+    );
+    if (isJiapWithValue) {
+      i += arg.includes("=") ? 1 : 2;
+      continue;
+    }
+
+    // Skip JIAP boolean flags
+    if (jiapFlags.includes(arg)) {
+      i++;
+      continue;
+    }
+
+    result.push(arg);
+    i++;
+  }
+
+  return result;
 }
 
 function formatBytes(bytes: number): string {

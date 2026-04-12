@@ -22,7 +22,7 @@ tasks.processResources {
 
 tasks {
     named<com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar>("shadowJar") {
-        archiveBaseName = "jadx-server"
+        archiveBaseName = "jiap-server"
         archiveClassifier = ""
         archiveVersion = project.version.toString()
         mergeServiceFiles()

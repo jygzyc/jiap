@@ -17,9 +17,21 @@ metadata:
 | 命令 | 说明 |
 |------|------|
 | `jiap process check [--install]` | 检查环境状态，`--install` 安装缺失组件 |
-| `jiap process open <apk> [--name <name>]` | 打开 APK 分析（`--name` 自定义 session 名） |
+| `jiap process open <file> [options]` | 打开文件分析 |
 | `jiap process close [name] [--all]` | 关闭指定 session 或全部 |
 | `jiap process list` | 列出运行 session（NAME/PORT/PID/PATH） |
+| `jiap process status [name]` | 检查服务器状态 |
+| `jiap process install [-p]` | 安装 jiap-server.jar（`-p` 安装 prerelease） |
+
+**open 选项：**
+
+| 选项 | 说明 |
+|------|------|
+| `-P, --port <port>` | 服务器端口 |
+| `--force` | 强制启动（忽略已有 session） |
+| `-n, --name <name>` | 自定义 session 名 |
+
+所有标准 jadx-cli 选项直接透传，常用：`--deobf`、`--no-res`、`--show-bad-code`、`-j`/`--threads-count`、`--no-imports`、`--no-debug-info`、`--escape-unicode`、`--log-level` 等。
 
 ### code - 代码分析
 
@@ -49,7 +61,7 @@ metadata:
 | `jiap ard all-resources` | 所有资源文件名 |
 | `jiap ard resource-file <res>` | 获取资源文件内容 |
 | `jiap ard strings` | 获取 strings.xml 内容 |
-| `jiap ard receivers` | 动态广播接收器 |
+| `jiap ard app-receivers` | 动态广播接收器 |
 | `jiap ard system-service-impl <interface>` | 系统服务实现类 |
 
 ### 全局选项

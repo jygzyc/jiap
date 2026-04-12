@@ -1,11 +1,10 @@
 package jadx.plugins.jiap.server
 
-import jadx.api.JadxArgs
 import jadx.api.JadxDecompiler
+import jadx.cli.JadxCLIArgs
 import jadx.plugins.jiap.JiapConstants
 import jadx.plugins.jiap.http.JiapServer
 import jadx.plugins.jiap.utils.PluginUtils
-import java.io.File
 
 /**
  * JIAP Server — Java Intelligence Analysis Platform.
@@ -13,196 +12,142 @@ import java.io.File
  * Usage:
  *   java -jar jiap-server.jar <file> [options]
  *
- * Options:
+ * JIAP Options:
  *   -p, --port <port>           Server port (default: 25419)
- *   -t, --threads <n>           Decompilation threads (default: auto)
- *   --show-bad-code            Show inconsistent code
- *   --no-imports                Don't use import statements
- *   --no-inline-anonymous       Don't inline anonymous classes
- *   --no-res                   Skip resource decoding
- *   --no-debug-info             Don't decode debug info
- *   --deobf                     Activate deobfuscation
- *   --escape-unicode            Escape non-ASCII characters in strings
- *   --help                     Show this help
+ *
+ * All standard jadx-cli options are also supported.
+ * Run with --help for details.
  */
 object JiapServerApp {
 
-    @JvmStatic
-    fun main(args: Array<String>) {
-        val parsed = parseArgs(args)
-        if (parsed == null) return
+	@JvmStatic
+	fun main(args: Array<String>) {
+		val (port, jadxRawArgs) = extractPortAndFilterArgs(args)
 
-        val inputFile = parsed.inputPath
-        if (!inputFile.exists()) {
-            System.err.println("Error: File not found: ${inputFile.absolutePath}")
-            System.exit(1)
-        }
+		if (jadxRawArgs.contains("--help") || jadxRawArgs.contains("-h")) {
+			printHelp()
+			return
+		}
+		if (jadxRawArgs.contains("--version")) {
+			println("JIAP ${getVersion()}")
+			return
+		}
 
-        println("JIAP Server")
-        println("==========")
-        println("File:   ${inputFile.absolutePath}")
-        println("Port:   ${parsed.port}")
-        println()
+		val jadxArgs = try {
+			val cliArgs = JadxCLIArgs()
+			if (!cliArgs.processArgs(jadxRawArgs)) return
+			cliArgs.toJadxArgs()
+		} catch (e: Exception) {
+			System.err.println("Error: ${e.message}")
+			System.exit(1)
+			return
+		}
 
-        println("[*] Initializing decompiler...")
-        val jadxArgs = JadxArgs()
-        jadxArgs.inputFiles = listOf(inputFile)
-        if (parsed.threads > 0) jadxArgs.threadsCount = parsed.threads
-        if (parsed.showBadCode) jadxArgs.setShowInconsistentCode(true)
-        if (parsed.noImports) jadxArgs.setUseImports(false)
-        if (parsed.noInlineAnonymous) jadxArgs.setInlineAnonymousClasses(false)
-        if (parsed.noRes) jadxArgs.setSkipResources(true)
-        if (parsed.noDebugInfo) jadxArgs.setDebugInfo(false)
-        if (parsed.deobf) jadxArgs.setDeobfuscationOn(true)
-        if (parsed.escapeUnicode) jadxArgs.setEscapeUnicode(true)
+		// Validate input file
+		val inputFiles = jadxArgs.inputFiles
+		if (inputFiles.isNullOrEmpty()) {
+			System.err.println("Error: No file specified.")
+			System.err.println("Usage: java -jar jiap-server.jar <file> [options]")
+			System.exit(1)
+			return
+		}
+		val inputFile = inputFiles.first()
+		if (!inputFile.exists()) {
+			System.err.println("Error: File not found: ${inputFile.absolutePath}")
+			System.exit(1)
+			return
+		}
 
-        val decompiler: JadxDecompiler
-        try {
-            decompiler = JadxDecompiler(jadxArgs)
-            decompiler.load()
-        } catch (e: Exception) {
-            System.err.println("Error: Failed to initialize decompiler: ${e.message}")
-            System.exit(1)
-            return
-        }
+		println("JIAP Server")
+		println("==========")
+		println("File:   ${inputFile.absolutePath}")
+		println("Port:   $port")
+		println()
 
-        println("[*] Loading classes...")
-        val classCount = decompiler.classesWithInners?.size ?: 0
-        if (classCount == 0) {
-            System.err.println("Error: No classes found in ${inputFile.name}")
-            System.exit(1)
-            return
-        }
-        println("[+] Loaded $classCount classes")
+		println("[*] Initializing decompiler...")
+		val decompiler: JadxDecompiler
+		try {
+			decompiler = JadxDecompiler(jadxArgs)
+			decompiler.load()
+		} catch (e: Exception) {
+			System.err.println("Error: Failed to initialize decompiler: ${e.message}")
+			System.exit(1)
+			return
+		}
 
-        println("[*] Warming up decompiler engine...")
-        val warmupStart = System.currentTimeMillis()
-        val sdkPrefixes = listOf("android.support.", "androidx.", "java.", "javax.", "kotlin.", "kotlinx.")
-        val appClasses = decompiler.classesWithInners.filter { cls ->
-            sdkPrefixes.none { cls.fullName.startsWith(it) }
-        }
-        val toWarmup = if (appClasses.size > 15000) appClasses.shuffled().take(15000) else appClasses
-        toWarmup.forEach { cls ->
-            try { cls.decompile() } catch (_: Exception) {}
-        }
-        val warmupElapsed = System.currentTimeMillis() - warmupStart
-        println("[+] Warmup completed in ${warmupElapsed}ms")
+		println("[*] Loading classes...")
+		val classCount = decompiler.classesWithInners?.size ?: 0
+		if (classCount == 0) {
+			System.err.println("Error: No classes found in ${inputFile.name}")
+			System.exit(1)
+			return
+		}
+		println("[+] Loaded $classCount classes")
 
-        val server = JiapServer.create(decompiler, parsed.port)
-        val started = server.start(parsed.port)
-        if (!started) {
-            System.err.println("Error: Failed to start server on port ${parsed.port}")
-            System.exit(1)
-            return
-        }
+		println("[*] Warming up decompiler engine...")
+		val warmupStart = System.currentTimeMillis()
+		val sdkPrefixes = listOf("android.support.", "androidx.", "java.", "javax.", "kotlin.", "kotlinx.")
+		val appClasses = decompiler.classesWithInners.filter { cls ->
+			sdkPrefixes.none { cls.fullName.startsWith(it) }
+		}
+		val toWarmup = if (appClasses.size > 15000) appClasses.shuffled().take(15000) else appClasses
+		toWarmup.forEach { cls ->
+			try { cls.decompile() } catch (_: Exception) {}
+		}
+		val warmupElapsed = System.currentTimeMillis() - warmupStart
+		println("[+] Warmup completed in ${warmupElapsed}ms")
 
-        val serverUrl = PluginUtils.buildServerUrl(port = parsed.port, running = true)
-        println()
-        println("[+] JIAP Server running at $serverUrl")
-        println("[+] API: POST ${serverUrl}/api/jiap/<endpoint>")
-        println("[+] Health: GET ${serverUrl}/health")
-        println()
-        println("Press Ctrl+C to stop.")
+		val server = JiapServer.create(decompiler, port)
+		val started = server.start(port)
+		if (!started) {
+			System.err.println("Error: Failed to start server on port $port")
+			System.exit(1)
+			return
+		}
 
-        try {
-            Thread.currentThread().join()
-        } catch (_: InterruptedException) {
-            println("\n[*] Shutting down...")
-            server.stop()
-        }
-    }
+		val serverUrl = PluginUtils.buildServerUrl(port = port, running = true)
+		println()
+		println("[+] JIAP Server running at $serverUrl")
+		println("[+] API: POST ${serverUrl}/api/jiap/<endpoint>")
+		println("[+] Health: GET ${serverUrl}/health")
+		println()
+		println("Press Ctrl+C to stop.")
 
-    private data class ParsedArgs(
-        val inputPath: File,
-        val port: Int,
-        val threads: Int,
-        val showBadCode: Boolean,
-        val noImports: Boolean,
-        val noInlineAnonymous: Boolean,
-        val noRes: Boolean,
-        val noDebugInfo: Boolean,
-        val deobf: Boolean,
-        val escapeUnicode: Boolean,
-    )
+		try {
+			Thread.currentThread().join()
+		} catch (_: InterruptedException) {
+			println("\n[*] Shutting down...")
+			server.stop()
+		}
+	}
 
-    private fun parseArgs(args: Array<String>): ParsedArgs? {
-        var port = JiapConstants.DEFAULT_PORT
-        var threads = 0
-        var showBadCode = false
-        var noImports = false
-        var noInlineAnonymous = false
-        var noRes = false
-        var noDebugInfo = false
-        var deobf = false
-        var escapeUnicode = false
-        var inputPath: String? = null
-        var i = 0
+	private fun extractPortAndFilterArgs(args: Array<String>): Pair<Int, Array<String>> {
+		var port = JiapConstants.DEFAULT_PORT
+		val result = mutableListOf<String>()
+		var i = 0
+		while (i < args.size) {
+			when (args[i]) {
+				"--port", "-p" -> {
+					i++
+					if (i >= args.size) {
+						System.err.println("Error: --port requires a value")
+						System.exit(1)
+					}
+					port = args[i].toIntOrNull() ?: run {
+						System.err.println("Error: Invalid port: ${args[i]}")
+						System.exit(1)
+						port
+					}
+				}
+				else -> result.add(args[i])
+			}
+			i++
+		}
+		return Pair(port, result.toTypedArray())
+	}
 
-        while (i < args.size) {
-            when (args[i]) {
-                "-p", "--port" -> {
-                    i++
-                    if (i >= args.size) {
-                        System.err.println("Error: --port requires a value")
-                        System.exit(1)
-                        return null
-                    }
-                    port = args[i].toIntOrNull() ?: run {
-                        System.err.println("Error: Invalid port: ${args[i]}")
-                        System.exit(1)
-                        return null
-                    }
-                }
-                "-t", "--threads" -> {
-                    i++
-                    if (i >= args.size) {
-                        System.err.println("Error: --threads requires a value")
-                        System.exit(1)
-                        return null
-                    }
-                    threads = args[i].toIntOrNull() ?: run {
-                        System.err.println("Error: Invalid threads: ${args[i]}")
-                        System.exit(1)
-                        return null
-                    }
-                }
-                "--show-bad-code" -> showBadCode = true
-                "--no-imports" -> noImports = true
-                "--no-inline-anonymous" -> noInlineAnonymous = true
-                "--no-res" -> noRes = true
-                "--no-debug-info" -> noDebugInfo = true
-                "--deobf" -> deobf = true
-                "--escape-unicode" -> escapeUnicode = true
-                "--help", "-h" -> {
-                    printHelp()
-                    return null
-                }
-                else -> {
-                    if (inputPath != null) {
-                        System.err.println("Error: Unexpected argument: ${args[i]}")
-                        System.err.println("Only one file can be specified.")
-                        System.exit(1)
-                        return null
-                    }
-                    inputPath = args[i]
-                }
-            }
-            i++
-        }
-
-        if (inputPath == null) {
-            System.err.println("Error: No file specified.")
-            System.err.println("Usage: java -jar jiap-server.jar <file> [options]")
-            System.err.println("Run with --help for more information.")
-            System.exit(1)
-            return null
-        }
-
-        return ParsedArgs(File(inputPath), port, threads, showBadCode, noImports, noInlineAnonymous, noRes, noDebugInfo, deobf, escapeUnicode)
-    }
-
-    private fun printHelp() {
-        println("""
+	private fun printHelp() {
+		println("""
 JIAP Server — Java Intelligence Analysis Platform
 
 Usage:
@@ -211,22 +156,27 @@ Usage:
 Arguments:
   <file>                   Path to APK, DEX, JAR, AAR, or class file
 
-Options:
+JIAP Options:
   -p, --port <port>           Server port (default: ${JiapConstants.DEFAULT_PORT})
-  -t, --threads <n>           Decompilation threads (default: auto)
-  --show-bad-code            Show inconsistent code
-  --no-imports                Don't use import statements
-  --no-inline-anonymous       Don't inline anonymous classes
-  --no-res                   Skip resource decoding
-  --no-debug-info             Don't decode debug info
+
+JADX Options:
+  All standard jadx-cli options are supported. Common ones:
+  -j, --threads-count <n>     Processing threads count
+  --show-bad-code             Show inconsistent code
+  --no-imports                Disable use of import statements
+  --no-inline-anonymous       Disable anonymous classes inline
+  -r, --no-res                Do not decode resources
+  --no-debug-info             Disable debug info parsing
   --deobf                     Activate deobfuscation
   --escape-unicode            Escape non-ASCII characters in strings
-  -h, --help                  Show this help
+  --log-level <level>         Set log level (quiet, progress, error, warn, info, debug)
+
+  For full list of options, see: https://github.com/skylot/jadx
 
 Examples:
   java -jar jiap-server.jar app.apk
   java -jar jiap-server.jar classes.dex --port 9000
-  java -jar jiap-server.jar library.jar -t 8 --no-res --show-bad-code
+  java -jar jiap-server.jar library.jar -j 8 --no-res --show-bad-code
   java -jar jiap-server.jar app.apk --deobf --no-imports
 
 API Endpoints:
@@ -240,18 +190,18 @@ API Endpoints:
   POST /api/jiap/get_exported_components  Get exported components
   GET  /health                           Health check
         """.trimIndent())
-        println()
-        println("JIAP version: ${getVersion()}")
-        println("JADX core:   (bundled)")
-        println()
-        println("License: GNU General Public License v3.0")
-        println("Source:      https://github.com/jygzyc/jiap")
-        println()
-        print("CLI tool connects to this server using: jiapcli -P <port>\n")
-        println()
-    }
+		println()
+		println("JIAP version: ${getVersion()}")
+		println("JADX core:   (bundled)")
+		println()
+		println("License: GNU General Public License v3.0")
+		println("Source:      https://github.com/jygzyc/jiap")
+		println()
+		print("CLI tool connects to this server using: jiapcli -P <port>\n")
+		println()
+	}
 
-    private fun getVersion(): String {
-        return System.getenv("JIAP_VERSION") ?: "dev"
-    }
+	private fun getVersion(): String {
+		return System.getenv("JIAP_VERSION") ?: "dev"
+	}
 }
