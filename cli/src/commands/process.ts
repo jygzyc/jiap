@@ -65,6 +65,7 @@ export function makeProcessCommand(): Command {
   cmd
     .command("open <file>")
     .allowUnknownOption(true)
+    .allowExcessArguments(true)
     .description("Open and analyze a file (APK, DEX, JAR, etc.). Standard jadx-cli options are passed through.")
     .option("-P, --port <port>", "Server port")
     .option("--force", "Force start even if a session already exists")
