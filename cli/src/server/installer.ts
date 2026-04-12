@@ -30,18 +30,38 @@ export function findJiapServerJar(): string | null {
 /**
  * Download and install the latest jiap-server.jar from GitHub releases.
  */
-export async function installJiapServer(fmt: Formatter): Promise<[boolean, string]> {
+export async function installJiapServer(fmt: Formatter, prerelease: boolean = false): Promise<[boolean, string]> {
   try {
-    fmt.info("Fetching latest release info from GitHub...");
+    if (prerelease) {
+      fmt.info("Fetching latest prerelease info from GitHub...");
+    } else {
+      fmt.info("Fetching latest release info from GitHub...");
+    }
 
-    const res = await fetch("https://api.github.com/repos/jygzyc/jiap/releases/latest", {
+    const endpoint = prerelease
+      ? "https://api.github.com/repos/jygzyc/jiap/releases?per_page=10"
+      : "https://api.github.com/repos/jygzyc/jiap/releases/latest";
+
+    const res = await fetch(endpoint, {
       headers: { "Accept": "application/vnd.github+json" },
     });
     if (!res.ok) {
       return [false, `GitHub API error: HTTP ${res.status}`];
     }
 
-    const release = await res.json() as { tag_name: string; assets: Array<{ name: string; browser_download_url: string }> };
+    let release: { tag_name: string; assets: Array<{ name: string; browser_download_url: string }> };
+
+    if (prerelease) {
+      const releases = await res.json() as Array<{ tag_name: string; prerelease: boolean; assets: Array<{ name: string; browser_download_url: string }> }>;
+      const pre = releases.find((r) => r.prerelease);
+      if (!pre) {
+        return [false, "No prerelease found"];
+      }
+      release = pre;
+    } else {
+      release = await res.json() as { tag_name: string; assets: Array<{ name: string; browser_download_url: string }> };
+    }
+
     const asset = release.assets.find((a) => a.name.includes("jiap-server"));
 
     if (!asset) {
@@ -49,7 +69,7 @@ export async function installJiapServer(fmt: Formatter): Promise<[boolean, strin
     }
 
     fmt.info(`Downloading ${asset.name} (v${release.tag_name})...`);
-    mkdirSync(path.join(INSTALL_DIR, "bin"), { recursive: true });
+    mkdirSync(INSTALL_DIR, { recursive: true });
 
     const downloadRes = await fetch(asset.browser_download_url, { redirect: "follow" });
     if (!downloadRes.ok || !downloadRes.body) {
