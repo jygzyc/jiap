@@ -106,9 +106,8 @@ jobs:
 
     - name: Delete old prereleases
       run: |
-        gh release list --limit 100 | grep "prerelease" | awk '{print $1}' | while read -r tag; do
-          gh release delete "$tag" --yes || true
-          git push origin ":refs/tags/$tag" || true
+        gh release list --limit 100 | awk '/^prerelease-/{print $1}' | while read -r tag; do
+          gh release delete "$tag" --cleanup-tag --yes || true
         done
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
