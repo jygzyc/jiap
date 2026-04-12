@@ -1,23 +1,17 @@
 {
-  "name": "@jygzyc/jiap-cli",
-  "version": "1.0.0",
+  "name": "jiap-cli",
+  "version": "1.1.0",
   "description": "JIAP CLI - Java Intelligence Analysis Platform (TypeScript)",
   "type": "module",
   "bin": {
-    "jiap": "./dist/src/index.js"
+    "jiap": "./dist/index.js"
   },
   "scripts": {
-    "build": "node scripts/build.mjs",
-    "dev": "tsc --watch",
-    "start": "node --import tsx src/index.ts",
     "clean": "rm -rf dist",
-    "typecheck": "tsc --noEmit",
+    "build": "node scripts/build.mjs",
+    "dev": "node --import tsx src/index.ts",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --forceExit",
-    "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch --forceExit",
-    "lint": "eslint src/**/*.ts",
-    "format": "prettier --write src/**/*.ts",
-    "prepare": "husky install 2>/dev/null || true",
-    "precommit": "lint-staged"
+    "lint": "eslint src/**/*.ts"
   },
   "dependencies": {
     "commander": "^13.0.0",
@@ -31,9 +25,7 @@
     "@typescript-eslint/parser": "^8.58.1",
     "esbuild": "^0.28.0",
     "eslint": "^8.0.0",
-    "husky": "^8.0.0",
     "jest": "^29.0.0",
-    "prettier": "^3.0.0",
     "ts-jest": "^29.0.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0"
@@ -51,7 +43,7 @@
     "jiap"
   ],
   "author": "Yves",
-  "license": "GNU-3.0",
+  "license": "GPL-3.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/jygzyc/jiap"
