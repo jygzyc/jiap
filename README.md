@@ -172,10 +172,7 @@ JIAP provides a TypeScript CLI for programmatic access to the analysis platform.
 **Installation:**
 
 ```bash
-cd cli
-npm install
-npm run build
-npm link  # Register 'jiap' command globally
+npm install -g jiap-cli
 ```
 
 **Process Management:**
