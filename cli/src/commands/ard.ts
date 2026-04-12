@@ -63,7 +63,7 @@ export function makeArdCommand(): Command {
     });
 
   cmd
-    .command("receivers")
+    .command("app-receivers")
     .description("List dynamic broadcast receivers")
     .option("--page <n>", "Page number", String)
     .action(async (opts) => {

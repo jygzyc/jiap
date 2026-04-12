@@ -51,9 +51,13 @@ describe("withErrorHandler", () => {
   const mockExit = jest.spyOn(process, "exit").mockImplementation((() => {
     throw new Error("process.exit");
   }) as () => never);
+  const mockConsole = jest.spyOn(console, "error").mockImplementation(() => {});
+  const mockLog = jest.spyOn(console, "log").mockImplementation(() => {});
 
   afterAll(() => {
     mockExit.mockRestore();
+    mockConsole.mockRestore();
+    mockLog.mockRestore();
   });
 
   it("calls handler normally on success", async () => {
