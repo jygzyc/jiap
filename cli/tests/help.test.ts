@@ -143,7 +143,7 @@ describe("ard", () => {
   it("registers 10 subcommands", () => {
     expect(getSubcommandNames(cmd)).toEqual([
       "app-manifest", "main-activity", "app-application",
-      "exported-components", "app-deeplinks", "receivers",
+      "exported-components", "app-deeplinks", "app-receivers",
       "system-service-impl",
       "all-resources", "resource-file", "strings",
     ]);
