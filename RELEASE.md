@@ -1,21 +1,21 @@
-# JIAP v2.0.0
+# JIAP v2.1.0
 
 ### Changes
 
-- Architecture: split monolithic `jiap` into `jiap-core`, `jiap-plugin`, `jiap-server` multi-module Gradle projects for cleaner separation of API, plugin UI, and headless server.
-- CLI: add standalone TypeScript CLI (`jiap process` / `jiap ard` / `jiap code`) with session management, typed API client, and CI build pipeline.
-- Session: replace PID-based sessions with name-based sessions for better stability and persistence across process restarts.
-- API: add resource analysis endpoints for asset extraction, field cross-references, exported components, deep links, and dynamic receivers.
-- Skill: replace legacy `jiap-analyst` with `jiapcli` core skill and `jiapcli-vulnhunt` hunting skill, including 51 categorized vulnerability references.
-- Runtime: raise minimum Java version to 11, add MCP auto-start config, and simplify plugin UI.
-- Build: add GitHub Actions workflow for CLI (`build-cli.yml`) and multi-module JAR packaging.
+- Server: replace hardcoded JADX argument parsing with `JadxCLIArgs` passthrough — all standard jadx-cli options are now supported directly (e.g. `--deobf`, `--no-res`, `-j`, `--decompilation-mode`, `--rename-flags`, etc.).
+- CLI: remove hardcoded JADX options from `process open`, transparently forward unknown args to jiap-server.
+- CLI: migrate from pnpm to npm, clean up unused dev dependencies.
+- CLI: read version from `package.json` instead of hardcoding.
+- CLI: rename `receivers` command to `app-receivers` for consistency.
+- CI (jiap): prerelease version now uses latest git tag + unix timestamp (e.g. `2.1.0-1718300400`).
+- CI (jiap): fix prerelease cleanup to atomically delete releases and tags.
+- CI (cli): use artifact sharing to avoid duplicate build in publish job.
 
 ### Fixes
 
-- Performance: eliminate double hash computation on APK open.
-- Dedup: add hash check to prevent analyzing the same APK under different names.
+- CLI: fix "too many arguments" error when passing jadx-cli options through `process open`.
+- CLI: fix nested `~/.jiap/bin/bin/` directory creation in installer.
 
-### Removed
+### Docs
 
-- `preprocessor/` directory and `docs/` directory.
-- Legacy `skills/jiap-analyst/` skill.
+- Update README and SKILL.md to reflect npm install and jadx option passthrough.
