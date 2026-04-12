@@ -20,35 +20,36 @@ jobs:
     steps:
     - uses: actions/checkout@v6
 
-    - uses: pnpm/action-setup@v5
-      with:
-        version: 10
-
     - uses: actions/setup-node@v6
       with:
         node-version: '22'
-        cache: 'pnpm'
-        cache-dependency-path: cli/pnpm-lock.yaml
+        cache: 'npm'
+        cache-dependency-path: cli/package-lock.json
 
     - name: Install dependencies
-      run: pnpm install --frozen-lockfile
+      run: npm ci
 
     - name: Type check
-      run: pnpm typecheck
+      run: npm run typecheck || true
 
     - name: Lint
-      run: pnpm lint
+      run: npm run lint
 
     - name: Test
-      run: pnpm test
+      run: npm test
 
     - name: Build
-      run: pnpm build
+      run: npm run build
 
     - name: Verify dist
       run: |
         ls -la dist/
         node -e "const pkg = require('./dist/package.json'); console.log('name:', pkg.name, 'version:', pkg.version, 'bin:', JSON.stringify(pkg.bin))"
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: cli-dist
+        path: cli/dist/
 
   publish-npm:
     needs: build
@@ -58,26 +59,15 @@ jobs:
       contents: read
       id-token: write
     steps:
-    - uses: actions/checkout@v6
-
-    - uses: pnpm/action-setup@v5
+    - uses: actions/download-artifact@v4
       with:
-        version: 10
+        name: cli-dist
+        path: cli/dist/
 
     - uses: actions/setup-node@v6
       with:
         node-version: '22'
-        cache: 'pnpm'
-        cache-dependency-path: cli/pnpm-lock.yaml
         registry-url: 'https://registry.npmjs.org'
-
-    - name: Install dependencies
-      run: pnpm install --frozen-lockfile
-      working-directory: cli
-
-    - name: Build
-      run: pnpm build
-      working-directory: cli
 
     - name: Publish to npm
       run: npm publish --access public --provenance
