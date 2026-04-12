@@ -8,8 +8,8 @@
  */
 
 import { build } from "esbuild";
-import { cpSync, rmSync, mkdirSync, readdirSync, statSync, existsSync } from "fs";
-import { join, relative, dirname } from "path";
+import { rmSync, readdirSync, statSync } from "fs";
+import { join, dirname } from "path";
 import { execSync } from "child_process";
 
 const ROOT = join(dirname(new URL(import.meta.url).pathname), "..");
@@ -45,6 +45,11 @@ console.log("▸ Bundling with esbuild...");
 
 const entryPoint = join(SRC, "index.ts");
 
+// Read version for esbuild define
+const pkgJson = JSON.parse(
+  await import("fs").then(fs => fs.promises.readFile(join(ROOT, "package.json"), "utf-8"))
+);
+
 await build({
   entryPoints: [entryPoint],
   bundle: true,
@@ -58,28 +63,28 @@ await build({
   sourcemap: false,
   metafile: true,
   logLevel: "info",
+  define: {
+    "process.env.npm_package_version": JSON.stringify(pkgJson.version),
+  },
 });
 
 // ── Step 4: Copy package.json (production only) ────────────────────────────
 console.log("▸ Copying package.json...");
-const pkg = JSON.parse(
-  await import("fs").then(fs => fs.promises.readFile(join(ROOT, "package.json"), "utf-8"))
-);
 // Keep only production fields
 const prodPkg = {
-  name: pkg.name,
-  version: pkg.version,
-  description: pkg.description,
-  type: pkg.type,
+  name: pkgJson.name,
+  version: pkgJson.version,
+  description: pkgJson.description,
+  type: pkgJson.type,
   bin: { jiap: "./index.js" },
-  engines: pkg.engines,
-  keywords: pkg.keywords,
-  author: pkg.author,
-  license: pkg.license,
-  repository: pkg.repository,
-  bugs: pkg.bugs,
-  homepage: pkg.homepage,
-  dependencies: { ...pkg.dependencies },
+  engines: pkgJson.engines,
+  keywords: pkgJson.keywords,
+  author: pkgJson.author,
+  license: pkgJson.license,
+  repository: pkgJson.repository,
+  bugs: pkgJson.bugs,
+  homepage: pkgJson.homepage,
+  dependencies: { ...pkgJson.dependencies },
 };
 const { writeFileSync } = await import("fs");
 writeFileSync(join(DIST, "package.json"), JSON.stringify(prodPkg, null, 2) + "\n");
