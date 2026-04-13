@@ -40,9 +40,13 @@ export function makeProcessCommand(): Command {
       // Check running server
       const [serverOk, serverInfo] = await checkServer(port);
 
+      // Check port availability
+      const [portInUse] = await checkServer(port, 1);
+
       const results = {
         server: { ok: serverOk, info: serverInfo },
         jar: { ok: jarOk, info: jarInfo },
+        port: { ok: !portInUse, info: portInUse ? `Port ${port} is already in use` : `Port ${port} is available` },
       };
 
       if (opts.json) {
@@ -75,6 +79,25 @@ export function makeProcessCommand(): Command {
       const fmt = new Formatter(opts.json);
       const mgr = Manager.get();
       const port = opts.port ? parseInt(opts.port) : mgr.server.defaultPort;
+
+      // --- Check port availability first ---
+      const [portInUse] = await checkServer(port, 1);
+      if (portInUse) {
+        const aliveSessions = mgr.listAliveSessions();
+        const portSession = aliveSessions.find(s => s.port === port);
+        if (portSession) {
+          throw new ProcessError(
+            `Port ${port} is already in use by session '${portSession.name}' (${portSession.path}). ` +
+            `Use --port to specify a different port, or close that session first.`,
+            port
+          );
+        }
+        throw new ProcessError(
+          `Port ${port} is already in use by an unknown process. ` +
+          `Use --port to specify a different port.`,
+          port
+        );
+      }
 
       const jarPath = findJiapServerJar();
       if (!jarPath) {
@@ -120,26 +143,6 @@ export function makeProcessCommand(): Command {
             );
           }
         }
-      }
-
-      // --- Check port availability ---
-      const [portInUse] = await checkServer(port, 1);
-      if (portInUse) {
-        // Port is occupied — see if it's one of our sessions
-        const aliveSessions = mgr.listAliveSessions();
-        const portSession = aliveSessions.find(s => s.port === port);
-        if (portSession) {
-          throw new ProcessError(
-            `Port ${port} is already in use by session '${portSession.name}' (${portSession.path}). ` +
-            `Use --port to specify a different port, or close that session first.`,
-            port
-          );
-        }
-        throw new ProcessError(
-          `Port ${port} is already in use by an unknown process. ` +
-          `Use --port to specify a different port.`,
-          port
-        );
       }
 
       // --- Spawn jiap-server ---

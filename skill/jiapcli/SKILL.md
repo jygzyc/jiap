@@ -14,6 +14,10 @@ metadata:
 
 不确定命令或选项时，优先通过 `--help` 确认，不要猜测。例如 `jiap process open --help`、`jiap code --help`。
 
+**每个 `open` 任务结束后必须调用 `close` 释放资源。** 使用 `jiap process close [name]` 关闭指定 session，或 `jiap process close -a` 关闭全部。
+
+**必须通过 `-P <port>` 指定端口。** 端口可随机选取，建议在 25000–65535 之间以避免与常见服务冲突。
+
 ## 命令参考
 
 ### process - 进程管理
@@ -46,7 +50,7 @@ metadata:
 
 **jadx-cli 选项透传：**
 
-所有标准 jadx-cli 选项直接透传，常用：`--deobf`、`--no-res`、`--show-bad-code`、`-j`/`--threads-count`、`--no-imports`、`--no-debug-info`、`--escape-unicode`、`--log-level` 等。
+所有标准 jadx-cli 选项直接透传，常用：`--deobf`、`--no-res`、`--show-bad-code`、`-j`/`--threads-count`、`--no-imports`、`--no-debug-info`、`--escape-unicode`、`--log-level` 等，推荐`--show-bad-code`和`--no-imports`用于完整分析。
 
 ### code - 代码分析
 
