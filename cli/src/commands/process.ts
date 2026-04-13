@@ -3,10 +3,10 @@
  */
 
 import { Command } from "commander";
-import { spawn } from "child_process";
+import { spawn, execSync } from "child_process";
 import * as path from "path";
 import * as os from "os";
-import { createWriteStream, existsSync, mkdirSync } from "fs";
+import { createWriteStream, existsSync, mkdirSync, openSync, closeSync } from "fs";
 import { createHash } from "crypto";
 import { JIAPClient } from "../core/client.js";
 import { Formatter } from "../utils/formatter.js";
@@ -146,11 +146,18 @@ export function makeProcessCommand(): Command {
       const jadxArgs = extractPassthroughArgs();
       const javaArgs = ["-jar", jarPath, resolvedFile, "--port", String(port), ...jadxArgs];
 
+      // Redirect stdout/stderr to a log file for debugging.
+      // On Windows, stdio:"ignore" sets handles to NULL which can crash Java on write.
+      const logDir = path.join(os.homedir(), ".jiap", "logs");
+      mkdirSync(logDir, { recursive: true });
+      const logPath = path.join(logDir, `${fileName}.log`);
+      const logFd = openSync(logPath, "a");
       let proc;
+
       try {
-        proc = spawn("java", javaArgs, { detached: true, stdio: "ignore" });
-      } catch (err) {
-        throw new ProcessError(`Failed to start jiap-server: ${err}`);
+        proc = spawn("java", javaArgs, { detached: true, stdio: ["ignore", logFd, logFd] });
+      } finally {
+        closeSync(logFd); // Child has its own inherited handle
       }
 
       if (!proc.pid) {
@@ -159,15 +166,32 @@ export function makeProcessCommand(): Command {
 
       proc.unref();
 
+      // Early failure detection: if Java exits before the server is ready, fail fast
+      let processExited = false;
+      let processExitCode: number | null = null;
+      proc.on("exit", (code) => {
+        processExited = true;
+        processExitCode = code;
+      });
+
       const session = await mgr.createSession(fileName, fileHash, resolvedFile, proc.pid, port);
       fmt.success(`Started (name: ${session.name}, PID: ${proc.pid}, Port: ${port})`);
 
-      // Wait for server
+      // Wait for server (with early exit check)
       const timeout = 30;
-      const ready = await waitForServer(port, timeout);
+      const ready = await waitForServer(port, timeout, () => processExited);
       if (ready) {
         fmt.success(`Server ready at http://127.0.0.1:${port}`);
+        fmt.info(`Log: ${logPath}`);
       } else {
+        // Server failed to start — clean up session
+        mgr.removeSession(fileName);
+        if (processExited) {
+          throw new ServerError(
+            `jiap-server exited unexpectedly (code: ${processExitCode}). Check log: ${logPath}`,
+            port
+          );
+        }
         throw new ServerError(`Server did not start within ${timeout}s on port ${port}`, port);
       }
 
@@ -331,9 +355,10 @@ async function checkServer(port: number, retries: number = 3): Promise<[boolean,
   return [false, `No server on port ${port}`];
 }
 
-async function waitForServer(port: number, timeout: number = 30): Promise<boolean> {
+async function waitForServer(port: number, timeout: number = 30, shouldAbort?: () => boolean): Promise<boolean> {
   const start = Date.now();
   while (Date.now() - start < timeout * 1000) {
+    if (shouldAbort?.()) return false;
     try {
       const response = await fetch(`http://127.0.0.1:${port}/health`);
       if (response.ok) return true;
@@ -346,16 +371,17 @@ async function waitForServer(port: number, timeout: number = 30): Promise<boolea
 /**
  * Kill an entire process group (handles detached processes with children).
  * On Unix, uses negative PID to signal the process group.
+ * On Windows, uses taskkill /T to kill the process tree.
  */
 async function killProcessGroup(pid: number): Promise<boolean> {
+  if (process.platform === "win32") {
+    return killProcessTreeWin(pid);
+  }
+
   const tryKill = (sig: string) => {
     try {
       // Negative PID = kill entire process group (for detached: true)
-      if (process.platform !== "win32") {
-        process.kill(-pid, sig as NodeJS.Signals);
-      } else {
-        process.kill(pid, sig as NodeJS.Signals);
-      }
+      process.kill(-pid, sig as NodeJS.Signals);
       return true;
     }
     catch { return false; }
@@ -379,6 +405,41 @@ async function killProcessGroup(pid: number): Promise<boolean> {
     await new Promise(r => setTimeout(r, 50));
   }
   return false;
+}
+
+/**
+ * Kill a process tree on Windows using taskkill.
+ * First tries graceful kill (/T), then force kill (/T /F) as fallback.
+ */
+function killProcessTreeWin(pid: number): Promise<boolean> {
+  const tryTaskkill = (force: boolean): boolean => {
+    try {
+      execSync(`taskkill /T${force ? " /F" : ""} /PID ${pid}`, { stdio: "ignore" });
+      return true;
+    } catch { return false; }
+  };
+
+  // Try graceful kill first
+  tryTaskkill(false);
+
+  return new Promise<boolean>(resolve => {
+    const check = (deadline: number) => {
+      try { process.kill(pid, 0); } catch { return resolve(true); }
+      if (Date.now() > deadline) {
+        // Force kill as last resort
+        if (tryTaskkill(true)) {
+          setTimeout(() => {
+            try { process.kill(pid, 0); resolve(false); } catch { resolve(true); }
+          }, 1000);
+        } else {
+          resolve(false);
+        }
+        return;
+      }
+      setTimeout(() => check(deadline), 50);
+    };
+    setTimeout(() => check(Date.now() + 2000), 500);
+  });
 }
 
 const URL_RE = /^https?:\/\//i;
