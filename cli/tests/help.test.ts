@@ -95,11 +95,11 @@ describe("code", () => {
     cmd = findCommand(createProgram(), ["code"])!;
   });
 
-  it("registers 11 subcommands", () => {
+  it("registers 12 subcommands", () => {
     expect(getSubcommandNames(cmd)).toEqual([
       "all-classes", "class-info", "class-source", "method-source",
       "search-class", "search-method", "xref-method", "xref-class",
-      "xref-field", "implement", "subclass",
+      "xref-field", "implement", "subclass", "get-aidl",
     ]);
   });
 
