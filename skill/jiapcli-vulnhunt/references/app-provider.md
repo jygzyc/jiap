@@ -16,19 +16,19 @@ ContentProvider 是 Android 数据共享的核心机制。导出的 Provider 可
 ## 分析流程
 
 ```
-1. jiap ard exported-components          → 列出导出 Provider
-2. jiap code search-method "ContentProvider" → 定位 Provider 实现
+1. jiap ard exported-components -P <port>          → 列出导出 Provider
+2. jiap code search-method "ContentProvider" -P <port> → 定位 Provider 实现
 3. 对每个导出 Provider：
-   a. jiap code class-source <Provider>  → 获取源码
+   a. jiap code class-source <Provider> -P <port>  → 获取源码
    b. 检查 query() 方法是否拼接 SQL（注入）
    c. 检查 openFile() 是否校验路径（遍历）
    d. 检查 call() 方法暴露的操作
    e. 检查 getType() 返回的信息
    f. 检查 applyBatch() / bulkInsert() 是否缺乏校验（批量操作）
 4. 检查 FileProvider 配置：
-   jiap code search-class "FileProvider"
-   jiap ard resource-file res/xml/file_paths.xml → 检查路径配置
-5. jiap code xref-method "android.content.ContentResolver.query(...)" → 追踪查询调用
+   jiap code search-class "FileProvider" -P <port>
+   jiap ard resource-file res/xml/file_paths.xml -P <port> → 检查路径配置
+5. jiap code xref-method "android.content.ContentResolver.query(android.net.Uri,java.lang.String[],java.lang.String,java.lang.String[],java.lang.String):android.database.Cursor" -P <port> → 追踪查询调用
 ```
 
 ## 关键追踪模式

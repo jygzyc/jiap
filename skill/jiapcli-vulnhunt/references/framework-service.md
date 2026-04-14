@@ -16,17 +16,17 @@
 ## 分析流程
 
 ```
-1. jiap ard system-service-impl <Interface> → 定位系统服务实现
-2. jiap code class-source <ServiceImpl>     → 获取实现类源码
+1. jiap ard system-service-impl <Interface> -P <port> → 定位系统服务实现
+2. jiap code class-source <ServiceImpl> -P <port>     → 获取实现类源码
 3. 检查 Binder 调用模式：
    a. 搜索 clearCallingIdentity / restoreCallingIdentity → 身份操作
    b. 搜索 enforceCallingPermission / checkCallingPermission → 权限检查
    c. 搜索 getCallingUid / getCallingPid → 身份获取
 4. 检查 Intent 转发：
-   jiap code xref-method "android.content.Context.startActivity(...)"
+   jiap code xref-method "android.content.Context.startActivity(android.content.Intent):void" -P <port>
    → 系统服务中以 system 身份启动 Intent 的调用
 5. 检查数据返回：
-   jiap code xref-method "android.os.Binder.getCallingUid()"
+   jiap code xref-method "android.os.Binder.getCallingUid():int" -P <port>
    → 基于 UID 的权限判断逻辑
 6. 检查竞态条件：
    同步块范围、锁粒度、异步回调中的状态一致性

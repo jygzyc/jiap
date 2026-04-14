@@ -8,163 +8,256 @@ metadata:
 
 # JIAP CLI — Android 漏洞挖掘
 
-Android 组件级漏洞挖掘方法论。提供攻击面枚举、数据流追踪、可利用性判定和风险评级参考。
+Android 组件级漏洞挖掘方法论。漏洞发现和评估由本 skill 完成，PoC 构造交由 `jiapcli-poc`。
 
-**职责边界**：本 skill 负责漏洞发现和可利用性评估。PoC 应用构造和编译验证交由 skill `jiapcli-poc` 完成。
+命令参考见 `jiapcli`。
 
-命令参考见通用 skill `jiapcli`。
+## 命令格式强制规则
+
+> 来自 `jiapcli` skill，必须遵守：
+> - 所有 `jiap code` / `jiap ard` 命令必须携带 `-P <port>`
+> - 方法签名格式：`package.Class.methodName(paramType1,paramType2):returnType`，**禁止 `...`**
+> - 不确定命令时先 `--help`，不要猜测
 
 ## 漏洞挖掘流程
 
 ### Phase 1：环境准备
 
 ```
-jiap process open <apk-path> -P <port>  → 打开 APK 启动分析服务
-jiap process status -P <port>           → 确认服务运行正常
+jiap process open <apk-path> -P <port>  → 打开 APK（端口建议 25000–65535）
+jiap process status -P <port>           → 确认服务正常
 ```
 
-分析完成后释放资源：`jiap process close <name> -P <port>`
+分析完成后：`jiap process close <name> -P <port>`
 
 ### Phase 2：攻击面枚举
 
 ```
-jiap ard exported-components         → 列出所有导出组件（攻击入口）
-jiap ard app-deeplinks               → 列出 Deep Link 入口（远程可达）
-jiap ard app-receivers               → 列出动态注册的广播接收器
-jiap ard app-manifest                → 获取完整 Manifest（权限声明、组件配置）
-jiap ard strings                     → 硬编码字符串（URL、Token、密钥）
+jiap ard exported-components -P <port>  → 导出组件列表
+jiap ard app-deeplinks -P <port>        → Deep Link 入口
+jiap ard app-receivers -P <port>        → 动态广播接收器
+jiap ard app-manifest -P <port>         → 完整 Manifest
+jiap ard strings -P <port>              → 硬编码字符串
 ```
 
-输出攻击面清单：每个导出组件的包名、类名、导出方式（`exported=true` / `intent-filter`）、权限保护情况。
+输出攻击面清单：每个导出组件的类名、导出方式、权限声明。
 
-**权限保护判定规则**：对每个导出组件声明的权限（`android:permission` / `android:readPermission` / `android:writePermission`），必须回查 Manifest 中该权限的 `protectionLevel`：
+**权限保护判定** — 回查 Manifest 中权限的 `protectionLevel`：
 
-| protectionLevel | 判定 | 说明 |
-|----------------|------|------|
-| `normal` | **无保护** | 任何 app 可自动获得，等同于无权限声明 |
-| `dangerous` | **弱保护** | 需用户动态授权，评估用户授权门槛 |
-| `signature` | **受保护** | 仅同签名 app 可获得，第三方 app 不可满足 |
-| `signatureOrSystem` | **受保护** | 系统签名或预装 app 可获得 |
+| protectionLevel | 判定 |
+|----------------|------|
+| `normal` | **无保护**（等同于无权限） |
+| `dangerous` | **弱保护**（需用户动态授权） |
+| `signature` / `signatureOrSystem` | **受保护**（第三方不可满足） |
 
-> 若组件使用自定义权限但 protectionLevel 为 `normal`，必须将其视为**无保护**。
+### Phase 3：逐组件深度分析（Subagent 链）
 
-### Phase 3：逐组件深度分析
+通过 subagent 链逐组件分析，多个组件可并发。主 agent 仅收集结构化摘要，不堆积原始源码。
 
-对 Phase 2 输出的每个导出组件，加载对应组件的 references 总览文件，按其中的分析流程执行：
+#### 3.1 组件类型配置
 
-| 组件类型 | 总览文件 | 核心分析命令 |
-|---------|---------|------------|
-| Activity | `references/app-activity.md` | `class-source` → 检查 `onCreate`/`onNewIntent` 中的 Intent 处理 |
-| Service | `references/app-service.md` | `class-source` → 检查 `onBind` 返回的接口 / `onStartCommand` 的 Intent 处理 |
-| ContentProvider | `references/app-provider.md` | `class-source` → 检查 `query`/`insert`/`update`/`delete`/`openFile`/`call`/`applyBatch`/`bulkInsert` 方法 |
-| BroadcastReceiver | `references/app-broadcast.md` | `class-source` → 检查 `onReceive` 的 Intent 处理 |
-| WebView | `references/app-webview.md` | `search-class WebView` → 追踪 `loadUrl`/`addJavascriptInterface`/`setAllowFileAccess` |
-| 系统服务 | `references/framework-service.md` | `system-service-impl` → 追踪 `clearCallingIdentity`/`enforceCallingPermission` |
+| 组件类型 | 总览文件 | 入口方法 |
+|---------|---------|---------|
+| Activity | `references/app-activity.md` | `onCreate` / `onNewIntent` |
+| Service | `references/app-service.md` | `onBind` / `onStartCommand` / `handleMessage` |
+| ContentProvider | `references/app-provider.md` | `query` / `insert` / `update` / `delete` / `openFile` / `call` |
+| BroadcastReceiver | `references/app-broadcast.md` | `onReceive` |
+| WebView | `references/app-webview.md` | 宿主 Activity 的 `onCreate` |
+| 系统服务 | `references/framework-service.md` | `system-service-impl` 定位的实现类方法 |
 
-对每个组件执行 Source → Sink 数据流追踪：
+主 agent 根据组件类型选择总览文件，从总览的风险清单确定 `vulnTypes`。
+
+#### 3.2 两级 Subagent 职责
+
+**侦察 Subagent**（每组件一个，负责全局判断）：
+
+读取总览文件 + 组件源码，识别该组件涉及哪些漏洞模式，为每种模式确定入口方法和初始追踪方向。输出每条链的起始 `currentMethod` 和 `target`（SOURCE/SINK/BOTH）。
+
+**链式 Subagent**（每条链多个，负责逐方法追踪）：
+
+分析 `currentMethod` 指定的单个方法，判断 Source/Sink/SAFE，输出 `nextMethods`。主 agent 据此创建下一个链式 subagent，逐步展开整条调用链。
+
+#### 3.3 链式 Subagent 输入
+
+```json
+{
+  "port": 31234,
+  "currentMethod": "com.example.MyActivity.extractNestedIntent(android.content.Intent):android.content.Intent",
+  "chain": [
+    {"method": "...onCreate(...):void", "finding": "调用 extractNestedIntent"},
+    {"method": "...extractNestedIntent(...):Intent", "finding": "getParcelableExtra(\"forward_intent\")，无校验返回"}
+  ],
+  "target": "BOTH"
+}
+```
+
+- `chain`：已追踪的方法及发现，逐步累积
+- `target`：`"SOURCE"`（找攻击者可控入口）/ `"SINK"`（找危险操作）/ `"BOTH"`（双向追踪）
+
+#### 3.4 链式 Subagent 执行步骤
 
 ```
-jiap code class-source <Component>       → 阅读组件完整源码
-jiap code xref-method <methodSig>        → 追踪方法调用链
-jiap code implement <Interface>          → 查找接口所有实现
-jiap code subclass <BaseClass>           → 查找子类
+1. jiap code method-source <currentMethod> -P <port>  → 获取该方法源码
+2. 分析源码，执行以下判断：
 ```
 
-**Source 识别**（攻击者可控的数据入口）：
-- `getIntent().get*Extra()` — Intent Extra 参数
+**Source 判断**（`target` 为 SOURCE 或 BOTH 时）：
+方法中是否存在攻击者可控的数据获取？
+- `getIntent().get*Extra()` — Intent 参数
 - `getIntent().getData()` — URI 参数
-- `getContentResolver().query()` — ContentProvider 查询参数
-- `onBind()` 返回的 Binder 接口 — IPC 输入
-- `Messenger.handleMessage()` — 消息参数
-- `addJavascriptInterface()` — JS Bridge 输入
-- URL 加载 `loadUrl()` / `loadData()` — 外部输入
+- `getContentResolver().query()` — Provider 查询参数
+- `onBind()` 返回的 Binder 接口参数 — IPC 输入
+- `Messenger.handleMessage()` 的 msg 参数 — 消息参数
+- 方法参数本身来自上游 tainted data
 
-**Sink 识别**（危险操作）：
+**Sink 判断**（`target` 为 SINK 或 BOTH 时）：
+方法中是否存在危险操作？
 - `startActivity()` / `sendBroadcast()` / `startService()` — 组件启动
 - `Runtime.exec()` / `ProcessBuilder` — 命令执行
-- `openFileOutput()` / `deleteFile()` — 文件操作
+- `openFileOutput()` / `deleteFile()` / `renameTo()` — 文件操作
 - `setResult()` — 数据返回
-- `PendingIntent.send()` — 身份借用执行
+- `PendingIntent.send()` — 身份借用
 - `WebView.loadUrl()` — URL 加载（配合可控输入）
+- `execSQL()` — SQL 执行
 
-### Phase 4：跨组件追踪
+**SAFE 判断**（Source → Sink 路径上是否存在有效校验）：
+- 包名/签名/UID 白名单校验且不可绕过
+- 完整性校验、HMAC 签名验证
+- 类型强校验（如 `instanceof` + 白名单类列表）
+- `checkSignatures` / `checkCallingPermission` 等系统校验
 
-追踪数据在组件间的流转，寻找组合利用链：
+**分支选择**（方法中有多个调用时，仅追踪与污点数据相关的调用）：
+- 追踪：接收 tainted data 作为参数的方法调用
+- 跳过：日志（`Log.*`）、UI 操作（`setText`/`setVisibility`）、纯工具方法（`toString`/`hashCode`）、框架回调（`super.*`）
 
+#### 3.5 链式 Subagent 输出
+
+```json
+{
+  "method": "com.example.MyActivity.extractNestedIntent(android.content.Intent):android.content.Intent",
+  "analysis": "getParcelableExtra(\"forward_intent\") 提取嵌套 Intent，无任何校验直接返回",
+  "result": "SOURCE",
+  "nextMethods": [
+    {
+      "method": "com.example.MyActivity.startForwardActivity(android.content.Intent):void",
+      "reason": "接收 extractNestedIntent 返回值并调用 startActivity"
+    }
+  ],
+  "terminates": false
+}
 ```
-# Intent 重定向：导出组件是否转发嵌套 Intent
-jiap code search-method "getParcelableExtra"
-jiap code xref-method "...startActivity(android.content.Intent):void"
 
-# PendingIntent 滥用：是否传递未标记 IMMUTABLE 的 PendingIntent
-jiap code search-method "PendingIntent.getActivity"
-jiap code search-method "PendingIntent.send"
+- `result`：`"SOURCE"` / `"SINK"` / `"SAFE"` / `"PASS_THROUGH"`（透传，需继续）/ `"DEAD_END"`（无进一步调用）
+- `nextMethods`：需继续追踪的方法，为空则分支终止
+- `terminates`：到达 SINK/SAFE/DEAD_END 时为 true
 
-# URI 权限授予：是否跨组件传递带 GRANT flag 的 content URI
-jiap code search-method "FLAG_GRANT_READ_URI_PERMISSION"
-jiap code search-method "FLAG_GRANT_WRITE_URI_PERMISSION"
+**终止条件**（任一满足）：到达 Sink / 到达 SAFE / 方法无进一步调用
 
-# WebView URL 来源：外部输入如何流入 loadUrl
-jiap code xref-method "...WebView.loadUrl(java.lang.String):void"
-jiap code xref-method "...WebView.loadDataWithBaseURL(...):void"
+#### 3.6 主 agent 聚合
+
+链式追踪完成后，主 agent 将完整 chain 合并为组件级输出：
+
+```json
+{
+  "component": "com.example.MyActivity",
+  "type": "Activity",
+  "exported": true,
+  "permission": null,
+  "findings": [
+    {
+      "vulnType": "Intent 重定向",
+      "risk": "HIGH",
+      "source": "getIntent().getParcelableExtra(\"forward_intent\") at onCreate:42",
+      "sink": "startActivity(intent) at startForwardActivity:15",
+      "callChain": [
+        "com.example.MyActivity.onCreate(android.os.Bundle):void",
+        "com.example.MyActivity.extractNestedIntent(android.content.Intent):android.content.Intent",
+        "com.example.MyActivity.startForwardActivity(android.content.Intent):void"
+      ],
+      "exploitPath": "第三方 app 发送含嵌套 Intent → 提取后无校验直接 startActivity → 访问任意未导出组件",
+      "exploitable": "YES"
+    }
+  ],
+  "excluded": [
+    {"vulnType": "Fragment 注入", "reason": "未从 extra 提取 Fragment 类名"}
+  ]
+}
 ```
 
-### Phase 5：可利用性评估
+#### 3.7 行为规则
 
-对每个发现逐项检查三要素（详见 `references/risk-rating.md`）：
+- 链式 subagent 仅分析 `currentMethod`，使用 `method-source` 获取源码
+- 侦察 subagent 读取 reference 文件指导分析方向
+- 所有命令携带 `-P <port>`，方法签名完整，禁止 `...`
+- **禁止在输出中粘贴原始源码**
 
-1. **可达** — 组件是否导出？是否需要攻击者不具备的权限？
-2. **可控** — 攻击者能否控制从 Source 到 Sink 的关键数据？中间是否有校验？
-3. **有影响** — 能否造成敏感数据泄露、权限提升、代码执行等实际后果？
+### Phase 4：跨组件追踪（Subagent 链延续）
 
-三项全部满足 → 构造攻击路径，进入 Phase 6。
-任一条件不满足 → **不报告**。
+Phase 3 的链式追踪在组件内部完成。Phase 4 对以下情况**延续链式追踪到目标组件**：
 
-### Phase 6：风险评级与报告
+- 调用链跨组件（如 Activity A 调用 Activity B 的方法 / Service onBind 返回的接口被外部调用）
+- 调用链涉及系统 API（如 `Context.startActivity()` 需确认目标组件是否导出）
+- PendingIntent / URI 权限跨组件传递
 
-按 `references/risk-rating.md` 标准评定风险等级，按 `assets/report-template.md` 格式输出漏洞分析报告。
+执行方式：将 Phase 3 链的最后一个 `nextMethod`（目标组件的方法）作为新的链式 subagent 入口，`chain` 携带已有上下文，继续追踪直到终止条件满足。
 
-报告生成后，传递给 skill `jiapcli-poc` 构造可编译的 PoC 应用进行验证。
+输出格式同 Phase 3 的组件级聚合 JSON。无新增跨组件发现时返回空 `findings`。
 
-## 核心原则：可实现的利用
+### Phase 5：可利用性评估（强制过滤）
 
-**唯一判定标准：能否构造出一条完整、可复现的攻击路径。** 只报告能达成可实现的利用的发现。
+**第一步：快速排除** — 符合任一条件立即排除，不写入任何文档：
 
-**不可利用的情况（不报告）：**
+| 排除条件 | 检查方法 |
+|---------|---------|
+| `signature`/`signatureOrSystem` 权限 | Manifest protectionLevel |
+| 签名校验 | `checkSignatures`、`Binder.getCallingUid()` + 白名单 |
+| 包名/UID 白名单 | 硬编码包名数组，不可绕过 |
+| 需要 root/system 权限 | `su` 调用或 system_server 独占 API |
+| Source → Sink 间不可绕过的校验 | 完整性校验、加密、类型检查 |
 
-- 需要 root 权限才能完成的攻击
-- 需要系统签名 / `privileged` 权限才能触发的路径
-- 存在系统级安全校验（如 `checkKeyIntent`、SELinux 策略、`signature` 级别权限）且无法绕过
-- 需要物理接触设备、解锁 Bootloader 等非软件层面条件
-- 第三方 app 无法满足的前置条件
+**第二步：三要素评估**（详见 `references/risk-rating.md`）：
 
-**核心判断标准：任何第三方 app（无特殊权限、无需 root）能否完成整个攻击链。** 如果答案是否定的，则不报告。
+1. **可达** — 组件导出？权限可满足？
+2. **可控** — 攻击者能控制 Source → Sink 的关键数据？
+3. **有影响** — 敏感数据泄露 / 权限提升 / 代码执行？
 
-**权限校验的实际效力**：
-- **组件启动阶段**（Activity/Service/BroadcastReceiver 的拉起）：系统在组件调度时自动校验 Manifest 声明的权限。`signature` / `signatureOrSystem` 级别的权限声明在此阶段有效，第三方 app 不可绕过。
-- **运行时交互阶段**（Provider 的 query/insert/call、Service 的 onBind 返回接口、接收方处理 Intent 数据）：Manifest 权限声明仅控制谁能调用该组件，**不控制组件内部如何处理传入数据**。如果组件收到数据后以自身身份执行特权操作（如以 app 身份读文件、以 app 身份发请求），必须进入代码确认是否有 UID/签名校验。若组件将传入数据直接用于特权操作而无内部校验，即使声明了权限也可能存在风险。
+三项全满足 → 构造攻击路径。任一不满足 → **不报告**。
 
-评估利用可行性时检查：
+**权限校验效力**：
+- 组件启动阶段：`signature` 权限由系统调度时校验，第三方不可绕过
+- 运行时交互阶段（Provider query / Service onBind）：Manifest 权限仅控制谁能调用，**不控制组件内部数据处理**。组件以自身身份执行特权操作时，必须确认有无 UID/签名校验
 
-1. **可达** — 攻击者能否到达该代码路径
-2. **可控** — 攻击者能否控制关键数据
-3. **有影响** — 能否造成实际安全后果
+### Phase 6：报告生成（强制模板校验）
 
-三项全部满足 ≠ 自动有利用，还需在报告中描述攻击路径。无法构造攻击路径 → 不报告。
+按 `references/risk-rating.md` 评定等级，按 `assets/report-template.md` 输出报告。生成前逐项检查：
 
-确认漏洞后，使用 skill `jiapcli-poc` 构造可编译的 PoC 应用进行验证。
+**必须包含**：基本信息（包名/版本/日期）、`## 问题X：[等级] 标题`、漏洞背景 + 完整调用链 + 代码分析、攻击路径（组件表格 + 步骤）、危害描述、修复方案
+
+**调用链格式**（箭头 + 完整函数签名）：
+```
+com.target.EntryActivity.onCreate(android.os.Bundle):void  （入口）
+  → getIntent().getParcelableExtra("forward_intent")
+  → startActivity(nestedIntent)
+    → com.target.InternalActivity.onCreate(android.os.Bundle):void
+      → handleIntent(intent)
+        → vulnerableOperation(data)
+```
+
+**代码分析格式**：每条含 1. 问题描述 2. 代码片段 3. 缺陷说明
+
+**禁止**：不可利用的发现、"已确认安全"列表、缺乏攻击路径的发现
+
+报告生成后，传递给 `jiapcli-poc` 构造 PoC 验证。
 
 ## References
 
-分析特定组件时，先阅读对应的组件总览文件，再根据目标组件类型定位具体风险文件。每个组件总览包含风险清单、分析流程和交叉引用。
-
-| 文件 | 组件 | 适用场景 |
-|------|------|----------|
-| `references/app-activity.md` | Activity | 分析导出 Activity |
-| `references/app-intent.md` | Intent | 追踪 Intent 数据流 |
-| `references/app-broadcast.md` | Broadcast | 分析广播接收器 |
-| `references/app-provider.md` | ContentProvider | 分析导出 Provider |
-| `references/app-service.md` | Service | 分析导出 Service |
-| `references/app-webview.md` | WebView | 分析 WebView 使用 |
-| `references/framework-service.md` | 系统服务 | 审计框架服务 |
-| `references/risk-rating.md` | 风险评级 | 判断漏洞严重性 |
+| 文件 | 组件 |
+|------|------|
+| `references/app-activity.md` | Activity |
+| `references/app-intent.md` | Intent |
+| `references/app-broadcast.md` | Broadcast |
+| `references/app-provider.md` | ContentProvider |
+| `references/app-service.md` | Service |
+| `references/app-webview.md` | WebView |
+| `references/framework-service.md` | 系统服务 |
+| `references/risk-rating.md` | 风险评级 |

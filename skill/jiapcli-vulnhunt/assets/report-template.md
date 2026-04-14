@@ -21,13 +21,13 @@
 
 #### 完整调用链
 
-> 从入口到漏洞点的完整函数签名调用链：
+> 从入口到漏洞点的完整函数签名调用链，参考格式如下：
 
 ```
-com.target.EntryActivity.onCreate(Bundle)
+com.target.EntryActivity.onCreate(android.os.Bundle):void  （入口）
   → getIntent().getParcelableExtra("forward_intent")
   → startActivity(nestedIntent)
-    → com.target.InternalActivity.onCreate(Bundle)
+    → com.target.InternalActivity.onCreate(android.os.Bundle):void
       → handleIntent(intent)
         → vulnerableOperation(data)
 ```
