@@ -10,7 +10,7 @@ import pc from "picocolors";
 export class Formatter {
   private jsonMode: boolean;
 
-  constructor(jsonMode: boolean = false) {
+  constructor(jsonMode: boolean = true) {
     this.jsonMode = jsonMode;
   }
 
