@@ -19,7 +19,7 @@ ContentProvider 是 Android 数据共享的核心机制。导出的 Provider 可
 1. jiap ard exported-components -P <port>          → 列出导出 Provider
 2. jiap code search-method "ContentProvider" -P <port> → 定位 Provider 实现
 3. 对每个导出 Provider：
-   a. jiap code class-source <Provider> -P <port>  → 获取源码
+   a. jiap code class-source "<Provider>" -P <port>  → 获取源码
    b. 检查 query() 方法是否拼接 SQL（注入）
    c. 检查 openFile() 是否校验路径（遍历）
    d. 检查 call() 方法暴露的操作

@@ -16,8 +16,8 @@
 ## 分析流程
 
 ```
-1. jiap ard system-service-impl <Interface> -P <port> → 定位系统服务实现
-2. jiap code class-source <ServiceImpl> -P <port>     → 获取实现类源码
+1. jiap ard system-service-impl "<Interface>" -P <port> → 定位系统服务实现
+2. jiap code class-source "<ServiceImpl>" -P <port>     → 获取实现类源码
 3. 检查 Binder 调用模式：
    a. 搜索 clearCallingIdentity / restoreCallingIdentity → 身份操作
    b. 搜索 enforceCallingPermission / checkCallingPermission → 权限检查

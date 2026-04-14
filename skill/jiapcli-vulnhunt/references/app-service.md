@@ -17,13 +17,13 @@ Service 是 Android 后台执行组件。导出 Service 可被任意应用绑定
 ```
 1. jiap ard exported-components -P <port>          → 列出导出 Service
 2. 对每个导出 Service：
-   a. jiap code class-source <Service> -P <port>   → 获取源码
+   a. jiap code class-source "<Service>" -P <port>   → 获取源码
    b. 检查 onBind() 返回的 IBinder 接口
    c. 检查 onHandleIntent() / onStartCommand() 对 Intent 的处理
    d. 检查 Messenger 实现（handleMessage）
 3. 追踪 AIDL 接口：
    jiap code search-class "Stub" -P <port>         → 定位 AIDL Stub 实现
-   jiap code class-source <AidlClass.Stub> -P <port> → 获取接口方法
+   jiap code class-source "<AidlClass.Stub>" -P <port> → 获取接口方法
 4. 检查权限保护：
    搜索 enforcePermission / checkPermission 调用
    检查 AndroidManifest 中 Service 的 android:permission 属性
