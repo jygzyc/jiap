@@ -33,22 +33,37 @@ metadata:
 
 1. **读取报告**，从"攻击路径 → 目标组件"获取包名、类名、Action/URI、IPC 接口
 2. **确定组件类型**（Activity / Broadcast / Provider / Service / Intent / WebView / Framework），加载对应的 reference
-3. **首次创建项目**：基于 `assets/` 下的模板文件搭建 `poc-<target-app>/` 项目结构
-4. **编写 Exploit**：从 reference 中选择匹配的漏洞模式模板，将报告中的攻击步骤填入 `execute()` 方法，替换包名/类名常量
-5. **注册到 PoCActivity**：在 `EXPLOITS` 数组中添加新 Exploit 类
+3. **首次创建项目**：解压 `assets/poc-template.zip` 到 `poc-<target-app>/`，将其中所有 `com.poc.targetapp` 替换为 `com.poc.<target-app>`
+4. **编写 Exploit**：在 `app/src/main/java/com/poc/<target-app>/exploit/` 下创建 Exploit 类，从 reference 中选择匹配的漏洞模式模板，将报告中的攻击步骤填入 `execute()` 方法，替换包名/类名常量
+5. **注册到 ExploitRegistry**：在 `ExploitRegistry.java` 的 `EXPLOITS` 数组中添加新 Exploit 类
 6. **编译通过**
 
 ## 项目模板
 
-项目结构和模板文件见 `assets/` 目录：
+项目模板为 `assets/poc-template.zip`，是一个完整可编译的 Gradle Android 项目。
 
-| 文件 | 说明 |
-|------|------|
-| `assets/build.gradle.root` | 项目根 build.gradle |
-| `assets/build.gradle.app` | app 模块 build.gradle（namespace 和 applicationId 替换为 `com.poc.<target-app>`） |
-| `assets/AndroidManifest.xml` | Manifest 模板（按攻击向量添加权限和组件声明） |
-| `assets/PoCActivity.java` | 主界面模板（新增 Exploit 后在 `EXPLOITS` 数组中注册） |
-| `assets/activity_poc.xml` | 布局模板 |
+**首次创建项目**：解压 zip 到 `poc-<target-app>/`，然后全局替换 `com.poc.targetapp` 为 `com.poc.<target-app>`（含目录名、包名、namespace、applicationId）。
+
+```
+poc-<target-app>/
+├── settings.gradle              # 项目设置
+├── gradle.properties            # JVM 参数
+├── gradle/libs.versions.toml    # 依赖版本管理
+├── gradle/wrapper/              # Gradle Wrapper
+├── gradlew / gradlew.bat        # 构建脚本
+└── app/
+    ├── build.gradle             # app 模块配置（AGP 7.4.2, JDK 11+）
+    └── src/main/
+        ├── AndroidManifest.xml  # Manifest 模板（按攻击向量添加权限和组件声明）
+        ├── res/values/styles.xml
+        ├── res/layout/activity_poc.xml
+        └── java/com/poc/targetapp/
+            ├── Exploit.java          # Exploit 基类（提供 Activity 和 log 方法）
+            ├── ExploitRegistry.java  # Exploit 注册表（新增 Exploit 在此注册）
+            └── PoCActivity.java      # 主界面（自动为每个 Exploit 生成触发按钮）
+```
+
+模板已集成 `AndroidHiddenApiBypass` 和 `AppCompat` 依赖。
 
 ## 按组件加载 Reference
 

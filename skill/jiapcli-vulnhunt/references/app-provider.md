@@ -24,6 +24,7 @@ ContentProvider 是 Android 数据共享的核心机制。导出的 Provider 可
    c. 检查 openFile() 是否校验路径（遍历）
    d. 检查 call() 方法暴露的操作
    e. 检查 getType() 返回的信息
+   f. 检查 applyBatch() / bulkInsert() 是否缺乏校验（批量操作）
 4. 检查 FileProvider 配置：
    jiap code search-class "FileProvider"
    jiap ard resource-file res/xml/file_paths.xml → 检查路径配置
@@ -36,6 +37,11 @@ ContentProvider 是 Android 数据共享的核心机制。导出的 Provider 可
 - **路径遍历**：`openFile()` 是否使用 `CanonicalizePath` 校验
 - **FileProvider**：`file_paths.xml` 中 `root-path` / `external-path` 配置范围
 - **call() 暴露**：自定义 call 方法是否执行敏感操作
+- **批量操作**：`applyBatch()` / `bulkInsert()` 常缺乏单条数据的校验逻辑，且支持事务性批量操作，危害更大
+
+## 常见误区
+
+- **存储加密 ≠ 接口安全**：SQLCipher、Keystore 等仅保护静态文件，不保护运行时接口。Provider 暴露 = 数据明文暴露，不影响漏洞定性。
 
 ## Related
 
