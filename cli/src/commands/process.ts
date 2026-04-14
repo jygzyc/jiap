@@ -6,7 +6,7 @@ import { Command } from "commander";
 import { spawn, execSync } from "child_process";
 import * as path from "path";
 import * as os from "os";
-import { createWriteStream, existsSync, mkdirSync, openSync, closeSync } from "fs";
+import { createWriteStream, existsSync, mkdirSync, openSync, closeSync, readFileSync } from "fs";
 import { createHash } from "crypto";
 import { JIAPClient } from "../core/client.js";
 import { Formatter } from "../utils/formatter.js";
@@ -181,8 +181,8 @@ export function makeProcessCommand(): Command {
       fmt.success(`Started (name: ${session.name}, PID: ${proc.pid}, Port: ${port})`);
 
       // Wait for server (with early exit check)
-      const timeout = 30;
-      const ready = await waitForServer(port, timeout, () => processExited);
+      const timeout = 120;
+      const ready = await waitForServer(port, timeout, logPath, () => processExited);
       if (ready) {
         fmt.success(`Server ready at http://127.0.0.1:${port}`);
         fmt.info(`Log: ${logPath}`);
@@ -358,15 +358,38 @@ async function checkServer(port: number, retries: number = 3): Promise<[boolean,
   return [false, `No server on port ${port}`];
 }
 
-async function waitForServer(port: number, timeout: number = 30, shouldAbort?: () => boolean): Promise<boolean> {
+async function waitForServer(port: number, timeout: number = 120, logPath?: string, shouldAbort?: () => boolean): Promise<boolean> {
   const start = Date.now();
-  while (Date.now() - start < timeout * 1000) {
+  const deadline = timeout * 1000;
+  const interval = 1000;
+  const readyMarker = "JIAP Server running at";
+
+  while (Date.now() - start < deadline) {
     if (shouldAbort?.()) return false;
-    try {
-      const response = await fetch(`http://127.0.0.1:${port}/health`);
-      if (response.ok) return true;
-    } catch { /* starting */ }
-    await new Promise(r => setTimeout(r, 500));
+
+    // Primary: check log file for ready marker
+    if (logPath) {
+      try {
+        const content = readFileSync(logPath, "utf-8");
+        if (content.includes(readyMarker)) {
+          // Confirm with health check
+          try {
+            const response = await fetch(`http://127.0.0.1:${port}/health`);
+            if (response.ok) return true;
+          } catch { /* log ready but server not yet accepting connections */ }
+        }
+      } catch { /* log file not yet created or not readable */ }
+    }
+
+    // Fallback: health check (every 2s)
+    if (Math.floor((Date.now() - start) / interval) % 2 === 0) {
+      try {
+        const response = await fetch(`http://127.0.0.1:${port}/health`);
+        if (response.ok) return true;
+      } catch { /* starting */ }
+    }
+
+    await new Promise(r => setTimeout(r, interval));
   }
   return false;
 }

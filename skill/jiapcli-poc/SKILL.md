@@ -19,6 +19,7 @@ metadata:
 - **PoC 必须是一个可编译的 Android 应用项目。** 编译通过是最低标准。
 - **同一项目 session 中只创建一个 PoC 应用**，多个漏洞问题通过各自的 Exploit 组件实现。
 - **`allowBackup` 设为 false，`applicationId` 使用 `com.poc.*` 命名空间。**
+- **涉及隐藏 API / 框架函数调用时，使用 [AndroidHiddenApiBypass](https://github.com/LSPosed/AndroidHiddenApiBypass) 库。** 项目模板已集成该依赖，通过 `HiddenApiBypass.getDeclaredMethod()` / `HiddenApiBypass.invoke()` 调用隐藏 API，无需反射 stub JAR。
 
 ## 从报告到 PoC
 
