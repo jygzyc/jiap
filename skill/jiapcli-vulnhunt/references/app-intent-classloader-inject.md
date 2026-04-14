@@ -29,15 +29,10 @@
 ```
 
 
-## 关键特征
+## 关键特征与代码
 
-- 使用 `Bundle.readSerializable()` / `Intent.getSerializableExtra()` / `Parcel.readSerializable()` 从外部输入反序列化
-- 未指定 ClassLoader 或使用不受信任的 ClassLoader
-- 反序列化后的对象被强制类型转换并调用方法（触发 static 初始化块或构造函数）
-- 常出现在系统服务的 Bundle 处理中（AIDL 接口参数）
-
-
-## 代码模式
+- 使用 `Bundle.readSerializable()` / `Intent.getSerializableExtra()` / `Parcel.readSerializable()` 从外部输入反序列化，未指定 ClassLoader 或使用不受信任的 ClassLoader
+- 反序列化后的对象被强制类型转换并调用方法，常出现在系统服务的 Bundle 处理中（AIDL 接口参数）
 
 ```java
 // 漏洞：从 Intent extras 中反序列化，ClassLoader 不受控
@@ -93,4 +88,3 @@ SafeConfig config = intent.getParcelableExtra("config", SafeConfig.class);
 
 - [[app-intent]]
 - [[app-service]]
-

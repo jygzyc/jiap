@@ -29,15 +29,10 @@
 ```
 
 
-## 关键特征
+## 关键特征与代码
 
-- 方法返回设备信息、用户信息、其他应用信息
-- 未调用 `Binder.getCallingUid()` / `enforceCallingPermission()` 做权限检查
-- 返回完整数据而非调用者应访问的子集
-- 方法参数中缺少 `String callingPackage` 等来源标识
-
-
-## 代码模式
+- 方法返回设备信息、用户信息、其他应用信息，未调用 `Binder.getCallingUid()` / `enforceCallingPermission()` 做权限检查
+- 返回完整数据而非调用者应访问的子集，方法参数中缺少 `String callingPackage` 等来源标识
 
 ```java
 // 漏洞：系统服务返回敏感数据未校验调用者
@@ -53,17 +48,6 @@ public class DeviceInfoService extends IDeviceInfoService.Stub {
         return info; // 敏感设备标识符泄露
     }
 }
-```
-
-
-## 攻击流程
-
-```
-1. jiap ard system-service-impl <Interface> → 定位系统服务实现
-2. jiap code class-source <ServiceImpl> → 识别返回数据的方法
-3. 检查返回内容是否包含敏感信息（设备ID、应用列表、用户信息）
-4. 确认缺少 enforceCallingPermission 校验
-5. 编写普通应用通过 Binder 调用目标接口获取数据
 ```
 
 
@@ -117,4 +101,3 @@ public class SecureDeviceInfoService extends IDeviceInfoService.Stub {
 
 - [[app-intent-implicit-hijack]]
 - [[framework-service]]
-

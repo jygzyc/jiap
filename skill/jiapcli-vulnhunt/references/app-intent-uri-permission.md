@@ -32,16 +32,10 @@
 ```
 
 
-## 关键特征
+## 关键特征与代码
 
-- `addFlags(1)` / `addFlags(0x1)` — `FLAG_GRANT_READ_URI_PERMISSION`
-- `addFlags(2)` / `addFlags(0x2)` — `FLAG_GRANT_WRITE_URI_PERMISSION`
-- `addFlags(3)` / `addFlags(0x3)` — READ + WRITE 组合
-- Intent 包含 `content://` URI，且通过隐式 Intent 或 `setResult` 发送
-- 未使用 `setPackage()` / `setComponent()` 限制接收方
-
-
-## 代码模式
+- Intent 包含 `content://` URI 并携带 `FLAG_GRANT_READ_URI_PERMISSION`（`addFlags(1)`/`addFlags(0x1)`）或 `FLAG_GRANT_WRITE_URI_PERMISSION`（`addFlags(2)`/`addFlags(3)`）
+- 通过隐式 Intent 或 `setResult` 发送，未使用 `setPackage()` / `setComponent()` 限制接收方
 
 ```java
 // 反编译代码中的典型漏洞模式：
@@ -102,4 +96,3 @@ revokeUriPermission(contentUri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
 - [[app-provider]]
 - [[app-provider-path-traversal]]
 - [[app-activity-setresult-leak]]
-

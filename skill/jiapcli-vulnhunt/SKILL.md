@@ -10,22 +10,124 @@ metadata:
 
 Android 组件级漏洞挖掘方法论。提供攻击面枚举、数据流追踪、可利用性判定和风险评级参考。
 
+**职责边界**：本 skill 负责漏洞发现和可利用性评估。PoC 应用构造和编译验证交由 skill `jiapcli-poc` 完成。
+
 命令参考见通用 skill `jiapcli`。
 
 ## 漏洞挖掘流程
 
+### Phase 1：环境准备
+
 ```
-1. jiap ard exported-components     → 枚举攻击面（导出组件）
-2. jiap ard app-deeplinks           → 检查 Deep Link 入口
-3. jiap code class-source <Class>   → 阅读目标组件源码
-4. jiap code xref-method <sig>      → 追踪 Source → Sink 数据流
-5. jiap code implement <Interface>  → 查找接口所有实现
-6. 对每个发现评估可利用性三要素
+jiap process open <apk-path> -P <port>  → 打开 APK 启动分析服务
+jiap process status -P <port>           → 确认服务运行正常
 ```
+
+分析完成后释放资源：`jiap process close <name> -P <port>`
+
+### Phase 2：攻击面枚举
+
+```
+jiap ard exported-components         → 列出所有导出组件（攻击入口）
+jiap ard app-deeplinks               → 列出 Deep Link 入口（远程可达）
+jiap ard app-receivers               → 列出动态注册的广播接收器
+jiap ard app-manifest                → 获取完整 Manifest（权限声明、组件配置）
+jiap ard strings                     → 硬编码字符串（URL、Token、密钥）
+```
+
+输出攻击面清单：每个导出组件的包名、类名、导出方式（`exported=true` / `intent-filter`）、权限保护情况。
+
+### Phase 3：逐组件深度分析
+
+对 Phase 2 输出的每个导出组件，加载对应组件的 references 总览文件，按其中的分析流程执行：
+
+| 组件类型 | 总览文件 | 核心分析命令 |
+|---------|---------|------------|
+| Activity | `references/app-activity.md` | `class-source` → 检查 `onCreate`/`onNewIntent` 中的 Intent 处理 |
+| Service | `references/app-service.md` | `class-source` → 检查 `onBind` 返回的接口 / `onStartCommand` 的 Intent 处理 |
+| ContentProvider | `references/app-provider.md` | `class-source` → 检查 `query`/`openFile`/`call` 方法 |
+| BroadcastReceiver | `references/app-broadcast.md` | `class-source` → 检查 `onReceive` 的 Intent 处理 |
+| WebView | `references/app-webview.md` | `search-class WebView` → 追踪 `loadUrl`/`addJavascriptInterface`/`setAllowFileAccess` |
+| 系统服务 | `references/framework-service.md` | `system-service-impl` → 追踪 `clearCallingIdentity`/`enforceCallingPermission` |
+
+对每个组件执行 Source → Sink 数据流追踪：
+
+```
+jiap code class-source <Component>       → 阅读组件完整源码
+jiap code xref-method <methodSig>        → 追踪方法调用链
+jiap code implement <Interface>          → 查找接口所有实现
+jiap code subclass <BaseClass>           → 查找子类
+```
+
+**Source 识别**（攻击者可控的数据入口）：
+- `getIntent().get*Extra()` — Intent Extra 参数
+- `getIntent().getData()` — URI 参数
+- `getContentResolver().query()` — ContentProvider 查询参数
+- `onBind()` 返回的 Binder 接口 — IPC 输入
+- `Messenger.handleMessage()` — 消息参数
+- `addJavascriptInterface()` — JS Bridge 输入
+- URL 加载 `loadUrl()` / `loadData()` — 外部输入
+
+**Sink 识别**（危险操作）：
+- `startActivity()` / `sendBroadcast()` / `startService()` — 组件启动
+- `Runtime.exec()` / `ProcessBuilder` — 命令执行
+- `openFileOutput()` / `deleteFile()` — 文件操作
+- `setResult()` — 数据返回
+- `PendingIntent.send()` — 身份借用执行
+- `WebView.loadUrl()` — URL 加载（配合可控输入）
+
+### Phase 4：跨组件追踪
+
+追踪数据在组件间的流转，寻找组合利用链：
+
+```
+# Intent 重定向：导出组件是否转发嵌套 Intent
+jiap code search-method "getParcelableExtra"
+jiap code xref-method "...startActivity(android.content.Intent):void"
+
+# PendingIntent 滥用：是否传递未标记 IMMUTABLE 的 PendingIntent
+jiap code search-method "PendingIntent.getActivity"
+jiap code search-method "PendingIntent.send"
+
+# URI 权限授予：是否跨组件传递带 GRANT flag 的 content URI
+jiap code search-method "FLAG_GRANT_READ_URI_PERMISSION"
+jiap code search-method "FLAG_GRANT_WRITE_URI_PERMISSION"
+
+# WebView URL 来源：外部输入如何流入 loadUrl
+jiap code xref-method "...WebView.loadUrl(java.lang.String):void"
+jiap code xref-method "...WebView.loadDataWithBaseURL(...):void"
+```
+
+### Phase 5：可利用性评估
+
+对每个发现逐项检查三要素（详见 `references/risk-rating.md`）：
+
+1. **可达** — 组件是否导出？是否需要攻击者不具备的权限？
+2. **可控** — 攻击者能否控制从 Source 到 Sink 的关键数据？中间是否有校验？
+3. **有影响** — 能否造成敏感数据泄露、权限提升、代码执行等实际后果？
+
+三项全部满足 → 构造攻击路径，进入 Phase 6。
+任一条件不满足 → **不报告**。
+
+### Phase 6：风险评级与报告
+
+按 `references/risk-rating.md` 标准评定风险等级，按 `assets/report-template.md` 格式输出漏洞分析报告。
+
+报告生成后，传递给 skill `jiapcli-poc` 构造可编译的 PoC 应用进行验证。
 
 ## 核心原则：可实现的利用
 
 **唯一判定标准：能否构造出一条完整、可复现的攻击路径。** 只报告能达成可实现的利用的发现。
+
+**不可利用的情况（不报告）：**
+
+- 需要 root 权限才能完成的攻击
+- 需要系统签名 / `privileged` 权限才能触发的路径
+- 存在系统级安全校验（如 `checkKeyIntent`、SELinux 策略、`signature` 级别权限）且无法绕过
+- 需要物理接触设备、解锁 Bootloader 等非软件层面条件
+- 第三方 app 无法满足的前置条件
+
+**核心判断标准：任何第三方 app（无特殊权限、无需 root）能否完成整个攻击链。** 如果答案是否定的，则不报告。
 
 评估利用可行性时检查：
 
@@ -33,32 +135,9 @@ Android 组件级漏洞挖掘方法论。提供攻击面枚举、数据流追踪
 2. **可控** — 攻击者能否控制关键数据
 3. **有影响** — 能否造成实际安全后果
 
-三项全部满足 ≠ 自动有利用，还需构造出完整攻击路径。无法构造利用 → 不报告。
+三项全部满足 ≠ 自动有利用，还需在报告中描述攻击路径。无法构造攻击路径 → 不报告。
 
-## 报告模板
-
-```
-[严重性] 漏洞标题
-Risk: CRITICAL/HIGH/MEDIUM/LOW
-Component: com.package.ClassName.vulnerableMethod(paramType):returnType
-Cause: 缺陷简述
-
-Evidence:
-  // Source
-  Intent intent = getIntent().getParcelableExtra("key");
-  // Sink
-  startActivity(intent);
-
-Taint Flow:
-  Source → Propagation → [NO SANITIZER] → Sink
-
-Exploit Path:
-  1. 攻击步骤...
-  2. ...
-
-Impact: 攻击者获得什么
-Mitigation: 修复建议
-```
+确认漏洞后，使用 skill `jiapcli-poc` 构造可编译的 PoC 应用进行验证。
 
 ## References
 

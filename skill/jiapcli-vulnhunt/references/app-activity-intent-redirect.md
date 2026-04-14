@@ -24,15 +24,11 @@
 9. 导出 Activity 转发 Intent，访问目标未导出组件
 ```
 
-## 关键特征
+## 关键特征与代码
 
-- 导出 Activity 调用 `getIntent().getParcelableExtra("key")` 提取嵌套 Intent
-- 提取后的 Intent 被直接传递给 `startActivity()`、`startService()` 或 `sendBroadcast()`
-- 缺少目标组件的白名单校验或签名校验
+- 导出 Activity 调用 `getIntent().getParcelableExtra("key")` 提取嵌套 Intent，直接传递给 `startActivity()` / `startService()` / `sendBroadcast()`，缺少目标组件的白名单校验或签名校验
 - **权限差异**：转发组件（受害者）通常拥有比攻击者更高的权限（如系统权限），或能访问攻击者无法直接访问的私有组件/资源
 - **FLAG 授权**：重定向的 Intent 携带 `FLAG_GRANT_READ_URI_PERMISSION` 可窃取私有文件
-
-## 代码模式
 
 ```java
 // 典型漏洞：从外部 Intent 提取嵌套 Intent 并转发
@@ -54,17 +50,6 @@ public Bundle addAccount(String accountType, String authTokenType,
     Intent intent = result.getParcelable(AccountManager.KEY_INTENT);
     // Settings 以 system 权限启动该 Intent
 }
-```
-
-## 攻击流程
-
-```
-1. jiap ard exported-components → 定位导出 Activity
-2. jiap code class-source <Activity> → 检查是否从 Intent 读取嵌套 Intent
-3. jiap code xref-method "package.Class.startActivity(android.content.Intent):void" → 追踪转发调用
-4. 构造恶意 Intent，设置目标组件为非导出敏感组件
-5. adb shell am start -n com.target/.ExportedActivity --el forward_intent ...
-6. 导出 Activity 转发 Intent，访问目标未导出组件
 ```
 
 ## 经典案例

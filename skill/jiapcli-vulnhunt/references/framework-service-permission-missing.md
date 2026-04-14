@@ -1,4 +1,4 @@
-# 权限检查缺失或不当
+# 权限检查缺失
 
 系统服务方法缺少权限校验，或校验逻辑存在缺陷（如：先执行操作后检查权限、检查的权限级别不够）。
 
@@ -27,13 +27,11 @@
 ```
 
 
-## 关键特征
+## 关键特征与代码
 
-- 方法处理敏感操作但未调用 `enforceCallingPermission`
+- 方法处理敏感操作但未调用 `enforceCallingPermission`（权限检查缺失）
 - 权限检查在操作执行之后（TOCTOU）
 - 使用 `checkCallingOrSelfPermission` 而非 `checkCallingPermission`（前者会检查自身权限，可能绕过调用者校验）
-
-## 代码模式
 
 ```java
 // 漏洞：缺少权限校验
@@ -60,16 +58,6 @@ public String getPassword() {
 }
 ```
 
-## 攻击流程
-
-```
-1. jiap ard system-service-impl <Interface> → 定位系统服务实现
-2. jiap code class-source <ServiceImpl> → 获取源码
-3. 对比每个公共方法：敏感操作 ↔ enforceCallingPermission 是否配对
-4. 检查权限检查位置（操作前 vs 操作后）
-5. 检查是否使用 checkCallingOrSelfPermission 而非 checkCallingPermission
-6. 构造 Binder 调用触发无权限检查的接口
-```
 
 ## 经典案例
 

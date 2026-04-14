@@ -32,14 +32,10 @@
 ```
 
 
-## 关键特征
+## 关键特征与代码
 
-- 创建 PendingIntent 时未指定目标组件（空 Intent）
-- flag 含 `0x2000000`（FLAG_MUTABLE）而非 `0x4000000`（FLAG_IMMUTABLE）
+- 创建 PendingIntent 时未指定目标组件（空 Intent），flag 含 `0x2000000`（FLAG_MUTABLE）而非 `0x4000000`（FLAG_IMMUTABLE）
 - 导出 Activity 接收并执行外部传入的 PendingIntent
-
-
-## 代码模式
 
 ```java
 // 漏洞1：空 Intent + FLAG_MUTABLE
@@ -53,17 +49,6 @@ PendingIntent pi = getIntent().getParcelableExtra("callback");
 pi.send(); // 以受害者身份执行
 ```
 
-
-## 攻击流程
-
-```
-1. jiap code xref-method "android.app.PendingIntent.getActivity(...)" → 定位 PendingIntent 创建点
-2. jiap code class-source <Activity> → 检查是否使用 FLAG_MUTABLE 且未指定目标组件
-3. 确认导出 Activity 是否接收并执行外部传入的 PendingIntent
-4. 构造恶意 Intent 填充 action/component 指向敏感操作
-5. adb shell am start -n com.target/.ExportedActivity --el callback ...
-6. 目标 Activity 执行 PendingIntent，以受害者身份完成攻击
-```
 
 ## 经典案例
 
@@ -104,4 +89,3 @@ PendingIntent pi = PendingIntent.getActivity(this, 0, intent,
 - [[app-activity-intent-redirect]]
 - [[app-intent-pendingintent-escalation]]
 - [[framework-service-permission-missing]]
-

@@ -10,14 +10,21 @@ Activity 默认不导出，但设置 `exported="true"` 或添加 `<intent-filter
 
 **Android 版本范围：所有版本可利用** — Android 12 (API 31) 强制要求包含 intent-filter 的组件必须显式声明 `android:exported` 属性，不声明则无法安装。此变更减少了意外导出的风险，但显式设置 `exported="true"` 的组件在所有版本均可利用。
 
-## 关键特征
+## 攻击流程
 
-- 敏感 Activity（管理后台、支付确认、设置页面）被导出
-- 导出 Activity 缺少权限保护（未设置 `android:permission`）
+```
+1. jiap ard exported-components → 列出所有导出 Activity
+2. 识别敏感 Activity（名称含 Admin/Setting/Debug/Payment 等）
+3. adb shell am start -n com.target/.SensitiveActivity → 直接启动
+4. 绕过登录/认证屏幕，直接访问敏感功能
+5. 获取敏感数据或执行特权操作
+```
+
+## 关键特征与代码
+
+- 敏感 Activity（管理后台、支付确认、设置页面）被导出且缺少权限保护（未设置 `android:permission`）
 - 内部认证逻辑仅在非导出 Activity 中执行，导出 Activity 直接展示内容
 - **权限提升**：导出组件内部执行了需要特定权限的敏感操作（拨打电话、发送短信、访问私有数据），恶意应用无需申请该权限即可通过启动组件间接执行
-
-## 代码模式
 
 ### 模式 1：敏感页面直接导出
 
@@ -43,27 +50,12 @@ public class SensitiveActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         // 未校验调用者，直接拨打电话
-        // 恶意应用无需申请 CALL_PHONE 权限即可拨打电话
+        // 漏洞在于绕过了应用自身的访问控制（如密码验证），但 ACTION_CALL 仍需目标 app 声明 CALL_PHONE 权限
         Intent callIntent = new Intent(Intent.ACTION_CALL);
         callIntent.setData(Uri.parse("tel:10086"));
         startActivity(callIntent);
     }
 }
-
-// 攻击代码：
-// Intent intent = new Intent();
-// intent.setClassName("com.victim", "com.victim.SensitiveActivity");
-// startActivity(intent);
-```
-
-## 攻击流程
-
-```
-1. jiap ard exported-components → 列出所有导出 Activity
-2. 识别敏感 Activity（名称含 Admin/Setting/Debug/Payment 等）
-3. adb shell am start -n com.target/.SensitiveActivity → 直接启动
-4. 绕过登录/认证屏幕，直接访问敏感功能
-5. 获取敏感数据或执行特权操作
 ```
 
 ## 经典案例

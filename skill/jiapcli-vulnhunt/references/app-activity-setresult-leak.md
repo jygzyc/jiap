@@ -2,7 +2,7 @@
 
 通过 `startActivityForResult` 启动目标 Activity，目标通过 `setResult` 返回未过滤的 Intent 数据，导致敏感信息泄露。
 
-**Risk: HIGH**
+**Risk: MEDIUM**
 
 
 ## 利用前提
@@ -30,15 +30,10 @@
 ```
 
 
-## 关键特征
+## 关键特征与代码
 
-- Activity 使用 `setResult(RESULT_OK, intent)` 返回数据
-- 返回的 Intent 包含敏感信息（身份证号、联系人、文件 URI）
-- 未校验调用者身份（`getCallingPackage()`）
-- 在返回的 Intent 中携带了 URI 权限 flag（`addFlags(1)` = READ，`addFlags(3)` = READ+WRITE）
-
-
-## 代码模式
+- Activity 使用 `setResult(RESULT_OK, intent)` 返回数据，未校验调用者身份（`getCallingPackage()`）
+- 返回的 Intent 包含敏感信息（身份证号、联系人、文件 URI），或携带了 URI 权限 flag（`addFlags(1)` = READ，`addFlags(3)` = READ+WRITE）
 
 ```java
 // 漏洞：直接返回外部传入的 Intent，可能携带 URI 权限 flag
@@ -113,4 +108,3 @@ protected void onActivityResult(int requestCode, int resultCode, Intent data) {
 - [[app-intent-uri-permission]]
 - [[app-provider-data-leak]]
 - [[app-provider-fileprovider-misconfig]]
-

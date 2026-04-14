@@ -1,4 +1,4 @@
-# Messenger 接口滥用
+# Messenger 消息滥用
 
 Service 通过 `Messenger` 暴露消息处理接口，Handler 未校验调用者身份，任意应用可发送消息触发非预期操作。**Risk: HIGH**
 
@@ -25,15 +25,9 @@ Service 通过 `Messenger` 暴露消息处理接口，Handler 未校验调用者
 ```
 
 
-## 关键特征
+## 关键特征与代码
 
-- `onBind()` 返回 `Messenger(handler).getBinder()`
-- `handleMessage()` 根据 `msg.what` 分发操作
-- Handler 中未调用 `Binder.getCallingUid()` 校验调用者身份
-- 消息内容来自外部且未做输入校验
-
-
-## 代码模式
+- `onBind()` 返回 `Messenger(handler).getBinder()`，`handleMessage()` 根据 `msg.what` 分发操作，Handler 中未调用 `Binder.getCallingUid()` 校验调用者身份，消息内容来自外部且未做输入校验
 
 ```java
 // 漏洞：Messenger 处理外部消息，未校验调用者
@@ -63,21 +57,6 @@ public class MyService extends Service {
         return mMessenger.getBinder();
     }
 }
-```
-
-
-## 攻击流程
-
-```
-1. jiap ard exported-components → 定位导出 Service
-2. jiap code class-source <ServiceClass> → 检查 onBind 返回 Messenger.getBinder()
-3. jiap code subclass android.os.Messenger → 查找 Messenger 实现类
-4. jiap code subclass android.os.Handler → 定位 Handler 子类
-5. jiap code xref-method "package.Class.send(...):void" → xref 追踪 send 调用
-6. jiap code xref-method "package.Class.replyTo(...):void" → xref 追踪 replyTo 调用
-7. 从 class-source 中定位 handleMessage 方法，检查 msg.what 分发逻辑
-8. 分析 handleMessage() 中 msg.what 各分支的操作
-9. 编写攻击应用绑定服务并发送恶意 Message
 ```
 
 
@@ -131,4 +110,3 @@ class SecureIncomingHandler extends Handler {
 
 - [[app-intent]]
 - [[app-service]]
-

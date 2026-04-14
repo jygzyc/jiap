@@ -24,16 +24,10 @@
 ```
 
 
-## 关键特征
+## 关键特征与代码
 
-- `<provider android:exported="true">` 但未设置 `android:readPermission` 或 `android:writePermission`
-- `query()` 方法未调用 `Binder.getCallingUid()` 或 `checkCallingPermission()` 校验
-- 返回的 Cursor 包含敏感列（用户数据、凭证、配置信息等）
-- 设置了 `android:grantUriPermissions="true"` 允许临时授权
+- `<provider android:exported="true">` 未设置 `android:readPermission`，`query()` 未调用 `Binder.getCallingUid()` 或 `checkCallingPermission()` 校验，返回的 Cursor 包含敏感列
 - **权限配置不对称**：设置了 `readPermission` 但未设置 `writePermission`，攻击者可通过 insert/update 间接读取或篡改数据（"写转读"绕过）
-
-
-## 代码模式
 
 ### 模式 1：无权限保护
 
@@ -134,4 +128,3 @@ public Cursor query(Uri uri, String[] projection, String selection,
 - [[app-intent-pendingintent-escalation]]
 - [[app-provider]]
 - [[app-provider-sql-injection]]
-

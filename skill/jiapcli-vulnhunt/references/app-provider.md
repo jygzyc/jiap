@@ -9,7 +9,7 @@ ContentProvider 是 Android 数据共享的核心机制。导出的 Provider 可
 | 数据泄露 | HIGH | [[app-provider-data-leak]] |
 | SQL 注入 | HIGH | [[app-provider-sql-injection]] |
 | 路径遍历 | HIGH | [[app-provider-path-traversal]] |
-| call() 方法暴露 | MEDIUM | [[app-provider-call-expose]] |
+| call() 方法暴露 | HIGH | [[app-provider-call-expose]] |
 | getType() 信息泄露 | LOW | [[app-provider-gettype-infoleak]] |
 | FileProvider 配置错误 | HIGH | [[app-provider-fileprovider-misconfig]] |
 

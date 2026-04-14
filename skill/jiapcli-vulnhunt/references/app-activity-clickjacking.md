@@ -2,7 +2,7 @@
 
 利用 `SYSTEM_ALERT_WINDOW` 权限覆盖系统对话框（权限请求、卸载确认），诱骗用户点击。
 
-**Risk: MEDIUM**
+**Risk: LOW**
 
 
 ## 利用前提

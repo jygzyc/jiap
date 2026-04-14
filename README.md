@@ -201,11 +201,47 @@ npm install -g jiap-cli
 - `jiap ard app-application` - Get Application class name
 - `jiap ard exported-components` - List exported components
 - `jiap ard app-deeplinks` - List deep link schemes
-- `jiap ard receivers` - List dynamic broadcast receivers
+- `jiap ard app-receivers` - List dynamic broadcast receivers
 - `jiap ard system-service-impl <interface>` - Find system service implementations
 - `jiap ard all-resources` - List all resource file names
 - `jiap ard resource-file <res>` - Get resource file content by name
 - `jiap ard strings` - Get strings.xml content
+
+---
+
+## AI Agent Skill Installation
+
+The `skill/` directory contains JIAP's AI Agent skill definition files (SKILL.md), supporting the following AI assistants:
+
+**Claude Code**
+```bash
+cp -r skill/jiapcli ~/.claude/skills/
+cp -r skill/jiapcli-vulnhunt ~/.claude/skills/
+cp -r skill/jiapcli-poc ~/.claude/skills/
+```
+
+**Cursor**
+```bash
+cp skill/jiapcli/SKILL.md .cursor/rules/jiapcli.md
+cp skill/jiapcli-vulnhunt/SKILL.md .cursor/rules/jiapcli-vulnhunt.md
+cp skill/jiapcli-poc/SKILL.md .cursor/rules/jiapcli-poc.md
+```
+
+**Cline**
+```bash
+cp skill/jiapcli/SKILL.md .clinerules-jiapcli
+cp skill/jiapcli-vulnhunt/SKILL.md .clinerules-jiapcli-vulnhunt
+cp skill/jiapcli-poc/SKILL.md .clinerules-jiapcli-poc
+```
+
+**Windsurf**
+```bash
+cp skill/jiapcli/SKILL.md .windsurfrules-jiapcli
+cp skill/jiapcli-vulnhunt/SKILL.md .windsurfrules-jiapcli-vulnhunt
+cp skill/jiapcli-poc/SKILL.md .windsurfrules-jiapcli-poc
+```
+
+Dependency: `jiap` CLI installed (`npm install -g jiap-cli`).
 
 ---
 

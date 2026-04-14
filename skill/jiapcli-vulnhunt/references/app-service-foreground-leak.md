@@ -26,15 +26,9 @@ Service 启动为前台服务时，通知可能泄露敏感信息。
 ```
 
 
-## 关键特征
+## 关键特征与代码
 
-- 前台服务通知中包含用户位置、文件名、通信内容等敏感信息
-- 通知未设置 `VISIBILITY_SECRET` 或未标记为低优先级
-- 使用 `NotificationCompat.Builder` 构建通知时直接拼入敏感数据
-- 通知内容在锁屏状态下仍然可见
-
-
-## 代码模式
+- 前台服务通知中使用 `NotificationCompat.Builder` 直接拼入敏感数据（位置、文件名、通信内容），未设置 `VISIBILITY_SECRET`，锁屏状态下仍然可见
 
 ```java
 // 漏洞：前台通知中包含敏感信息
@@ -96,4 +90,3 @@ public class SecureLocationService extends Service {
 ## Related
 
 - [[app-service]]
-

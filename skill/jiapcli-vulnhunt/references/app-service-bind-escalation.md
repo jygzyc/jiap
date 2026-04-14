@@ -1,4 +1,4 @@
-# 绑定服务越权
+# 绑定提权
 
 应用绑定到系统或其他应用的 Service，利用该 Service 的权限执行本不应拥有的操作。
 
@@ -26,17 +26,10 @@
 ```
 
 
-## 关键特征
+## 关键特征与代码
 
-- 应用绑定到系统服务的代理接口
-- 通过绑定获得的服务接口执行特权操作
-- 服务端未区分调用者身份
-- `onBind` 返回的 Binder 接口未做权限校验
+- Service 导出（`android:exported="true"`）且未设置 `android:permission`，`onBind` 返回的 Binder 接口未做权限校验，任意应用绑定后可调用
 - **权限提升**：Service 内部执行了需要特定权限的敏感操作（如发送短信、安装应用），恶意应用无需申请该权限即可通过调用 Service 间接执行
-- Manifest 中 `<service android:exported="true">` 但未设置 `android:permission`
-
-
-## 代码模式
 
 ### 模式 1：文件操作越权
 
@@ -82,24 +75,6 @@ public class SMSService extends Service {
         return START_NOT_STICKY;
     }
 }
-
-// 攻击代码：恶意 App 无需申请 SEND_SMS 权限即可发送短信
-// Intent intent = new Intent();
-// intent.setComponent(new ComponentName("com.victim", "com.victim.SMSService"));
-// intent.putExtra("phone", "18888888888");
-// intent.putExtra("content", "Hello");
-// startService(intent);
-```
-
-
-## 攻击流程
-
-```
-1. jiap ard exported-components → 定位导出服务
-2. jiap code class-source <ServiceClass> → 检查 onBind() 返回的 Binder 实现
-3. 枚举 Binder 公开方法，识别敏感操作（文件读写、数据库、命令执行）
-4. 检查方法中是否有 getCallingUid/checkCallingPermission
-5. 编写攻击应用 bindService() 调用目标方法
 ```
 
 
@@ -172,4 +147,3 @@ public class SecureFileManagerService extends Service {
 - [[app-intent]]
 - [[app-service]]
 - [[framework-service-identity-confusion]]
-

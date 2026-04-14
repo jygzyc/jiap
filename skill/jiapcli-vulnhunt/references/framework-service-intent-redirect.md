@@ -12,7 +12,7 @@
 **Android 版本范围：Android 11 及以下可利用（典型利用链）** — Android 12+ 引入 intent 启动安全检查，LaunchAnyWhere 类攻击基本被修复。Android 14+ 限制隐式 intent 只能传送到导出组件。
 
 
-## 检测模式
+## 攻击流程
 
 ```bash
 # Step 1: 定位系统服务实现
@@ -25,19 +25,18 @@ jiap code class-source <ServiceImpl>
 jiap code xref-method "<ServiceImpl.startActivity(...)>"
 jiap code xref-method "<ServiceImpl.sendBroadcast(...)>"
 jiap code xref-method "android.content.Intent.fillIn(...)"
+
+# Step 4: 检查 Intent 来源是否为外部 Binder 调用
+# Step 5: 确认是否缺少 checkKeyIntent/Component 白名单校验
+# Step 6: 通过 AIDL 接口传入指向非导出特权组件的 Intent
 ```
 
 
-## 关键特征
+## 关键特征与代码
 
-- 系统服务接收外部传入的 Intent（通过 Binder 调用）
-- 未调用 `checkKeyIntent()` 或未校验 Intent 的 Component/Package
-- 直接使用传入的 Intent 调用 `startActivity()` / `sendBroadcast()` 等
-- 系统服务持有 `INTERACT_ACROSS_USERS` 等高权限
-- **服务劫持**：Service 使用隐式 Intent 启动（配置了 intent-filter 且未限制 exported），攻击者注册了更高优先级的同名 Action，拦截发往目标 Service 的 Intent，窃取数据或返回虚假结果
-
-
-## 代码模式
+- 系统服务接收外部传入的 Intent（通过 Binder 调用），未调用 `checkKeyIntent()` 或未校验 Intent 的 Component/Package
+- 直接使用传入的 Intent 调用 `startActivity()` / `sendBroadcast()` 等，系统服务持有 `INTERACT_ACROSS_USERS` 等高权限
+- **服务劫持**变体：Service 使用隐式 Intent 启动（配置了 intent-filter 且未限制 exported），攻击者注册了更高优先级的同名 Action，拦截发往目标 Service 的 Intent
 
 ```java
 // 漏洞：系统服务中转 Intent 未校验目标
@@ -52,17 +51,6 @@ public class NotificationService extends INotificationService.Stub {
         }
     }
 }
-```
-
-
-## 攻击流程
-
-```
-1. jiap ard system-service-impl <Interface> → 定位系统服务实现
-2. jiap code class-source <ServiceImpl> → 搜索 startActivity/sendBroadcast/startService
-3. 检查这些方法接收的 Intent 是否来自外部 Binder 调用
-4. 确认是否缺少 checkKeyIntent/Component 白名单校验
-5. 通过 AIDL 接口传入指向非导出特权组件的 Intent
 ```
 
 
@@ -123,4 +111,3 @@ public class SecureNotificationService extends INotificationService.Stub {
 - [[app-activity-intent-redirect]]
 - [[app-intent-pendingintent-escalation]]
 - [[framework-service]]
-

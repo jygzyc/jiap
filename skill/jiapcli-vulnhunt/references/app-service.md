@@ -7,7 +7,7 @@ Service 是 Android 后台执行组件。导出 Service 可被任意应用绑定
 | 风险 | 等级 | 详情 |
 |------|------|------|
 | AIDL 接口暴露 | HIGH | [[app-service-aidl-expose]] |
-| Messenger 消息滥用 | MEDIUM | [[app-service-messenger-abuse]] |
+| Messenger 消息滥用 | HIGH | [[app-service-messenger-abuse]] |
 | Intent 命令注入 | HIGH | [[app-service-intent-inject]] |
 | 绑定提权 | HIGH | [[app-service-bind-escalation]] |
 | 前台服务泄露 | MEDIUM | [[app-service-foreground-leak]] |

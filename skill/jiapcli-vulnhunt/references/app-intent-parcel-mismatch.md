@@ -1,4 +1,4 @@
-# Parcel 反序列化不匹配
+# Parcel 不匹配攻击
 
 利用 `Bundle` 序列化/反序列化过程中的读写不对称，构造恶意 Parcel 数据绕过安全校验（如 `checkKeyIntent()`），实现权限绕过。
 
@@ -29,15 +29,10 @@
 ```
 
 
-## 关键特征
+## 关键特征与代码
 
-- 使用 `checkKeyIntent()` / `checkCallingPackage()` 等校验 Intent 安全性
-- 校验通过 `Intent.filterEquals()` 或类型检查进行，但实际 Bundle 中包含额外恶意键值
-- 自定义 Parcelable 实现中 `writeToParcel` 和 `CREATOR.createFromParcel` 字段顺序不一致
-- `Intent.getExtras()` 返回的 Bundle 与原始 Bundle 内容不同（读写不对称）
-
-
-## 代码模式
+- 系统服务使用 `checkKeyIntent()` / `Intent.filterEquals()` 校验 Intent 安全性，但实际 Bundle 中包含额外恶意键值对（因读写不对称导致校验遗漏）
+- 自定义 Parcelable 实现中 `writeToParcel` 和 `CREATOR.createFromParcel` 字段顺序不一致，`Intent.getExtras()` 返回的 Bundle 与原始 Bundle 内容不同
 
 ```java
 // Bundle 读写不对称原理
@@ -113,4 +108,3 @@ public Bundle sanitizeBundle(Bundle input) {
 - [[app-service-aidl-expose]]
 - [[framework-service-permission-missing]]
 - [[app-intent-classloader-inject]]
-

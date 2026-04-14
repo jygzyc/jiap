@@ -30,14 +30,10 @@
 ```
 
 
-## 关键特征
+## 关键特征与代码
 
-- 方法参数包含 `int userId` 或 `int uid`，直接使用而非校验
-- 使用 `Binder.getCallingUid()` 但未正确映射到 userId
-- 在 `clearCallingIdentity()` 后使用缓存的 UID
-
-
-## 代码模式
+- 方法参数包含 `int userId` 或 `int uid`，直接使用而非校验是否与 `Binder.getCallingUid()` 匹配
+- 使用 `Binder.getCallingUid()` 但未正确映射到 userId（如：在 `clearCallingIdentity()` 后使用缓存的 UID）
 
 ```java
 // 漏洞：信任调用者传入的 userId
@@ -46,28 +42,6 @@ public void deleteUserFile(int userId, String filename) {
     File file = new File(getUserDir(userId), filename);
     file.delete();
 }
-
-// 正确写法：
-public void deleteUserFile(int userId, String filename) {
-    int callingUid = Binder.getCallingUid();
-    int callingUserId = UserHandle.getUserId(callingUid);
-    if (callingUserId != userId) {
-        getContext().enforceCallingPermission(
-            "android.permission.INTERACT_ACROSS_USERS", null);
-    }
-    // ...
-}
-```
-
-
-## 攻击流程
-
-```
-1. jiap ard system-service-impl <Interface> → 定位系统服务实现
-2. jiap code class-source <ServiceImpl> → 搜索接受 userId/uid 参数的方法
-3. 检查是否使用 Binder.getCallingUid() 校验
-4. 确认机器是否为多用户设备（工作 profile、餞宽模式）
-5. 构造 Binder 调用传入伪造 userId 访问其他用户数据
 ```
 
 
@@ -137,4 +111,3 @@ public UserInfo getUserInfo() {
 - [[app-service-bind-escalation]]
 - [[framework-service]]
 - [[framework-service-permission-missing]]
-

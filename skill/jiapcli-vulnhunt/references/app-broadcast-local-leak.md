@@ -24,14 +24,9 @@
 ```
 
 
-## 关键特征
+## 关键特征与代码
 
-- 使用 `sendBroadcast()` 发送包含敏感数据的 Intent
-- 未调用 `intent.setPackage()` 限定接收者
-- 未使用 `LocalBroadcastManager`
-
-
-## 代码模式
+- 使用 `sendBroadcast()` 发送包含敏感数据的 Intent，未调用 `intent.setPackage()` 限定接收者，未使用 `LocalBroadcastManager`
 
 ```java
 // 漏洞：通过全局广播发送敏感信息
@@ -83,4 +78,3 @@ LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
 
 - [[app-broadcast]]
 - [[app-intent]]
-

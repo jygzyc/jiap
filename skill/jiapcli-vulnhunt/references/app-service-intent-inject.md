@@ -1,4 +1,4 @@
-# IntentService / JobIntentService 命令注入
+# Intent 命令注入
 
 导出的 Service 在 `onHandleIntent()` 或 `onStartCommand()` 中处理外部 Intent 数据，未校验命令内容。
 
@@ -27,17 +27,11 @@
 ```
 
 
-## 关键特征
+## 关键特征与代码
 
-- `onHandleIntent()` / `onStartCommand()` 直接从 Intent 提取操作指令
-- 命令参数来自外部可控的 extras
-- 未校验调用者身份
-- **命令注入**：Service 接收外部参数用于构建系统命令（`Runtime.exec()`），未对输入进行白名单过滤，攻击者注入 `;`、`|`、`&` 等 Shell 元字符
+- `onHandleIntent()` / `onStartCommand()` 直接从 Intent 提取操作指令，命令参数来自外部可控的 extras，未校验调用者身份
+- **Shell 命令注入**：Service 接收外部参数用于构建系统命令（`Runtime.exec()`），未对输入进行白名单过滤，攻击者注入 `;`、`|`、`&` 等 Shell 元字符
 - **Intent 重定向**：Service 接收外部 Intent 并将其转发（startActivity/startService/sendBroadcast），参数来源于外部 Intent
-- **服务劫持**：Service 使用隐式 Intent 启动，攻击者注册了更高优先级的同名 Action，拦截 Intent
-
-
-## 代码模式
 
 ### 模式 1：Intent 命令分派
 
@@ -71,12 +65,6 @@ public int onStartCommand(Intent intent, int flags, int startId) {
     Runtime.getRuntime().exec(cmd);
     return START_NOT_STICKY;
 }
-
-// 攻击代码：注入命令读取敏感文件
-// Intent intent = new Intent();
-// intent.setComponent(new ComponentName("com.victim", "com.victim.NetService"));
-// intent.putExtra("domain", "baidu.com; cat /data/data/com.victim/shared_prefs/secrets.xml");
-// startService(intent);
 ```
 
 ### 模式 3：Intent 重定向
@@ -89,18 +77,6 @@ protected void onHandleIntent(Intent intent) {
     // 危险：转发外部可控的 Intent，可能启动私有 Activity 或授予 URI 权限
     startActivity(target);
 }
-```
-
-
-## 攻击流程
-
-```
-1. jiap ard exported-components → 定位导出 Service
-2. jiap code class-source <ServiceClass> → 检查 onStartCommand/onHandleIntent
-3. 识别从 Intent extras 提取命令参数的模式
-4. 分析 switch/if 分支中的敏感操作（文件删除、上传、执行）
-5. adb shell am startservice -n <component> --es action "delete" --es target "/data/..."
-6. 触发恶意操作
 ```
 
 
@@ -132,8 +108,9 @@ protected void onHandleIntent(Intent intent) {
 
 @Override
 protected void onHandleIntent(Intent intent) {
-    // onStartCommand 不在 Binder 上下文中，Binder.getCallingUid() 返回自身 UID
-    // 调用者校验依赖 manifest 的 android:permission 属性
+    // onStartCommand() 通过 Binder IPC 调用，Binder.getCallingUid() 返回调用方应用的 UID
+    // 可在代码中校验 Binder.getCallingUid()，同时 manifest 的 android:permission 属性
+    // 保护 bindService() 和 startService() 两种调用方式
 
     String action = intent.getStringExtra("action");
     // 白名单校验 action
@@ -200,4 +177,3 @@ safe.setComponent(new ComponentName(getPackageName(), "com.app.InternalActivity"
 - [[app-broadcast-dynamic-abuse]]
 - [[app-intent]]
 - [[app-service]]
-

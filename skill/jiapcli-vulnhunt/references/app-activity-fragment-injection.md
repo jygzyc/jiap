@@ -26,14 +26,9 @@
 ```
 
 
-## 关键特征
+## 关键特征与代码
 
-- Activity 从 Intent extras 中读取 Fragment 类名
-- 使用 `FragmentTransaction.replace/add` 动态加载
-- 未校验 Fragment 类是否属于应用白名单
-
-
-## 代码模式
+- Activity 从 Intent extras 中读取 Fragment 类名，使用 `FragmentTransaction.replace/add` 动态加载，未校验 Fragment 类是否属于应用白名单
 
 ```java
 // 漏洞：动态加载 Intent 指定的 Fragment
@@ -105,4 +100,3 @@ public class SecureMainActivity extends Activity {
 
 - [[app-activity]]
 - [[app-activity-task-hijack]]
-

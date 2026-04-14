@@ -28,14 +28,10 @@
 ```
 
 
-## 关键特征
+## 关键特征与代码
 
-- `clearCallingIdentity()` 和 `restoreCallingIdentity()` 之间的代码块以 system 身份执行
-- 在 clear/restore 之间执行的操作本应受调用者权限限制
-- clear 后未在正确的时机 restore
-
-
-## 代码模式
+- `clearCallingIdentity()` 和 `restoreCallingIdentity()` 之间的代码块以 system 身份执行，其中的操作本应受调用者权限限制
+- clear 后未在正确的时机 restore（如异常路径中遗漏 finally）
 
 ```java
 // 漏洞：clearCallingIdentity 范围过大
@@ -115,4 +111,3 @@ private void doPrivilegedOperation(String action) {
 - [[app-activity]]
 - [[framework-service]]
 - [[framework-service-permission-missing]]
-

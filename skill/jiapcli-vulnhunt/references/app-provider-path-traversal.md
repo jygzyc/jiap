@@ -26,16 +26,11 @@ ContentProvider 的 `openFile()` 方法根据 URI 路径返回文件描述符，
 ```
 
 
-## 关键特征
+## 关键特征与代码
 
-- `openFile()` 方法根据 URI 的 path 部分构造文件路径
-- 路径中包含 `..` 序列未过滤
-- 使用 `getCanonicalPath()` 校验但比较逻辑有缺陷
-- `getLastPathSegment()` 会自动 URL 解码，`%2F` 被解码为 `/`，可绕过简单的 `..` 字符过滤（CVE-2021-25410）
+- `openFile()` 方法根据 URI 的 path 部分构造文件路径，`..` 序列未过滤或过滤逻辑有缺陷
+- `getLastPathSegment()` 会将 `%2F` 解码为 `/`，可绕过简单的 `..` 字符过滤
 - `openFile()` 支持写入模式（`"w"`）时，攻击者可覆盖应用私有 `.so` 文件实现代码执行
-
-
-## 代码模式
 
 ```java
 // 漏洞 1：未校验路径遍历（任意文件读取）
@@ -67,18 +62,6 @@ public ParcelFileDescriptor openFile(Uri uri, String mode) {
     File file = new File(getContext().getFilesDir(), segment);
     return ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY);
 }
-```
-
-
-## 攻击流程
-
-```
-1. jiap ard exported-components → 定位导出 Provider 及 authority
-2. jiap code class-source <ProviderClass> → 检查 openFile/openAssetFile 实现
-3. 定位 URI path 提取逻辑（getPathSegments/getLastPathSegment/getPath）
-4. 检查是否存在 .. 过滤、getCanonicalPath 白名单校验
-5. 构造遍历 URI：content://<authority>/..%2F..%2F<target>
-6. adb shell content read --uri “content://<authority>/../../../data/data/<pkg>/shared_prefs/config.xml”
 ```
 
 
@@ -132,4 +115,3 @@ public ParcelFileDescriptor openFile(Uri uri, String mode) {
 - [[app-activity-path-traversal]]
 - [[app-intent-uri-permission]]
 - [[app-provider]]
-

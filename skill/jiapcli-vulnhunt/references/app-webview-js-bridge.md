@@ -26,16 +26,11 @@
 ```
 
 
-## 关键特征
+## 关键特征与代码
 
-- 调用 `addJavascriptInterface(obj, "name")` 将对象绑定到 JS
-- 对象方法被 `@JavascriptInterface` 注解标记
-- WebView 加载外部可控 URL（非本地资产）
+- 调用 `addJavascriptInterface(obj, "name")` 将对象绑定到 JS，对象方法被 `@JavascriptInterface` 注解标记，WebView 可加载外部可控 URL
 - **JS 接口分两类**：① 返回数据类（获取 Token、地理位置、用户信息）；② 执行操作类（拍照、发送请求、安装应用）
 - **evaluateJavascript 注入**：外部参数直接拼接到 JS 代码字符串中（`"loadPage('" + page + "')"`)，类似 DOM-based XSS
-
-
-## 代码模式
 
 ```java
 // 漏洞：将敏感对象暴露给 JS
@@ -146,4 +141,3 @@ webView.setWebViewClient(new WebViewClient() {
 - [[app-intent]]
 - [[app-webview]]
 - [[app-webview-url-bypass]]
-

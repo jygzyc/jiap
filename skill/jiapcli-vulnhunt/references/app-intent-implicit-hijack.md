@@ -28,14 +28,9 @@
 ```
 
 
-## 关键特征
+## 关键特征与代码
 
-- 创建 Intent 时未调用 `setClassName()` 或 `setComponent()` 指定目标
-- 发送包含敏感数据的广播使用隐式 Intent
-- 启动 Service 使用隐式 Intent（Android 5.0+ 已禁止，但旧代码仍可能存在）
-
-
-## 代码模式
+- 创建 Intent 时未调用 `setClassName()` / `setComponent()` / `setPackage()` 指定目标，发送包含敏感数据的隐式广播或启动隐式 Activity/Service
 
 ```java
 // 漏洞：隐式 Intent 携带敏感数据
@@ -80,4 +75,3 @@ startActivity(intent);
 
 - [[app-broadcast]]
 - [[app-intent]]
-

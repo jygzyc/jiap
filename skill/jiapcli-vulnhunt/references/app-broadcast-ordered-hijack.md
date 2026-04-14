@@ -24,16 +24,10 @@
 ```
 
 
-## 关键特征
+## 关键特征与代码
 
-- 应用发送有序广播携带敏感操作指令
-- 恶意应用注册高优先级（`android:priority="999"`）的接收器
-- 恶意接收器修改 `getResultData()` 或调用 `setResultData()` 替换数据
-- 恶意接收器可调用 `abortBroadcast()` 完全拦截广播，阻止后续接收器收到数据
-- 未对有序广播设置 `permission` 参数限制接收者
-
-
-## 代码模式
+- 应用发送有序广播携带敏感操作指令，未设置 `permission` 参数限制接收者
+- 恶意应用注册高优先级（`android:priority="999"`）的接收器，可修改 `setResultData()` 替换数据或调用 `abortBroadcast()` 拦截广播
 
 ```java
 // 漏洞：发送有序广播未设置权限，接收数据未校验
@@ -92,4 +86,3 @@ context.sendOrderedBroadcast(intent, "com.example.PERMISSION_SMS");
 ## Related
 
 - [[app-broadcast]]
-

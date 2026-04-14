@@ -28,14 +28,11 @@
 ```
 
 
-## 关键特征
+## 关键特征与代码
 
-- 检查-操作模式未使用同步保护
+- 检查-操作模式未使用同步保护（`synchronized` / `Lock` / `AtomicReference`）
 - 使用非线程安全的数据结构（`HashMap` 而非 `ConcurrentHashMap`）
 - 文件操作没有原子性保证
-
-
-## 代码模式
 
 ```java
 // 漏洞：检查-操作无同步保护
@@ -124,4 +121,3 @@ public void saveConfig(File file, String content) {
 ## Related
 
 - [[framework-service]]
-

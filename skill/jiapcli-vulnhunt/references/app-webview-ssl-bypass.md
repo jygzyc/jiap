@@ -29,14 +29,9 @@
 ```
 
 
-## 关键特征
+## 关键特征与代码
 
-- `onReceivedSslError()` 中直接调用 `handler.proceed()`
-- 无条件接受所有证书错误
-- 可能导致中间人攻击
-
-
-## 代码模式
+- `onReceivedSslError()` 中直接调用 `handler.proceed()`，无条件接受所有证书错误，导致中间人攻击
 
 ```java
 // 漏洞：忽略所有 SSL 错误
@@ -89,4 +84,3 @@ webView.setWebViewClient(new WebViewClient() {
 
 - [[app-webview]]
 - [[app-webview-js-bridge]]
-

@@ -1,4 +1,4 @@
-# 路径遍历（通过 Intent extras）
+# 路径遍历
 
 导出 Activity 接收文件路径参数，未校验路径合法性，导致访问任意文件。
 
@@ -26,15 +26,10 @@
 ```
 
 
-## 关键特征
+## 关键特征与代码
 
-- Activity 从 Intent 的 data URI 或 extras 中获取文件路径
-- 路径参数包含 `../` 遍历序列未过滤
-- 使用 `getCanonicalPath()` 校验但校验逻辑可绕过
-- 直接使用 `new File(path)` 或 `openFileInput(path)` 无白名单校验
-
-
-## 代码模式
+- Activity 从 Intent 的 data URI 或 extras 中获取文件路径，直接使用 `new File(path)` 或 `openFileInput(path)` 无白名单校验
+- 路径参数包含 `../` 遍历序列未过滤，或 `getCanonicalPath()` 校验逻辑可绕过
 
 ```java
 // 漏洞：从 Intent 获取路径未校验
@@ -131,4 +126,3 @@ public class SecureFileViewActivity extends Activity {
 - [[app-intent-uri-permission]]
 - [[app-provider]]
 - [[app-provider-path-traversal]]
-

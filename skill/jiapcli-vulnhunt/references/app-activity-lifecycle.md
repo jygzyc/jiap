@@ -26,15 +26,10 @@
 ```
 
 
-## 关键特征
+## 关键特征与代码
 
-- 在 `onCreate`/`onResume` 中启动敏感操作，但仅在 `onDestroy` 中释放
-- 缺少 `onPause`/`onStop` 中的资源释放逻辑
-- 使用 `android:noHistory="false"` 允许 Activity 在后台保留
-- `onSaveInstanceState` 中保存敏感数据（Token、密码等）
-
-
-## 代码模式
+- 在 `onCreate`/`onResume` 中启动敏感操作，但仅在 `onDestroy` 中释放，缺少 `onPause`/`onStop` 中的资源释放逻辑
+- `onSaveInstanceState` 中保存敏感数据（Token、密码等），可被提取
 
 ```java
 // 漏洞1：敏感资源未在 onPause 中释放
@@ -107,4 +102,3 @@ protected void onSaveInstanceState(Bundle outState) {
 ## Related
 
 - [[app-activity]]
-

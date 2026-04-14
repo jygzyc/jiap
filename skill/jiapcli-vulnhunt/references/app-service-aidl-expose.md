@@ -26,16 +26,10 @@
 ```
 
 
-## 关键特征
+## 关键特征与代码
 
-- Service 在 `onBind()` 中返回 AIDL 接口的 `Stub` 实现
-- Service 是 exported（`android:exported="true"`）
-- 接口方法未做调用者身份校验（`Binder.getCallingUid()`）
-- 接口返回敏感数据（用户信息、Token、Cookie、配置文件）且未根据调用者身份做数据脱敏
-- 泄露的信息（如 Token、Cookie）可用于后续的账号劫持或伪造请求
-
-
-## 代码模式
+- Service 导出（`android:exported="true"`）且 `onBind()` 返回 AIDL 接口的 `Stub` 实现，接口方法未做调用者身份校验（`Binder.getCallingUid()`）
+- 接口返回敏感数据（用户信息、Token、Cookie、配置文件）且未根据调用者身份做数据脱敏，泄露的信息可用于后续账号劫持
 
 ```java
 // 漏洞：导出 Service 暴露 AIDL 接口，无权限校验
@@ -59,18 +53,6 @@ public class ExportedService extends Service {
         return binder; // 无条件返回
     }
 }
-```
-
-
-## 攻击流程
-
-```
-1. jiap ard exported-components → 定位导出 Service
-2. jiap code class-source <ServiceClass> → 检查 onBind() 返回的 Binder/Stub
-3. jiap code implement <AIDL_Interface> → 获取接口所有方法
-4. 分析每个接口方法的功能（数据读取、文件操作、命令执行）
-5. 检查是否存在 Binder.getCallingUid() 校验
-6. 编写攻击应用 bindService() 调用敏感接口
 ```
 
 
@@ -144,4 +126,3 @@ public Bundle getUserInfo(String userId) {
 - [[app-intent]]
 - [[app-intent-parcel-mismatch]]
 - [[app-service]]
-

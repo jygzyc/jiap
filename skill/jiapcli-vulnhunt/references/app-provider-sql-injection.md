@@ -27,16 +27,11 @@ ContentProvider 的 `query()` 方法接收外部 `selection` 和 `selectionArgs`
 ```
 
 
-## 关键特征
+## 关键特征与代码
 
-- `query()` 方法中使用字符串拼接构造 SQL
+- `query()` 方法中使用字符串拼接构造 SQL，外部传入的 `selection`、`sortOrder`、`projection` 参数直接嵌入
 - `SQLiteQueryBuilder` 使用 `setTables()` 但未配置 `setStrict(true)`，攻击者可通过表名注入 `JOIN` 子句
-- 外部传入的 `selection`、`sortOrder`、`projection` 参数直接嵌入 SQL 语句
-- `sortOrder` 参数直接拼接，可通过 `ORDER BY` 子句注入（如 `1; DROP TABLE users--`）
 - 使用 `rawQuery()` 或 `execSQL()` 且参数来自外部输入
-
-
-## 代码模式
 
 ```java
 // 漏洞 1：selection 参数直接拼接
@@ -111,4 +106,3 @@ if (!ALLOWED_ORDERS.contains(sortOrder)) {
 - [[app-activity-intent-redirect]]
 - [[app-intent-uri-permission]]
 - [[app-provider]]
-

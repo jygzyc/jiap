@@ -26,14 +26,10 @@
 ```
 
 
-## 关键特征
+## 关键特征与代码
 
-- 使用 `PendingIntent.getActivity()`、`getService()`、`getBroadcast()` 创建
-- base Intent 未指定目标组件（空 action 或空 component）
-- flag 含 `0x2000000`（FLAG_MUTABLE）而非 `0x4000000`（FLAG_IMMUTABLE）
-
-
-## 代码模式
+- 使用 `PendingIntent.getActivity()` / `getService()` / `getBroadcast()` 创建，flag 含 `0x2000000`（FLAG_MUTABLE）而非 `0x4000000`（FLAG_IMMUTABLE）
+- base Intent 未指定目标组件（空 action 或空 component），攻击者可通过 `Intent.fillIn()` 填充空字段
 
 ```java
 // 漏洞：空 Intent + FLAG_MUTABLE
@@ -92,4 +88,3 @@ PendingIntent pi = PendingIntent.getActivity(this, 0, intent,
 
 - [[app-activity]]
 - [[app-intent]]
-

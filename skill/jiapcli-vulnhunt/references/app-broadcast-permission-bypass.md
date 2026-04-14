@@ -1,4 +1,4 @@
-# 广播接收器权限绕过
+# 权限绕过
 
 静态注册的广播接收器声明了自定义权限保护，但权限级别设置为 `normal`（安装时自动授予），或权限声明不当。
 
@@ -25,14 +25,10 @@
 ```
 
 
-## 关键特征
+## 关键特征与代码
 
-- `<receiver>` 声明了 `android:permission`，但对应 `<permission>` 的 `protectionLevel` 为 `normal`
+- `<receiver>` 声明了 `android:permission`，但对应 `<permission>` 的 `protectionLevel` 为 `normal`，任意应用可声明并获取
 - 接收器 exported 但未设置任何权限保护
-- 使用 `signature` 级别权限但应用签名可被绕过（如：使用平台签名的系统应用）
-
-
-## 代码模式
 
 ```xml
 <!-- 漏洞：自定义权限为 normal 级别，任意应用可声明并获取 -->
@@ -106,4 +102,3 @@
 ## Related
 
 - [[app-broadcast]]
-

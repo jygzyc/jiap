@@ -19,19 +19,13 @@
 4. jiap code class-source <ProviderClass> → 检查 getType() 实现
 5. 确认 getType() 返回值是否依赖文件存在性
 6. 枚举常见文件路径，通过返回值差异探测文件是否存在
-7. 建立文件存在性地图，为后续攻击提供俦察信息
+7. 建立文件存在性地图，为后续攻击提供侦察信息
 ```
 
 
-## 关键特征
+## 关键特征与代码
 
-- `getType()` 方法根据 URI 对应的文件是否存在返回不同 MIME 类型
-- 文件存在时返回具体 MIME（如 `image/jpeg`），不存在时返回 `null` 或默认值
-- 未做权限校验即可调用
-- 返回值差异构成布尔型信息泄露（存在/不存在）
-
-
-## 代码模式
+- `getType()` 方法根据 URI 对应的文件是否存在返回不同 MIME 类型（存在时返回具体 MIME 如 `image/jpeg`，不存在时返回 `null`），未做权限校验即可调用，返回值差异构成布尔型信息泄露
 
 ```java
 // 漏洞：getType() 返回值泄露文件存在性
@@ -86,4 +80,3 @@ public String getType(Uri uri) {
 
 - [[app-provider]]
 - [[app-provider-path-traversal]]
-

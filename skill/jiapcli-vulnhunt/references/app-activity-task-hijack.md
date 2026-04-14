@@ -1,8 +1,8 @@
-# 任务栈劫持（StrandHogg）
+# Task 劫持（StrandHogg）
 
 利用 `taskAffinity` 和 `allowTaskReparenting` 属性，恶意应用可将自身 Activity 插入目标应用的任务栈，实现 UI 欺骗。
 
-**Risk: HIGH**
+**Risk: MEDIUM**
 
 
 ## 利用前提
@@ -31,15 +31,9 @@ StrandHogg 2.0（CVE-2020-0096）：
 ```
 
 
-## 关键特征
+## 关键特征与代码
 
-- Activity 声明 `android:taskAffinity=""`（空 affinity）或与目标应用相同的 affinity
-- 设置 `android:allowTaskReparenting="true"`
-- 使用 `singleTask` 或 `singleInstance` launchMode
-- 未设置 `android:excludeFromRecents`
-
-
-## 代码模式
+- Activity 声明 `android:taskAffinity=""`（空 affinity）或与目标应用相同的 affinity，设置 `android:allowTaskReparenting="true"`，使用 `singleTask` 或 `singleInstance` launchMode，未设置 `android:excludeFromRecents`
 
 ```xml
 <!-- 漏洞：taskAffinity 为空，可被恶意应用利用 -->
@@ -81,14 +75,21 @@ startActivity(intent);
 ```
 
 ```java
-// 运行时校验：验证调用者身份
+// 运行时校验：验证任务栈完整性
 @Override
 protected void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
-    // 校验调用者包名，防止恶意应用注入
-    String callerPackage = getReferrer() != null ? getReferrer().getHost() : null;
-    if (callerPackage != null && !callerPackage.equals(getPackageName())) {
-        Log.w("Security", "Unexpected caller: " + callerPackage);
+    // 检查当前任务栈是否包含预期的 Activity
+    ActivityManager am = (ActivityManager) getSystemService(ACTIVITY_SERVICE);
+    List<ActivityManager.AppTask> tasks = am.getAppTasks();
+    if (tasks.isEmpty()) {
+        finish();
+        return;
+    }
+    // 校验任务栈顶层是否属于自身应用
+    ComponentName topActivity = tasks.get(0).getTaskInfo().topActivity;
+    if (topActivity == null || !topActivity.getPackageName().equals(getPackageName())) {
+        Log.w("Security", "Task stack tampered");
         finish();
         return;
     }
@@ -116,4 +117,3 @@ protected void onCreate(Bundle savedInstanceState) {
 - [[app-activity-setresult-leak]]
 - [[app-webview]]
 - [[app-webview-js-bridge]]
-
