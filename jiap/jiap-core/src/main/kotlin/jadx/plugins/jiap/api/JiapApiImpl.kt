@@ -83,6 +83,12 @@ class JiapApiImpl(
 
     // ==================== Android App Service ====================
 
+    override fun getAidlInterfaces(): JiapApiResult {
+        return if (cacheEnabled) cached("getAidlInterfaces", emptyMap()) {
+            androidAppService.handleGetAidlInterfaces()
+        } else androidAppService.handleGetAidlInterfaces()
+    }
+
     override fun getAppManifest(): JiapApiResult {
         return androidAppService.handleGetAppManifest()
     }

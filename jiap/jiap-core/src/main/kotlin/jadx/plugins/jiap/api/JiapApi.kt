@@ -24,6 +24,7 @@ interface JiapApi {
 
     // ==================== Android App Service ====================
 
+    fun getAidlInterfaces(): JiapApiResult
     fun getAppManifest(): JiapApiResult
     fun getMainActivity(): JiapApiResult
     fun getApplication(): JiapApiResult

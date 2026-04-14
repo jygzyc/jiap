@@ -139,7 +139,11 @@ export class JIAPClient {
         return this.request("POST", "/api/jiap/get_sub_classes", { cls, page });
     }
 
-    // ── AndroidAppService ───────────────────────────────────────────────────
+    // ── Android App Service ───────────────────────────────────────────────────
+
+    async getAidlInterfaces(page: number = 1): Promise<Record<string, unknown>> {
+        return this.request("POST", "/api/jiap/get_aidl", { page });
+    }
 
     async getAppManifest(page: number = 1): Promise<Record<string, unknown>> {
         return this.request("POST", "/api/jiap/get_app_manifest", { page });

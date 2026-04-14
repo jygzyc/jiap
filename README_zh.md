@@ -96,6 +96,7 @@ chmod +x gradlew
 - `get_resource_file(resource_name, page=1)` - 按名称获取资源文件内容
 - `get_strings(page=1)` - 获取应用 strings.xml 内容
 - `get_dynamic_receivers(page=1)` - 获取动态注册的 BroadcastReceivers
+- `get_aidl(page=1)` - 获取所有 AIDL 接口及其实现类
 - `get_system_service_impl(interface_name, page=1)` - 获取系统服务实现
 
 **系统**
@@ -194,6 +195,7 @@ npm install -g jiap-cli
 - `jiap code xref-field <field>` - 查找字段使用位置
 - `jiap code implement <interface>` - 查找接口实现
 - `jiap code subclass <class>` - 查找子类
+- `jiap code get-aidl` - 获取所有 AIDL 接口
 
 **Android 分析：**
 - `jiap ard app-manifest` - 获取 AndroidManifest.xml

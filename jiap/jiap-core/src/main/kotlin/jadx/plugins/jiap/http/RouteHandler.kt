@@ -40,6 +40,7 @@ class RouteHandler(private val api: JiapApi) {
             "/api/jiap/get_sub_classes" -> requireParam(payload, "cls") { api.getSubclasses(it) }
 
             // Android App Service
+            "/api/jiap/get_aidl" -> api.getAidlInterfaces()
             "/api/jiap/get_app_manifest" -> api.getAppManifest()
             "/api/jiap/get_main_activity" -> api.getMainActivity()
             "/api/jiap/get_application" -> api.getApplication()

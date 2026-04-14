@@ -37,6 +37,7 @@ jiap ard exported-components -P <port>  → 导出组件列表
 jiap ard app-deeplinks -P <port>        → Deep Link 入口
 jiap ard app-receivers -P <port>        → 动态广播接收器
 jiap ard app-manifest -P <port>         → 完整 Manifest
+jiap code get-aidl -P <port>           → AIDL 接口及实现类
 jiap ard strings -P <port>              → 硬编码字符串
 ```
 

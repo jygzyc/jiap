@@ -409,6 +409,35 @@ class AndroidAppService(override val decompiler: JadxDecompiler) : JiapServiceIn
         }
     }
 
+    fun handleGetAidlInterfaces(): JiapApiResult {
+        try {
+            val stubClasses = decompiler.classesWithInners.filter { clazz ->
+                clazz.fullName.contains("\$Stub")
+            }
+            val aidlInterfaces = stubClasses.map { stub ->
+                val interfaceName = stub.fullName.removeSuffix("\$Stub")
+                val implClasses = decompiler.classesWithInners.filter { clazz ->
+                    clazz.fullName != stub.fullName &&
+                    !clazz.fullName.endsWith("\$Proxy") &&
+                    clazz.smali.contains(".super L${stub.fullName.replace('.', '/')};")
+                }
+                hashMapOf(
+                    "interface" to interfaceName,
+                    "stub" to stub.fullName,
+                    "implementations" to implClasses.map { it.fullName }
+                )
+            }
+            val result = hashMapOf(
+                "type" to "list",
+                "count" to aidlInterfaces.size,
+                "interfaces-list" to aidlInterfaces
+            )
+            return JiapApiResult(success = true, data = result)
+        } catch (e: Exception) {
+            return JiapApiResult(success = false, data = hashMapOf("error" to "handleGetAidlInterfaces: ${e.message}"))
+        }
+    }
+
     fun handleGetStrings(): JiapApiResult {
         try {
             val resources = decompiler.resources

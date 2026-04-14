@@ -67,6 +67,7 @@ metadata:
 | `jiap code xref-field "<field>" [--page <n>]` | 字段交叉引用 |
 | `jiap code implement "<interface>" [--page <n>]` | 查找接口实现 |
 | `jiap code subclass "<class>" [--page <n>]` | 查找子类 |
+| `jiap code get-aidl [--page <n>]` | 获取所有 AIDL 接口及实现类 |
 | `jiap code search-class "<keyword>" [--page <n>]` | 搜索类内容（占资源，必要场景使用，禁止批量调用） |
 | `jiap code search-method "<name>" [--page <n>]` | 搜索方法名（占资源，必要场景使用，禁止批量调用） |
 
@@ -150,6 +151,7 @@ jiap code xref-field "com.example.MyClass.mToken"  → 追踪字段读写
 ```
 jiap code subclass "com.example.BaseActivity"     → 查找所有子类
 jiap code implement "com.example.MyInterface"     → 查找接口实现
+jiap code get-aidl                                → 发现所有 AIDL 接口
 jiap code class-info "com.example.MyClass"        → 查看类的方法和字段列表
 ```
 

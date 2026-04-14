@@ -96,6 +96,7 @@ All tools support pagination via the `page` parameter.
 - `get_resource_file(resource_name, page=1)` - Get resource file content by name
 - `get_strings(page=1)` - Get strings.xml content from app resources
 - `get_dynamic_receivers(page=1)` - Get dynamically registered BroadcastReceivers
+- `get_aidl(page=1)` - Get all AIDL interfaces and their implementations
 - `get_system_service_impl(interface_name, page=1)` - Get system service implementations
 
 **System**
@@ -194,6 +195,7 @@ npm install -g jiap-cli
 - `jiap code xref-field <field>` - Find field usages
 - `jiap code implement <interface>` - Find implementations
 - `jiap code subclass <class>` - Find subclasses
+- `jiap code get-aidl` - Get all AIDL interfaces
 
 **Android Analysis:**
 - `jiap ard app-manifest` - Get AndroidManifest.xml

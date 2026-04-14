@@ -40,6 +40,7 @@ class JiapServer(
             "/api/jiap/get_implement",
             "/api/jiap/get_sub_classes",
             // Android App Service
+            "/api/jiap/get_aidl",
             "/api/jiap/get_app_manifest",
             "/api/jiap/get_main_activity",
             "/api/jiap/get_application",

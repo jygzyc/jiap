@@ -249,6 +249,16 @@ async def selected_class(
 
 # Android App specific endpoints
 @mcp.tool(
+    name="get_aidl",
+    description="Get all AIDL interfaces. Find AIDL interfaces and their implementations by scanning Stub classes.",
+)
+async def get_aidl(
+    page: int = Field(1, description="Page number for pagination (default: 1)"),
+) -> ToolResult:
+    return await request_to_jiap("get_aidl", page=page)
+
+
+@mcp.tool(
     name="get_app_manifest",
     description="Get Android manifest. View AndroidManifest.xml content.",
 )
