@@ -33,7 +33,7 @@ metadata:
 
 1. **读取报告**，从"攻击路径 → 目标组件"获取包名、类名、Action/URI、IPC 接口
 2. **确定组件类型**（Activity / Broadcast / Provider / Service / Intent / WebView / Framework），加载对应的 reference
-3. **首次创建项目**：解压 `assets/poc-template.zip` 到 `poc-<target-app>/`，将其中所有 `com.poc.targetapp` 替换为 `com.poc.<target-app>`
+3. **首次创建项目**：执行 `node scripts/setup-poc.mjs <target-app>`，自动解压模板并完成包名替换（`com.poc.targetapp` → `com.poc.<target-app>`，含目录名）
 4. **编写 Exploit**：在 `app/src/main/java/com/poc/<target-app>/exploit/` 下创建 Exploit 类，从 reference 中选择匹配的漏洞模式模板，将报告中的攻击步骤填入 `execute()` 方法，替换包名/类名常量
 5. **注册到 ExploitRegistry**：在 `ExploitRegistry.java` 的 `EXPLOITS` 数组中添加新 Exploit 类
 6. **编译通过**
@@ -42,7 +42,7 @@ metadata:
 
 项目模板为 `assets/poc-template.zip`，是一个完整可编译的 Gradle Android 项目。
 
-**首次创建项目**：解压 zip 到 `poc-<target-app>/`，然后全局替换 `com.poc.targetapp` 为 `com.poc.<target-app>`（含目录名、包名、namespace、applicationId）。
+**首次创建项目**：执行 `node scripts/setup-poc.mjs <target-app>`，自动完成解压、包名替换和目录重命名。
 
 ```
 poc-<target-app>/
