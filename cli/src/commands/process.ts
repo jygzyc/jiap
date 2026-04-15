@@ -9,33 +9,33 @@ import * as os from "os";
 import { existsSync, mkdirSync, openSync, closeSync, readFileSync } from "fs";
 import { downloadWithProgress, formatBytes } from "../utils/progress.js";
 import { createHash } from "crypto";
-import { JIAPClient } from "../core/client.js";
+import { DecxClient } from "../core/client.js";
 import { Formatter } from "../utils/formatter.js";
 import { Manager } from "../core/config.js";
 import { hashFile } from "../utils/hash.js";
-import { FileError, ProcessError, JiapError, ServerError, handleCliError } from "../utils/errors.js";
-import { findJiapServerJar } from "../server/installer.js";
+import { FileError, ProcessError, DecxError, ServerError, handleCliError } from "../utils/errors.js";
+import { findDecxServerJar } from "../server/installer.js";
 import { isSessionAlive } from "../core/session.js";
 import { logCliEvent } from "../utils/logger.js";
 
 export function makeProcessCommand(): Command {
   const cmd = new Command("process");
-  cmd.description("Manage JIAP server processes and installation");
+  cmd.description("Manage DECX server processes and installation");
 
   // check
   cmd
     .command("check")
-    .description("Check JIAP server status")
+    .description("Check DECX server status")
     .option("-P, --port <port>", "Server port", String)
     .action(async (opts) => {
       const fmt = new Formatter();
       const mgr = Manager.get();
       const port = opts.port ? parseInt(opts.port) : mgr.server.defaultPort;
 
-      // Check jiap-server.jar
-      const jarPath = findJiapServerJar();
+      // Check decx-server.jar
+      const jarPath = findDecxServerJar();
       const jarOk = jarPath !== null;
-      const jarInfo = jarOk ? jarPath! : "Not found. Use 'jiap self install' to install.";
+      const jarInfo = jarOk ? jarPath! : "Not found. Use 'decx self install' to install.";
 
       // Check running server
       const [serverOk, serverInfo] = await checkServer(port);
@@ -87,9 +87,9 @@ export function makeProcessCommand(): Command {
         );
       }
 
-      const jarPath = findJiapServerJar();
+      const jarPath = findDecxServerJar();
       if (!jarPath) {
-        throw new FileError("jiap-server.jar not found. Run 'jiap self install' to install.");
+        throw new FileError("decx-server.jar not found. Run 'decx self install' to install.");
       }
 
       // Resolve input: local file or URL
@@ -131,13 +131,13 @@ export function makeProcessCommand(): Command {
         }
       }
 
-      // --- Spawn jiap-server ---
+      // --- Spawn decx-server ---
       const jadxArgs = extractPassthroughArgs();
       const javaArgs = ["-jar", jarPath, resolvedFile, "--port", String(port), ...jadxArgs];
 
       // Redirect stdout/stderr to a log file for debugging.
       // On Windows, stdio:"ignore" sets handles to NULL which can crash Java on write.
-      const logDir = path.join(os.homedir(), ".jiap", "logs");
+      const logDir = path.join(os.homedir(), ".decx", "logs");
       mkdirSync(logDir, { recursive: true });
       const logPath = path.join(logDir, `${fileName}.log`);
       const logFd = openSync(logPath, "a");
@@ -176,7 +176,7 @@ export function makeProcessCommand(): Command {
         mgr.removeSession(fileName);
         if (processExited) {
           throw new ServerError(
-            `jiap-server exited unexpectedly (code: ${processExitCode}). Check log: ${logPath}`,
+            `decx-server exited unexpectedly (code: ${processExitCode}). Check log: ${logPath}`,
             port
           );
         }
@@ -188,7 +188,7 @@ export function makeProcessCommand(): Command {
   // close
   cmd
     .command("close [name]")
-    .description("Stop JIAP server by session name")
+    .description("Stop DECX server by session name")
     .option("-a, --all", "Kill all processes")
     .action(async (name: string | undefined, opts) => {
       const fmt = new Formatter();
@@ -273,13 +273,13 @@ export function makeProcessCommand(): Command {
         port = mgr.server.defaultPort;
       }
 
-      const client = new JIAPClient("127.0.0.1", port);
+      const client = new DecxClient("127.0.0.1", port);
       try {
         const health = await client.healthCheck();
         logCliEvent({ command: "process", action: "status", session: name, port, ok: true });
         fmt.output({ ok: true, port, health });
       } catch (err) {
-        throw new JiapError(String(err), "SERVER_ERROR", { port });
+        throw new DecxError(String(err), "SERVER_ERROR", { port });
       }
       } catch (err) { handleCliError(err, fmt); }
     });
@@ -288,7 +288,7 @@ export function makeProcessCommand(): Command {
 }
 
 /**
- * Check if JIAP server is reachable on the given port.
+ * Check if DECX server is reachable on the given port.
  */
 async function checkServer(port: number, retries: number = 3): Promise<[boolean, string]> {
   for (let i = 0; i < retries; i++) {
@@ -307,7 +307,7 @@ async function waitForServer(port: number, timeout: number = 120, logPath?: stri
   const start = Date.now();
   const deadline = timeout * 1000;
   const interval = 1000;
-  const readyMarker = "JIAP Server running at";
+  const readyMarker = "DECX Server running at";
 
   while (Date.now() - start < deadline) {
     if (shouldAbort?.()) return false;
@@ -416,7 +416,7 @@ function killProcessTreeWin(pid: number): Promise<boolean> {
 const URL_RE = /^https?:\/\//i;
 
 /**
- * Resolve file input: if it's a URL, download to ~/.jiap/tmp/ and return local path.
+ * Resolve file input: if it's a URL, download to ~/.decx/tmp/ and return local path.
  * If it's a local path, return it as-is.
  */
 async function resolveFileInput(input: string): Promise<string> {
@@ -425,8 +425,8 @@ async function resolveFileInput(input: string): Promise<string> {
     return path.resolve(input);
   }
 
-  // URL — download to ~/.jiap/tmp/
-  const tmpDir = path.join(os.homedir(), ".jiap", "tmp");
+  // URL — download to ~/.decx/tmp/
+  const tmpDir = path.join(os.homedir(), ".decx", "tmp");
   mkdirSync(tmpDir, { recursive: true });
 
   // Derive filename from URL (prefix with URL hash to avoid collisions)
@@ -465,8 +465,8 @@ async function resolveFileInput(input: string): Promise<string> {
 }
 
 /**
- * Extract non-JIAP args from process.argv for passthrough to jiad-server.
- * Filters out JIAP-specific flags and the file argument, keeping everything else
+ * Extract non-DECX args from process.argv for passthrough to jadx-server.
+ * Filters out DECX-specific flags and the file argument, keeping everything else
  * (standard jadx-cli options) for direct passthrough.
  */
 function extractPassthroughArgs(): string[] {
@@ -475,8 +475,8 @@ function extractPassthroughArgs(): string[] {
   if (openIdx === -1) return [];
 
   const raw = cmdArgs.slice(openIdx + 1);
-  const jiapFlagsWithValue = ["-P", "--port", "-n", "--name"];
-  const jiapFlags = ["--force"];
+  const decxFlagsWithValue = ["-P", "--port", "-n", "--name"];
+  const decxFlags = ["--force"];
 
   const result: string[] = [];
   let fileSkipped = false;
@@ -492,17 +492,17 @@ function extractPassthroughArgs(): string[] {
       continue;
     }
 
-    // Skip JIAP flags with values (--flag value or --flag=value)
-    const isJiapWithValue = jiapFlagsWithValue.some(
+    // Skip DECX flags with values (--flag value or --flag=value)
+    const isDecxWithValue = decxFlagsWithValue.some(
       (f) => arg === f || arg.startsWith(f + "=")
     );
-    if (isJiapWithValue) {
+    if (isDecxWithValue) {
       i += arg.includes("=") ? 1 : 2;
       continue;
     }
 
-    // Skip JIAP boolean flags
-    if (jiapFlags.includes(arg)) {
+    // Skip DECX boolean flags
+    if (decxFlags.includes(arg)) {
       i++;
       continue;
     }

@@ -1,5 +1,5 @@
 /**
- * Error handling utilities for JIAP CLI.
+ * Error handling utilities for DECX CLI.
  * Provides structured error types and handling helpers.
  */
 
@@ -7,16 +7,16 @@ import { Formatter } from "./formatter.js";
 import { logError } from "./logger.js";
 
 /**
- * Base error class for JIAP CLI.
+ * Base error class for DECX CLI.
  */
-export class JiapError extends Error {
+export class DecxError extends Error {
   constructor(
     message: string,
     public readonly code?: string,
     public readonly details?: Record<string, unknown>
   ) {
     super(message);
-    this.name = "JiapError";
+    this.name = "DecxError";
   }
 
   format(fmt: Formatter): void {
@@ -27,7 +27,7 @@ export class JiapError extends Error {
 /**
  * Process-related errors.
  */
-export class ProcessError extends JiapError {
+export class ProcessError extends DecxError {
   constructor(message: string, pid?: number) {
     super(message, "PROCESS_ERROR", { pid });
     this.name = "ProcessError";
@@ -37,7 +37,7 @@ export class ProcessError extends JiapError {
 /**
  * Server connection errors.
  */
-export class ServerError extends JiapError {
+export class ServerError extends DecxError {
   constructor(message: string, port?: number) {
     super(message, "SERVER_ERROR", { port });
     this.name = "ServerError";
@@ -47,7 +47,7 @@ export class ServerError extends JiapError {
 /**
  * File operation errors.
  */
-export class FileError extends JiapError {
+export class FileError extends DecxError {
   constructor(message: string, filePath?: string) {
     super(message, "FILE_ERROR", { filePath });
     this.name = "FileError";
@@ -57,7 +57,7 @@ export class FileError extends JiapError {
 /**
  * Configuration errors.
  */
-export class ConfigError extends JiapError {
+export class ConfigError extends DecxError {
   constructor(message: string, key?: string) {
     super(message, "CONFIG_ERROR", { key });
     this.name = "ConfigError";
@@ -68,13 +68,13 @@ export class ConfigError extends JiapError {
  * Error handler for CLI commands.
  */
 export function handleCliError(error: unknown, formatter: Formatter): never {
-  if (error instanceof JiapError) {
+  if (error instanceof DecxError) {
     error.format(formatter);
     logError({ code: error.code, message: error.message, name: error.name });
   } else if (error instanceof Error) {
     formatter.error(error.message);
     logError({ message: error.message, name: error.name });
-    if (process.env.JIAP_DEBUG === "1") {
+    if (process.env.DECX_DEBUG === "1") {
       console.error(error.stack);
     }
   } else {
@@ -105,7 +105,7 @@ export function withErrorHandler<T extends unknown[], R>(
 export function assert(
   condition: boolean,
   message: string,
-  ErrorClass: typeof JiapError = JiapError
+  ErrorClass: typeof DecxError = DecxError
 ): asserts condition {
   if (!condition) {
     throw new ErrorClass(message);

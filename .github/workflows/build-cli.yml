@@ -1,4 +1,4 @@
-name: Build JIAP CLI
+name: Build Decx CLI
 
 on:
   push:

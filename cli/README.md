@@ -1,36 +1,36 @@
-# jiap-cli
+# decx-cli
 
-JIAP CLI - Java Intelligence Analysis Platform command-line tool.
+DECX CLI - Decompiler + X command-line tool.
 
 ## Install
 
 ```bash
-npm install -g jiap-cli
+npm install -g decx-cli
 ```
 
 ## Usage
 
 ```bash
-jiap <command> [options]
+decx <command> [options]
 ```
 
 ### Commands
 
 | Command | Description |
 |---------|-------------|
-| `jiap process` | Manage JIAP server processes and installation |
-| `jiap ard` | Android specific analysis |
-| `jiap code` | Common code analysis |
+| `decx process` | Manage DECX server processes and installation |
+| `decx ard` | Android specific analysis |
+| `decx code` | Common code analysis |
 
 ### process
 
 ```bash
-jiap process check [--install]     # Check environment status
-jiap process open <file> [options] # Open and analyze a file (APK, DEX, JAR, etc.)
-jiap process close [name] [--all]  # Stop session
-jiap process list                  # List running sessions
-jiap process status [name]         # Check server status
-jiap process install [-p]          # Install jiap-server.jar (-p for prerelease)
+decx process check [--install]     # Check environment status
+decx process open <file> [options] # Open and analyze a file (APK, DEX, JAR, etc.)
+decx process close [name] [--all]  # Stop session
+decx process list                  # List running sessions
+decx process status [name]         # Check server status
+decx process install [-p]          # Install decx-server.jar (-p for prerelease)
 ```
 
 **open options:**
@@ -47,32 +47,32 @@ All standard [jadx-cli options](https://github.com/skylot/jadx) are passed throu
 ### ard
 
 ```bash
-jiap ard app-manifest                    # Get AndroidManifest.xml
-jiap ard main-activity                   # Get main activity name
-jiap ard app-application                 # Get Application class name
-jiap ard exported-components             # List exported components
-jiap ard app-deeplinks                   # List deep link schemes
-jiap ard app-receivers                   # List dynamic broadcast receivers
-jiap ard system-service-impl <interface> # Find system service implementations
-jiap ard all-resources                   # List all resource file names
-jiap ard resource-file <res>             # Get resource file content
-jiap ard strings                         # Get strings.xml content
+decx ard app-manifest                    # Get AndroidManifest.xml
+decx ard main-activity                   # Get main activity name
+decx ard app-application                 # Get Application class name
+decx ard exported-components             # List exported components
+decx ard app-deeplinks                   # List deep link schemes
+decx ard app-receivers                   # List dynamic broadcast receivers
+decx ard system-service-impl <interface> # Find system service implementations
+decx ard all-resources                   # List all resource file names
+decx ard resource-file <res>             # Get resource file content
+decx ard strings                         # Get strings.xml content
 ```
 
 ### code
 
 ```bash
-jiap code all-classes                    # Get all classes
-jiap code class-info <class>             # Get class information
-jiap code class-source <class>           # Get class source code
-jiap code method-source <sig>            # Get method source
-jiap code search-class <keyword>         # Search in class content
-jiap code search-method <name>           # Search methods by name
-jiap code xref-method <sig>              # Find method callers
-jiap code xref-class <class>             # Find class usages
-jiap code xref-field <field>             # Find field usages
-jiap code implement <interface>          # Find implementations
-jiap code subclass <class>               # Find subclasses
+decx code all-classes                    # Get all classes
+decx code class-info <class>             # Get class information
+decx code class-source <class>           # Get class source code
+decx code method-source <sig>            # Get method source
+decx code search-class <keyword>         # Search in class content
+decx code search-method <name>           # Search methods by name
+decx code xref-method <sig>              # Find method callers
+decx code xref-class <class>             # Find class usages
+decx code xref-field <field>             # Find field usages
+decx code implement <interface>          # Find implementations
+decx code subclass <class>               # Find subclasses
 ```
 
 ### Global options

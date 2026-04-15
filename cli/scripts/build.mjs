@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * JIAP CLI build script.
+ * DECX CLI build script.
  *
  * 1. tsc — emit .d.ts declarations only (no JS, no source maps)
  * 2. esbuild — bundle, minify, and compress into dist/
@@ -76,7 +76,7 @@ const prodPkg = {
   version: pkgJson.version,
   description: pkgJson.description,
   type: pkgJson.type,
-  bin: { jiap: "./index.js" },
+  bin: { decx: "./index.js" },
   engines: pkgJson.engines,
   keywords: pkgJson.keywords,
   author: pkgJson.author,

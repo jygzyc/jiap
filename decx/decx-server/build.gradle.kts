@@ -1,0 +1,36 @@
+plugins {
+    alias(libs.plugins.kotlin.jvm)
+    alias(libs.plugins.shadow)
+}
+
+dependencies {
+    implementation(project(":decx-core"))
+    implementation(libs.jadx.core) {
+        isChanging = false
+    }
+    implementation(libs.jadx.cli) {
+        isChanging = false
+    }
+    implementation(libs.gson)
+    implementation(libs.slf4j.api)
+    implementation(libs.logback.classic)
+}
+
+tasks {
+    named<com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar>("shadowJar") {
+        archiveBaseName = "decx-server"
+        archiveClassifier = ""
+        archiveVersion = project.version.toString()
+        mergeServiceFiles()
+        manifest {
+            attributes("Main-Class" to "jadx.plugins.decx.server.DecxServerApp")
+        }
+    }
+
+    register<Copy>("dist") {
+        group = "build"
+        dependsOn(shadowJar)
+        from(shadowJar)
+        into(layout.buildDirectory.dir("dist"))
+    }
+}

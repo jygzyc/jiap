@@ -1,4 +1,4 @@
-// Shared types for JIAP CLI
+// Shared types for DECX CLI
 
 export interface Session {
   name: string;

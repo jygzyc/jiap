@@ -1,7 +1,7 @@
 /**
- * Session management for JIAP CLI.
+ * Session management for DECX CLI.
  *
- * Sessions are stored in ~/.jiap/sessions/<name>.json
+ * Sessions are stored in ~/.decx/sessions/<name>.json
  * where name is the APK filename without extension.
  */
 
@@ -15,7 +15,7 @@ import { randomBytes } from "crypto";
 import { spawnSync } from "child_process";
 import type { Session } from "./types.js";
 
-const SESSIONS_DIR = path.join(os.homedir(), ".jiap", "sessions");
+const SESSIONS_DIR = path.join(os.homedir(), ".decx", "sessions");
 const SESSION_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 function sessionFilePath(name: string): string {
@@ -23,10 +23,10 @@ function sessionFilePath(name: string): string {
 }
 
 /**
- * Verify that a PID still belongs to a JIAP server process (not a reused PID).
+ * Verify that a PID still belongs to a DECX server process (not a reused PID).
  * Checks the process command on macOS/Linux.
  */
-function isJiapProcess(pid: number): boolean {
+function isDecxProcess(pid: number): boolean {
   try {
     // Signal 0 just checks liveness
     process.kill(pid, 0);
@@ -43,7 +43,7 @@ function isJiapProcess(pid: number): boolean {
     });
     if (result.status !== 0 || !result.stdout.trim()) return false;
     const comm = result.stdout.trim().toLowerCase();
-    // Match java (jiap-server runs as JVM process)
+    // Match java (decx-server runs as JVM process)
     return comm.includes("java");
   } catch {
     // If ps fails, assume it's still valid (conservative)
@@ -104,10 +104,10 @@ export function autoSelectSession(): Session | null {
 }
 
 /**
- * Check if a session's process is still alive AND is actually a JIAP process.
+ * Check if a session's process is still alive AND is actually a DECX process.
  */
 export function isSessionAlive(session: Session): boolean {
-  return isJiapProcess(session.pid);
+  return isDecxProcess(session.pid);
 }
 
 export function cleanupDead(): number {
@@ -115,7 +115,7 @@ export function cleanupDead(): number {
   const now = Date.now();
   for (const s of listAllSessions()) {
     const expired = now - s.startedAt > SESSION_MAX_AGE_MS;
-    if (expired || !isJiapProcess(s.pid)) {
+    if (expired || !isDecxProcess(s.pid)) {
       deleteSession(s.name);
       n++;
     }

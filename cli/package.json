@@ -1,10 +1,10 @@
 {
-  "name": "jiap-cli",
-  "version": "2.2.3",
-  "description": "JIAP CLI - Java Intelligence Analysis Platform (TypeScript)",
+  "name": "decx-cli",
+  "version": "2.2.4",
+  "description": "DECX CLI - Decompiler + X",
   "type": "module",
   "bin": {
-    "jiap": "./dist/index.js"
+    "decx": "./dist/index.js"
   },
   "scripts": {
     "clean": "rm -rf dist",
@@ -40,16 +40,16 @@
     "jadx",
     "decompiler",
     "cli",
-    "jiap"
+    "decx"
   ],
   "author": "Yves",
   "license": "GPL-3.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/jygzyc/jiap"
+    "url": "https://github.com/jygzyc/decx"
   },
   "bugs": {
-    "url": "https://github.com/jygzyc/jiap/issues"
+    "url": "https://github.com/jygzyc/decx/issues"
   },
-  "homepage": "https://github.com/jygzyc/jiap#readme"
+  "homepage": "https://github.com/jygzyc/decx#readme"
 }

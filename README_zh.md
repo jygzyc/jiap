@@ -1,12 +1,12 @@
-# JIAP - Java智能分析平台
+# DECX - Decompiler + X
 
 <div align="center">
 
-![JIAP Logo](https://img.shields.io/badge/JIAP-Java%20Intelligence%20Analysis%20Platform-blue?style=for-the-badge&logo=java&logoColor=white)
-![Release](https://img.shields.io/github/v/release/jygzyc/jiap?style=for-the-badge&logo=github&color=green)
-![License](https://img.shields.io/github/license/jygzyc/jiap?style=for-the-badge&logo=gnu&color=orange)
+![DECX Logo](https://img.shields.io/badge/DECX-Decompiler%20%2B%20X-blue?style=for-the-badge&logo=java&logoColor=white)
+![Release](https://img.shields.io/github/v/release/jygzyc/decx?style=for-the-badge&logo=github&color=green)
+![License](https://img.shields.io/github/license/jygzyc/decx?style=for-the-badge&logo=gnu&color=orange)
 
-**基于JADX的Java智能分析平台 - 为AI辅助代码分析而设计**
+**基于 JADX 的 Decompiler + X — 为 AI 辅助代码分析而设计**
 
 </div>
 
@@ -14,7 +14,7 @@
 
 ## 项目概述
 
-JIAP (Java Intelligence Analysis Platform) 是一个基于JADX反编译器的智能代码分析平台，专门为AI辅助代码分析而设计。该平台通过HTTP API和MCP (Model Context Protocol) 协议，为AI助手提供强大的Java代码分析能力。
+DECX (Decompiler + X) 是一个基于JADX反编译器的智能代码分析平台，专门为AI辅助代码分析而设计。该平台通过HTTP API和MCP (Model Context Protocol) 协议，为AI助手提供强大的Java代码分析能力。
 
 ---
 
@@ -22,7 +22,7 @@ JIAP (Java Intelligence Analysis Platform) 是一个基于JADX反编译器的智
 
 ### 环境要求
 
-- **Java**: JDK 11+ （用于 JIAP Core）
+- **Java**: JDK 11+ （用于 DECX Core）
 - **Python**: 3.10+ （可选 - 自动管理）
 - **JADX**: v1.5.2+ 支持插件的 JADX 反编译器
 - **Python 依赖**: `requests`, `fastmcp`, `pydantic`（自动安装）
@@ -31,13 +31,13 @@ JIAP (Java Intelligence Analysis Platform) 是一个基于JADX反编译器的智
 
 ```bash
 # 1. 在 JADX GUI 中安装插件
-# JADX -> Settings -> Plugins -> Install JIAP
+# JADX -> Settings -> Plugins -> Install Decx
 
 # 或使用命令行安装
-jadx plugins --install-jar <path-to-jiap.jar>
+jadx plugins --install-jar <path-to-decx.jar>
 
-# 2. 构建 JIAP Core（从源码）
-cd jiap
+# 2. 构建 DECX Core（从源码）
+cd decx
 chmod +x gradlew
 ./gradlew dist
 ```
@@ -49,21 +49,21 @@ chmod +x gradlew
 
 ### 使用说明
 
-* 启动 JIAP 插件
+* 启动 DECX 插件
 
-  - 启动 JADX 并启用 JIAP 插件
+  - 启动 JADX 并启用 DECX 插件
   - 插件会自动启动 HTTP 服务器，MCP 服务器可手动确认启动
   - 确认服务器运行在 `http://127.0.0.1:25419`
 
 **自动执行流程：**
-1. JIAP 插件启动 HTTP 服务器（端口 `25419`）
-2. 插件自动提取 MCP 脚本到 `~/.jiap/mcp/`
+1. DECX 插件启动 HTTP 服务器（端口 `25419`）
+2. 插件自动提取 MCP 脚本到 `~/.decx/mcp/`
 3. 若启用自动启动，伴生进程（MCP 服务器）将自动启动（端口 `25419 + 1`）
 4. 两个进程在关闭时协同停止
 
 * 验证连接
 
-使用 `health_check()` 验证 MCP 服务器与 JIAP 插件之间的连接
+使用 `health_check()` 验证 MCP 服务器与 DECX 插件之间的连接
 
 * 可用工具
 
@@ -105,36 +105,36 @@ chmod +x gradlew
 ### 配置说明
 
 **端口配置：**
-- **GUI 方式**：JIAP Server Status 菜单 → 设置新端口 → 自动重启
-- **插件选项**：在 JADX 插件选项中设置 `jiap.port`
-- **默认值**：`25419`（JIAP）
+- **GUI 方式**：DECX Server Status 菜单 → 设置新端口 → 自动重启
+- **插件选项**：在 JADX 插件选项中设置 `decx.port`
+- **默认值**：`25419`（Decx）
 
 **MCP 脚本路径：**
-- **GUI 方式**：JIAP Server Status 菜单 → 浏览并选择自定义脚本
-- **插件选项**：在 JADX 插件选项中设置 `jiap.mcp_path` 为自定义脚本路径
-- **默认值**：自动提取到 `~/.jiap/mcp/jiap_mcp_server.py`
+- **GUI 方式**：DECX Server Status 菜单 → 浏览并选择自定义脚本
+- **插件选项**：在 JADX 插件选项中设置 `decx.mcp_path` 为自定义脚本路径
+- **默认值**：自动提取到 `~/.decx/mcp/decx_mcp_server.py`
 
 **伴生进程配置：**
 ```bash
 # 自动检测执行器：uv、python3 或 python
-# 自动提取脚本到 ~/.jiap/mcp/
-# 自动启动并配置正确的 JIAP_URL 和 MCP_PORT
+# 自动提取脚本到 ~/.decx/mcp/
+# 自动启动并配置正确的 DECX_URL 和 MCP_PORT
 ```
 
 **缓存配置：**
-JIAP 支持两种缓存模式以提升性能：
-- **disk**（默认）：将反编译缓存持久化到磁盘（`~/.jiap/cache/`）
+DECX 支持两种缓存模式以提升性能：
+- **disk**（默认）：将反编译缓存持久化到磁盘（`~/.decx/cache/`）
 - **memory**：仅在内存中保留缓存，适用于小型项目
 
 **配置方式：**
-- **插件选项**：在 JADX 插件选项中设置 `jiap.cache` 为 `disk` 或 `memory`
+- **插件选项**：在 JADX 插件选项中设置 `decx.cache` 为 `disk` 或 `memory`
 - **默认值**：`disk`，以在后续运行中提供更好的性能
 
 **性能优化：**
-JIAP 包含自动性能优化：
+DECX 包含自动性能优化：
 
 **反编译器预热：**
-- JIAP 启动时自动预热反编译器引擎
+- DECX 启动时自动预热反编译器引擎
 - 过滤掉 SDK 包（android.*、androidx.*、java.*、javax.*、kotlin.*）
 - 随机采样最多 15,000 个应用类
 - 确保后续查询的最佳性能
@@ -146,13 +146,13 @@ JIAP 包含自动性能优化：
 
 ### 错误码说明
 
-JIAP 使用结构化的错误码进行清晰的诊断：
+DECX 使用结构化的错误码进行清晰的诊断：
 
 | 错误码 | 描述 | 常见原因 |
 |--------|------|----------|
 | **E001** | 内部服务器错误 | 意外的服务器状态 |
 | **E002** | 服务错误 | 通用服务错误 |
-| **E003** | 健康检查失败 | 无法连接 JIAP 服务器 |
+| **E003** | 健康检查失败 | 无法连接 DECX 服务器 |
 | **E004** | 方法未找到 | 请求的方法不存在 |
 | **E005** | 参数无效 | 参数格式/值无效 |
 
@@ -168,82 +168,82 @@ JIAP 使用结构化的错误码进行清晰的诊断：
 
 ## CLI 命令行工具
 
-JIAP 提供了一个 TypeScript CLI 工具，用于通过命令行访问分析平台。
+DECX 提供了一个 TypeScript CLI 工具，用于通过命令行访问分析平台。
 
 **安装：**
 
 ```bash
-npm install -g jiap-cli
+npm install -g decx-cli
 ```
 
 **进程管理：**
-- `jiap process check` - 检查 JIAP 服务器状态
-- `jiap process open <file>` - 打开并分析文件（APK、DEX、JAR 等）
-- `jiap process close [name]` - 按会话名停止 JIAP 服务器
-- `jiap process list` - 列出运行中的进程
-- `jiap process install` - 安装或更新 jiap-server.jar
+- `decx process check` - 检查 DECX 服务器状态
+- `decx process open <file>` - 打开并分析文件（APK、DEX、JAR 等）
+- `decx process close [name]` - 按会话名停止 DECX 服务器
+- `decx process list` - 列出运行中的进程
+- `decx process install` - 安装或更新 decx-server.jar
 
 **代码分析：**
-- `jiap code all-classes` - 获取所有类
-- `jiap code class-info <class>` - 获取类信息
-- `jiap code class-source <class>` - 获取类源代码
-- `jiap code search-class <keyword>` - 搜索类内容
-- `jiap code search-method <name>` - 按名称搜索方法
-- `jiap code method-source <signature>` - 获取方法源代码
-- `jiap code xref-method <signature>` - 查找方法调用者
-- `jiap code xref-class <class>` - 查找类使用位置
-- `jiap code xref-field <field>` - 查找字段使用位置
-- `jiap code implement <interface>` - 查找接口实现
-- `jiap code subclass <class>` - 查找子类
-- `jiap code get-aidl` - 获取所有 AIDL 接口
+- `decx code all-classes` - 获取所有类
+- `decx code class-info <class>` - 获取类信息
+- `decx code class-source <class>` - 获取类源代码
+- `decx code search-class <keyword>` - 搜索类内容
+- `decx code search-method <name>` - 按名称搜索方法
+- `decx code method-source <signature>` - 获取方法源代码
+- `decx code xref-method <signature>` - 查找方法调用者
+- `decx code xref-class <class>` - 查找类使用位置
+- `decx code xref-field <field>` - 查找字段使用位置
+- `decx code implement <interface>` - 查找接口实现
+- `decx code subclass <class>` - 查找子类
+- `decx code get-aidl` - 获取所有 AIDL 接口
 
 **Android 分析：**
-- `jiap ard app-manifest` - 获取 AndroidManifest.xml
-- `jiap ard main-activity` - 获取主 Activity 名称
-- `jiap ard app-application` - 获取 Application 类名
-- `jiap ard exported-components` - 列出导出组件
-- `jiap ard app-deeplinks` - 列出深度链接
-- `jiap ard app-receivers` - 列出动态广播接收器
-- `jiap ard system-service-impl <interface>` - 查找系统服务实现
-- `jiap ard all-resources` - 列出所有资源文件名
-- `jiap ard resource-file <res>` - 按名称获取资源文件内容
-- `jiap ard strings` - 获取 strings.xml 内容
+- `decx ard app-manifest` - 获取 AndroidManifest.xml
+- `decx ard main-activity` - 获取主 Activity 名称
+- `decx ard app-application` - 获取 Application 类名
+- `decx ard exported-components` - 列出导出组件
+- `decx ard app-deeplinks` - 列出深度链接
+- `decx ard app-receivers` - 列出动态广播接收器
+- `decx ard system-service-impl <interface>` - 查找系统服务实现
+- `decx ard all-resources` - 列出所有资源文件名
+- `decx ard resource-file <res>` - 按名称获取资源文件内容
+- `decx ard strings` - 获取 strings.xml 内容
 
 ---
 
 ## AI Agent 技能安装
 
-`skill/` 目录下包含 JIAP 的 AI Agent 技能定义文件（SKILL.md），支持以下 AI 编程助手：
+`skill/` 目录下包含 Decx 的 AI Agent 技能定义文件（SKILL.md），支持以下 AI 编程助手：
 
 **Claude Code**
 ```bash
-cp -r skill/jiapcli ~/.claude/skills/
-cp -r skill/jiapcli-vulnhunt ~/.claude/skills/
-cp -r skill/jiapcli-poc ~/.claude/skills/
+cp -r skill/decxcli ~/.claude/skills/
+cp -r skill/decxcli-vulnhunt ~/.claude/skills/
+cp -r skill/decxcli-poc ~/.claude/skills/
 ```
 
 **Cursor**
 ```bash
-cp skill/jiapcli/SKILL.md .cursor/rules/jiapcli.md
-cp skill/jiapcli-vulnhunt/SKILL.md .cursor/rules/jiapcli-vulnhunt.md
-cp skill/jiapcli-poc/SKILL.md .cursor/rules/jiapcli-poc.md
+cp skill/decxcli/SKILL.md .cursor/rules/decxcli.md
+cp skill/decxcli-vulnhunt/SKILL.md .cursor/rules/decxcli-vulnhunt.md
+cp skill/decxcli-poc/SKILL.md .cursor/rules/decxcli-poc.md
 ```
 
 **Cline**
 ```bash
-cp skill/jiapcli/SKILL.md .clinerules-jiapcli
-cp skill/jiapcli-vulnhunt/SKILL.md .clinerules-jiapcli-vulnhunt
-cp skill/jiapcli-poc/SKILL.md .clinerules-jiapcli-poc
+cp skill/decxcli/SKILL.md .clinerules-decxcli
+cp skill/decxcli-vulnhunt/SKILL.md .clinerules-decxcli-vulnhunt
+cp skill/decxcli-poc/SKILL.md .clinerules-decxcli-poc
 ```
 
 **Windsurf**
 ```bash
-cp skill/jiapcli/SKILL.md .windsurfrules-jiapcli
-cp skill/jiapcli-vulnhunt/SKILL.md .windsurfrules-jiapcli-vulnhunt
-cp skill/jiapcli-poc/SKILL.md .windsurfrules-jiapcli-poc
+cp skill/decxcli/SKILL.md .windsurfrules-decxcli
+cp skill/decxcli-vulnhunt/SKILL.md .windsurfrules-decxcli-vulnhunt
+cp skill/decxcli-poc/SKILL.md .windsurfrules-decxcli-poc
 ```
 
-依赖：`jiap` CLI 已安装（`npm install -g jiap-cli`）。
+依赖：`decx` CLI 已安装（`npm install -g decx-cli`）。
 
 ---
 
@@ -252,8 +252,8 @@ cp skill/jiapcli-poc/SKILL.md .windsurfrules-jiapcli-poc
 ### 从源码构建
 
 ```bash
-# 构建 JIAP Core
-cd jiap
+# 构建 DECX Core
+cd decx
 chmod +x gradlew
 ./gradlew dist
 
@@ -265,52 +265,52 @@ npm run build
 
 ### 增加自定义功能
 
-JIAP 的架构分为三层：`JiapApi` 接口定义 → `JiapApiImpl` 实现 → `RouteHandler` HTTP 路由分发。
+DECX 的架构分为三层：`DecxApi` 接口定义 → `DecxApiImpl` 实现 → `RouteHandler` HTTP 路由分发。
 
-**1. 在 `JiapApi` 接口中添加方法**
+**1. 在 `DecxApi` 接口中添加方法**
 
-文件：`jiap/jiap-core/src/main/kotlin/jadx/plugins/jiap/api/JiapApi.kt`
+文件：`decx/decx-core/src/main/kotlin/jadx/plugins/decx/api/DecxApi.kt`
 
 ```kotlin
-interface JiapApi {
+interface DecxApi {
     // ... 已有方法 ...
 
-    fun doSomething(param: String): JiapApiResult
+    fun doSomething(param: String): DecxApiResult
 }
 ```
 
-**2. 在 `JiapApiImpl` 中实现方法**
+**2. 在 `DecxApiImpl` 中实现方法**
 
-文件：`jiap/jiap-core/src/main/kotlin/jadx/plugins/jiap/api/JiapApiImpl.kt`
+文件：`decx/decx-core/src/main/kotlin/jadx/plugins/decx/api/DecxApiImpl.kt`
 
 ```kotlin
-override fun doSomething(param: String): JiapApiResult {
+override fun doSomething(param: String): DecxApiResult {
     val result = // 业务逻辑
-    return JiapApiResult.ok(mapOf("data" to result))
+    return DecxApiResult.ok(mapOf("data" to result))
 }
 ```
 
-**3. 在 `JiapServer.ALL_ROUTES` 中注册路由，在 `RouteHandler.dispatch()` 中添加分发**
+**3. 在 `DecxServer.ALL_ROUTES` 中注册路由，在 `RouteHandler.dispatch()` 中添加分发**
 
-文件：`jiap/jiap-core/src/main/kotlin/jadx/plugins/jiap/http/JiapServer.kt`
+文件：`decx/decx-core/src/main/kotlin/jadx/plugins/decx/http/DecxServer.kt`
 
 ```kotlin
 val ALL_ROUTES = setOf(
     // ... 已有路由 ...
-    "/api/jiap/do_something",
+    "/api/decx/do_something",
 )
 ```
 
-文件：`jiap/jiap-core/src/main/kotlin/jadx/plugins/jiap/http/RouteHandler.kt`
+文件：`decx/decx-core/src/main/kotlin/jadx/plugins/decx/http/RouteHandler.kt`
 
 ```kotlin
-"/api/jiap/do_something" -> requireParam(payload, "param") { api.doSomething(it) }
+"/api/decx/do_something" -> requireParam(payload, "param") { api.doSomething(it) }
 ```
 
 ### 故障排查
 
 **伴生进程问题：**
-- **查看日志**：在 JIAP 日志中查找 `[MCP]` 消息
+- **查看日志**：在 DECX 日志中查找 `[MCP]` 消息
 - **验证 Python**：确保已安装 Python 3.10+ 或 `uv`
 - **检查依赖**：插件会自动检查 `requests`、`fastmcp`、`pydantic`
 - **手动路径**：如有需要，可通过 GUI 配置自定义脚本路径
@@ -321,8 +321,8 @@ val ALL_ROUTES = setOf(
 - 验证防火墙是否允许 localhost 连接
 
 **常见错误：**
-- **E001**：查看 JIAP 日志中的内部错误信息
-- **E003**：确保 JIAP 插件已启用并加载
+- **E001**：查看 DECX 日志中的内部错误信息
+- **E003**：确保 DECX 插件已启用并加载
 - **E005**：检查参数格式和值
 
 ## 贡献
@@ -354,6 +354,6 @@ val ALL_ROUTES = setOf(
 
 **⭐ 如果这个项目对您有帮助，请给一个Star！**
 
-![Star History](https://img.shields.io/github/stars/jygzyc/jiap?style=social)
+![Star History](https://img.shields.io/github/stars/jygzyc/decx?style=social)
 
 </div>

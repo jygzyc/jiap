@@ -1,12 +1,12 @@
-# JIAP - Java Intelligence Analysis Platform
+# DECX - Decompiler + X
 
 <div align="center">
 
-![JIAP Logo](https://img.shields.io/badge/JIAP-Java%20Intelligence%20Analysis%20Platform-blue?style=for-the-badge&logo=java&logoColor=white)
-![Release](https://img.shields.io/github/v/release/jygzyc/jiap?style=for-the-badge&logo=github&color=green)
-![License](https://img.shields.io/github/license/jygzyc/jiap?style=for-the-badge&logo=gnu&color=orange)
+![DECX Logo](https://img.shields.io/badge/DECX-Decompiler%20%2B%20X-blue?style=for-the-badge&logo=java&logoColor=white)
+![Release](https://img.shields.io/github/v/release/jygzyc/decx?style=for-the-badge&logo=github&color=green)
+![License](https://img.shields.io/github/license/jygzyc/decx?style=for-the-badge&logo=gnu&color=orange)
 
-**A JADX-based Java Intelligence Analysis Platform - Designed for AI-assisted code analysis**
+**A JADX-based Decompiler + X - Designed for AI-assisted code analysis**
 
 </div>
 
@@ -14,7 +14,7 @@
 
 ## Overview
 
-JIAP (Java Intelligence Analysis Platform) is a smart code analysis platform built on the JADX decompiler, designed specifically for AI-assisted code analysis. The platform provides powerful Java code analysis capabilities to AI assistants through HTTP API and MCP (Model Context Protocol).
+DECX (Decompiler + X) is a smart code analysis platform built on the JADX decompiler, designed specifically for AI-assisted code analysis. The platform provides powerful Java code analysis capabilities to AI assistants through HTTP API and MCP (Model Context Protocol).
 
 ---
 
@@ -22,7 +22,7 @@ JIAP (Java Intelligence Analysis Platform) is a smart code analysis platform bui
 
 ### Prerequisites
 
-- **Java**: JDK 11+ (for JIAP Core)
+- **Java**: JDK 11+ (for DECX Core)
 - **Python**: 3.10+ (optional - auto-managed)
 - **JADX**: v1.5.2+ with plugin support
 - **Python dependencies**: `requests`, `fastmcp`, `pydantic` (auto-installed)
@@ -31,13 +31,13 @@ JIAP (Java Intelligence Analysis Platform) is a smart code analysis platform bui
 
 ```bash
 # 1. Install plugin in JADX GUI
-# JADX -> Settings -> Plugins -> Install JIAP
+# JADX -> Settings -> Plugins -> Install DECX
 
 # Or install via command line
-jadx plugins --install-jar <path-to-jiap.jar>
+jadx plugins --install-jar <path-to-decx.jar>
 
-# 2. Build JIAP Core (from source)
-cd jiap
+# 2. Build DECX Core (from source)
+cd decx
 chmod +x gradlew
 ./gradlew dist
 ```
@@ -49,21 +49,21 @@ chmod +x gradlew
 
 ### Usage
 
-* Start JIAP Plugin
+* Start DECX Plugin
 
-  - Launch JADX and enable the JIAP plugin
+  - Launch JADX and enable the DECX plugin
   - The plugin automatically starts the HTTP server, MCP server can be manually confirmed to start
   - Verify the server is running at `http://127.0.0.1:25419`
 
 **Automatic Process:**
-1. JIAP plugin starts HTTP server (port `25419`)
-2. Plugin extracts MCP scripts to `~/.jiap/mcp/`
+1. DECX plugin starts HTTP server (port `25419`)
+2. Plugin extracts MCP scripts to `~/.decx/mcp/`
 3. If auto-start is enabled, companion process (MCP server) starts automatically (port `25419 + 1`)
 4. Both processes stop together on shutdown
 
 * Verify Connection
 
-Use `health_check()` to verify the connection between MCP server and JIAP plugin
+Use `health_check()` to verify the connection between MCP server and DECX plugin
 
 * Available Tools
 
@@ -105,36 +105,36 @@ All tools support pagination via the `page` parameter.
 ### Configuration
 
 **Port Configuration:**
-- **GUI**: JIAP Server Status menu → Set new port → Auto-restart
-- **Plugin Options**: Set `jiap.port` in JADX plugin options
-- **Default**: `25419` (JIAP)
+- **GUI**: DECX Server Status menu → Set new port → Auto-restart
+- **Plugin Options**: Set `decx.port` in JADX plugin options
+- **Default**: `25419` (Decx)
 
 **MCP Script Path:**
-- **GUI**: JIAP Server Status menu → Browse and select custom script
-- **Plugin Options**: Set `jiap.mcp_path` to custom script path
-- **Default**: Auto-extracted to `~/.jiap/mcp/jiap_mcp_server.py`
+- **GUI**: DECX Server Status menu → Browse and select custom script
+- **Plugin Options**: Set `decx.mcp_path` to custom script path
+- **Default**: Auto-extracted to `~/.decx/mcp/decx_mcp_server.py`
 
 **Companion Process Configuration:**
 ```bash
 # Auto-detected executor: uv, python3, or python
-# Auto-extracted scripts to ~/.jiap/mcp/
-# Auto-started with correct JIAP_URL and MCP_PORT
+# Auto-extracted scripts to ~/.decx/mcp/
+# Auto-started with correct DECX_URL and MCP_PORT
 ```
 
 **Cache Configuration:**
-JIAP supports two cache modes for improved performance:
-- **disk** (default): Persists decompilation cache to disk (`~/.jiap/cache/`)
+DECX supports two cache modes for improved performance:
+- **disk** (default): Persists decompilation cache to disk (`~/.decx/cache/`)
 - **memory**: Keeps cache in memory only, suitable for small projects
 
 **Configuration:**
-- **Plugin Options**: Set `jiap.cache` to `disk` or `memory`
+- **Plugin Options**: Set `decx.cache` to `disk` or `memory`
 - **Default**: `disk` for better performance on subsequent runs
 
 **Performance Optimization:**
-JIAP includes automatic performance optimizations:
+DECX includes automatic performance optimizations:
 
 **Decompiler Warmup:**
-- JIAP automatically warms up the decompiler engine on startup
+- DECX automatically warms up the decompiler engine on startup
 - Filters out SDK packages (android.*, androidx.*, java.*, javax.*, kotlin.*)
 - Randomly samples up to 15,000 application classes
 - Ensures optimal performance for subsequent queries
@@ -146,13 +146,13 @@ JIAP includes automatic performance optimizations:
 
 ### Error Codes
 
-JIAP uses structured error codes for clear diagnostics:
+DECX uses structured error codes for clear diagnostics:
 
 | Code | Description | Common Cause |
 |------|-------------|--------------|
 | **E001** | Internal server error | Unexpected server state |
 | **E002** | Service error | General service failure |
-| **E003** | Health check failed | Cannot reach JIAP server |
+| **E003** | Health check failed | Cannot reach DECX server |
 | **E004** | Method not found | Requested method doesn't exist |
 | **E005** | Invalid parameter | Parameter format/value invalid |
 
@@ -168,82 +168,82 @@ JIAP uses structured error codes for clear diagnostics:
 
 ## CLI
 
-JIAP provides a TypeScript CLI for programmatic access to the analysis platform.
+DECX provides a TypeScript CLI for programmatic access to the analysis platform.
 
 **Installation:**
 
 ```bash
-npm install -g jiap-cli
+npm install -g decx-cli
 ```
 
 **Process Management:**
-- `jiap process check` - Check JIAP server status
-- `jiap process open <file>` - Open and analyze a file (APK, DEX, JAR, etc.)
-- `jiap process close [name]` - Stop JIAP server by session name
-- `jiap process list` - List running processes
-- `jiap process install` - Install or update jiap-server.jar
+- `decx process check` - Check DECX server status
+- `decx process open <file>` - Open and analyze a file (APK, DEX, JAR, etc.)
+- `decx process close [name]` - Stop Decx server by session name
+- `decx process list` - List running processes
+- `decx process install` - Install or update decx-server.jar
 
 **Code Analysis:**
-- `jiap code all-classes` - Get all classes
-- `jiap code class-info <class>` - Get class information
-- `jiap code class-source <class>` - Get class source code
-- `jiap code search-class <keyword>` - Search in class content
-- `jiap code search-method <name>` - Find methods by name
-- `jiap code method-source <signature>` - Get method source
-- `jiap code xref-method <signature>` - Find method callers
-- `jiap code xref-class <class>` - Find class usages
-- `jiap code xref-field <field>` - Find field usages
-- `jiap code implement <interface>` - Find implementations
-- `jiap code subclass <class>` - Find subclasses
-- `jiap code get-aidl` - Get all AIDL interfaces
+- `decx code all-classes` - Get all classes
+- `decx code class-info <class>` - Get class information
+- `decx code class-source <class>` - Get class source code
+- `decx code search-class <keyword>` - Search in class content
+- `decx code search-method <name>` - Find methods by name
+- `decx code method-source <signature>` - Get method source
+- `decx code xref-method <signature>` - Find method callers
+- `decx code xref-class <class>` - Find class usages
+- `decx code xref-field <field>` - Find field usages
+- `decx code implement <interface>` - Find implementations
+- `decx code subclass <class>` - Find subclasses
+- `decx code get-aidl` - Get all AIDL interfaces
 
 **Android Analysis:**
-- `jiap ard app-manifest` - Get AndroidManifest.xml
-- `jiap ard main-activity` - Get main activity name
-- `jiap ard app-application` - Get Application class name
-- `jiap ard exported-components` - List exported components
-- `jiap ard app-deeplinks` - List deep link schemes
-- `jiap ard app-receivers` - List dynamic broadcast receivers
-- `jiap ard system-service-impl <interface>` - Find system service implementations
-- `jiap ard all-resources` - List all resource file names
-- `jiap ard resource-file <res>` - Get resource file content by name
-- `jiap ard strings` - Get strings.xml content
+- `decx ard app-manifest` - Get AndroidManifest.xml
+- `decx ard main-activity` - Get main activity name
+- `decx ard app-application` - Get Application class name
+- `decx ard exported-components` - List exported components
+- `decx ard app-deeplinks` - List deep link schemes
+- `decx ard app-receivers` - List dynamic broadcast receivers
+- `decx ard system-service-impl <interface>` - Find system service implementations
+- `decx ard all-resources` - List all resource file names
+- `decx ard resource-file <res>` - Get resource file content by name
+- `decx ard strings` - Get strings.xml content
 
 ---
 
 ## AI Agent Skill Installation
 
-The `skill/` directory contains JIAP's AI Agent skill definition files (SKILL.md), supporting the following AI assistants:
+The `skill/` directory contains Decx's AI Agent skill definition files (SKILL.md), supporting the following AI assistants:
 
 **Claude Code**
 ```bash
-cp -r skill/jiapcli ~/.claude/skills/
-cp -r skill/jiapcli-vulnhunt ~/.claude/skills/
-cp -r skill/jiapcli-poc ~/.claude/skills/
+cp -r skill/decxcli ~/.claude/skills/
+cp -r skill/decxcli-vulnhunt ~/.claude/skills/
+cp -r skill/decxcli-poc ~/.claude/skills/
 ```
 
 **Cursor**
 ```bash
-cp skill/jiapcli/SKILL.md .cursor/rules/jiapcli.md
-cp skill/jiapcli-vulnhunt/SKILL.md .cursor/rules/jiapcli-vulnhunt.md
-cp skill/jiapcli-poc/SKILL.md .cursor/rules/jiapcli-poc.md
+cp skill/decxcli/SKILL.md .cursor/rules/decxcli.md
+cp skill/decxcli-vulnhunt/SKILL.md .cursor/rules/decxcli-vulnhunt.md
+cp skill/decxcli-poc/SKILL.md .cursor/rules/decxcli-poc.md
 ```
 
 **Cline**
 ```bash
-cp skill/jiapcli/SKILL.md .clinerules-jiapcli
-cp skill/jiapcli-vulnhunt/SKILL.md .clinerules-jiapcli-vulnhunt
-cp skill/jiapcli-poc/SKILL.md .clinerules-jiapcli-poc
+cp skill/decxcli/SKILL.md .clinerules-decxcli
+cp skill/decxcli-vulnhunt/SKILL.md .clinerules-decxcli-vulnhunt
+cp skill/decxcli-poc/SKILL.md .clinerules-decxcli-poc
 ```
 
 **Windsurf**
 ```bash
-cp skill/jiapcli/SKILL.md .windsurfrules-jiapcli
-cp skill/jiapcli-vulnhunt/SKILL.md .windsurfrules-jiapcli-vulnhunt
-cp skill/jiapcli-poc/SKILL.md .windsurfrules-jiapcli-poc
+cp skill/decxcli/SKILL.md .windsurfrules-decxcli
+cp skill/decxcli-vulnhunt/SKILL.md .windsurfrules-decxcli-vulnhunt
+cp skill/decxcli-poc/SKILL.md .windsurfrules-decxcli-poc
 ```
 
-Dependency: `jiap` CLI installed (`npm install -g jiap-cli`).
+Dependency: `decx` CLI installed (`npm install -g decx-cli`).
 
 ---
 
@@ -252,8 +252,8 @@ Dependency: `jiap` CLI installed (`npm install -g jiap-cli`).
 ### Build from Source
 
 ```bash
-# Build JIAP Core
-cd jiap
+# Build DECX Core
+cd decx
 chmod +x gradlew
 ./gradlew dist
 
@@ -265,52 +265,52 @@ npm run build
 
 ### Adding Custom Features
 
-JIAP's architecture consists of three layers: `JiapApi` interface definition → `JiapApiImpl` implementation → `RouteHandler` HTTP routing.
+Decx's architecture consists of three layers: `DecxApi` interface definition → `DecxApiImpl` implementation → `RouteHandler` HTTP routing.
 
-**1. Add method in `JiapApi` interface**
+**1. Add method in `DecxApi` interface**
 
-File: `jiap/jiap-core/src/main/kotlin/jadx/plugins/jiap/api/JiapApi.kt`
+File: `decx/decx-core/src/main/kotlin/jadx/plugins/decx/api/DecxApi.kt`
 
 ```kotlin
-interface JiapApi {
+interface DecxApi {
     // ... existing methods ...
 
-    fun doSomething(param: String): JiapApiResult
+    fun doSomething(param: String): DecxApiResult
 }
 ```
 
-**2. Implement method in `JiapApiImpl`**
+**2. Implement method in `DecxApiImpl`**
 
-File: `jiap/jiap-core/src/main/kotlin/jadx/plugins/jiap/api/JiapApiImpl.kt`
+File: `decx/decx-core/src/main/kotlin/jadx/plugins/decx/api/DecxApiImpl.kt`
 
 ```kotlin
-override fun doSomething(param: String): JiapApiResult {
+override fun doSomething(param: String): DecxApiResult {
     val result = // business logic
-    return JiapApiResult.ok(mapOf("data" to result))
+    return DecxApiResult.ok(mapOf("data" to result))
 }
 ```
 
-**3. Register route in `JiapServer.ALL_ROUTES`, add dispatch in `RouteHandler.dispatch()`**
+**3. Register route in `DecxServer.ALL_ROUTES`, add dispatch in `RouteHandler.dispatch()`**
 
-File: `jiap/jiap-core/src/main/kotlin/jadx/plugins/jiap/http/JiapServer.kt`
+File: `decx/decx-core/src/main/kotlin/jadx/plugins/decx/http/DecxServer.kt`
 
 ```kotlin
 val ALL_ROUTES = setOf(
     // ... existing routes ...
-    "/api/jiap/do_something",
+    "/api/decx/do_something",
 )
 ```
 
-File: `jiap/jiap-core/src/main/kotlin/jadx/plugins/jiap/http/RouteHandler.kt`
+File: `decx/decx-core/src/main/kotlin/jadx/plugins/decx/http/RouteHandler.kt`
 
 ```kotlin
-"/api/jiap/do_something" -> requireParam(payload, "param") { api.doSomething(it) }
+"/api/decx/do_something" -> requireParam(payload, "param") { api.doSomething(it) }
 ```
 
 ### Troubleshooting
 
 **Companion Process Issues:**
-- **Check logs**: Look for `[MCP]` messages in JIAP logs
+- **Check logs**: Look for `[MCP]` messages in DECX logs
 - **Verify Python**: Ensure Python 3.10+ or `uv` is installed
 - **Check dependencies**: Plugin auto-checks for `requests`, `fastmcp`, `pydantic`
 - **Manual path**: Configure custom script path via GUI if needed
@@ -321,8 +321,8 @@ File: `jiap/jiap-core/src/main/kotlin/jadx/plugins/jiap/http/RouteHandler.kt`
 - Verify firewall allows localhost connections
 
 **Common Errors:**
-- **E001**: Check JIAP logs for internal server errors
-- **E003**: Ensure JIAP plugin is enabled and loaded
+- **E001**: Check DECX logs for internal server errors
+- **E003**: Ensure DECX plugin is enabled and loaded
 - **E005**: Check parameter format and values
 
 ## Contributing
@@ -354,6 +354,6 @@ This project is licensed under [GNU License](LICENSE) - see the [LICENSE](LICENS
 
 **⭐ If this project helps you, please give it a Star!**
 
-![Star History](https://img.shields.io/github/stars/jygzyc/jiap?style=social)
+![Star History](https://img.shields.io/github/stars/jygzyc/decx?style=social)
 
 </div>

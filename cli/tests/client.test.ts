@@ -1,18 +1,18 @@
 /**
- * JIAPClient unit tests.
+ * DecxClient unit tests.
  *
  * Tests constructor configuration and error handling.
  * Does NOT make real HTTP requests — server is expected to be down.
  */
 
-import { JIAPClient } from "../src/core/client.js";
-import { JiapError } from "../src/utils/errors.js";
+import { DecxClient } from "../src/core/client.js";
+import { DecxError } from "../src/utils/errors.js";
 
-describe("JIAPClient", () => {
-  let client: JIAPClient;
+describe("DecxClient", () => {
+  let client: DecxClient;
 
   beforeEach(() => {
-    client = new JIAPClient("127.0.0.1", 25419, 1); // 1s timeout
+    client = new DecxClient("127.0.0.1", 25419, 1); // 1s timeout
   });
 
   describe("constructor", () => {
@@ -25,7 +25,7 @@ describe("JIAPClient", () => {
     });
 
     it("uses default values when no args", () => {
-      const c = new JIAPClient();
+      const c = new DecxClient();
       expect((c as any).baseUrl).toBe("http://127.0.0.1:25419");
       expect((c as any).timeout).toBe(30000);
     });
@@ -39,7 +39,7 @@ describe("JIAPClient", () => {
   });
 
   describe("healthCheck", () => {
-    it("throws JiapError when server is not running", async () => {
+    it("throws DecxError when server is not running", async () => {
       await expect(client.healthCheck()).rejects.toThrow();
     });
   });

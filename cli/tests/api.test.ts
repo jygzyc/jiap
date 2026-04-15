@@ -1,13 +1,13 @@
 /**
- * JIAP API integration tests (mock-based).
+ * DECX API integration tests (mock-based).
  *
- * Validates every JIAPClient API endpoint's response structure against
+ * Validates every DecxClient API endpoint's response structure against
  * the known server response format. Uses mock fetch — no real server needed.
  *
- * Mock data sourced from real Sieve APK (com.withsecure.example.sieve) via jiap-server.
+ * Mock data sourced from real Sieve APK (com.withsecure.example.sieve) via decx-server.
  */
 
-import { JIAPClient } from "../src/core/client.js";
+import { DecxClient } from "../src/core/client.js";
 
 let mockFetchImpl: (url: string | URL | Request) => Promise<Response>;
 function mockFetch(url: string | URL | Request): Promise<Response> {
@@ -99,11 +99,11 @@ function expectXrefResponse(res: Record<string, unknown>) {
 
 // ── Test suite ───────────────────────────────────────────────────────────
 
-describe("JIAP API integration (Sieve APK)", () => {
-    let client: JIAPClient;
+describe("DECX API integration (Sieve APK)", () => {
+    let client: DecxClient;
 
     beforeAll(() => {
-        client = new JIAPClient("127.0.0.1", 25419, 10, mockFetch);
+        client = new DecxClient("127.0.0.1", 25419, 10, mockFetch);
     });
 
     afterAll(() => {
@@ -140,7 +140,7 @@ describe("JIAP API integration (Sieve APK)", () => {
         // getAllClasses
         describe("getAllClasses", () => {
             beforeAll(() => {
-                mockResponse("/api/jiap/get_all_classes", {
+                mockResponse("/api/decx/get_all_classes", {
                     success: true,
                     data: {
                         type: "list",
@@ -166,7 +166,7 @@ describe("JIAP API integration (Sieve APK)", () => {
         // getClassInfo
         describe("getClassInfo", () => {
             beforeAll(() => {
-                mockResponse("/api/jiap/get_class_info", {
+                mockResponse("/api/decx/get_class_info", {
                     name: "com.withsecure.example.sieve.activity.WelcomeActivity",
                     type: "list",
                     "fields-list": [
@@ -213,7 +213,7 @@ describe("JIAP API integration (Sieve APK)", () => {
         // getClassSource
         describe("getClassSource", () => {
             beforeAll(() => {
-                mockResponse("/api/jiap/get_class_source", {
+                mockResponse("/api/decx/get_class_source", {
                     name: "com.withsecure.example.sieve.activity.WelcomeActivity",
                     type: "code",
                     code: "package com.withsecure.example.sieve.activity;\n\nimport android.app.Activity;\nimport android.app.AlertDialog;\nimport android.content.DialogInterface;\nimport android.content.Intent;\nimport android.os.Bundle;\nimport android.util.Log;\nimport android.view.View;\nimport android.widget.Button;\nimport android.widget.EditText;\nimport android.widget.TextView;\nimport com.withsecure.example.sieve.R;\nimport com.withsecure.example.sieve.service.AuthService;\nimport com.withsecure.example.sieve.service.AuthServiceConnector;\nimport com.withsecure.example.sieve.service.CryptoService;\n\n/* JADX INFO: loaded from: classes.dex */\npublic class WelcomeActivity extends Activity implements AuthServiceConnector.ResponseListener {\n    private static final int IS_AUTHENTICATED = 4521387;\n    public static final int MAIN_PIN = 2;\n    public static final int MAIN_SETTINGS = 3;\n    public static final int MAIN_WELCOME = 1;\n    private static final int NOT_AUTHENTICATED = 654987;\n    private static final int NOT_INITALISED = 923472;\n    private static final String TAG = \"m_MainLogin\";\n    EditText entry;\n    Button login_button;\n    TextView prompt;\n    private AuthServiceConnector serviceConnection;\n    private int state = NOT_INITALISED;\n    private String workingPassword = null;\n    private Intent workingIntent = null;\n\n    @Override\n    public void checkKeyResult(boolean status) {\n        if (status) { loginSuccessful(); } else { loginFailed(); }\n    }\n\n    public void login(View view) {\n        this.workingPassword = this.entry.getText().toString();\n        Log.d(TAG, \"String enetered: \" + this.workingPassword);\n        this.serviceConnection.checkKey(this.workingPassword);\n        this.login_button.setEnabled(false);\n    }\n}",
@@ -233,7 +233,7 @@ describe("JIAP API integration (Sieve APK)", () => {
         // getMethodSource
         describe("getMethodSource", () => {
             beforeAll(() => {
-                mockResponse("/api/jiap/get_method_source", {
+                mockResponse("/api/decx/get_method_source", {
                     name: "com.withsecure.example.sieve.activity.WelcomeActivity.login(android.view.View):void",
                     type: "code",
                     code: "    public void login(View view) {\n        this.workingPassword = this.entry.getText().toString();\n        Log.d(TAG, \"String enetered: \" + this.workingPassword);\n        this.serviceConnection.checkKey(this.workingPassword);\n        this.login_button.setEnabled(false);\n    }",
@@ -255,7 +255,7 @@ describe("JIAP API integration (Sieve APK)", () => {
         // searchClassKey
         describe("searchClassKey", () => {
             beforeAll(() => {
-                mockResponse("/api/jiap/search_class_key", {
+                mockResponse("/api/decx/search_class_key", {
                     success: true,
                     data: {
                         type: "list",
@@ -284,7 +284,7 @@ describe("JIAP API integration (Sieve APK)", () => {
         // searchMethod
         describe("searchMethod", () => {
             beforeAll(() => {
-                mockResponse("/api/jiap/search_method", {
+                mockResponse("/api/decx/search_method", {
                     success: true,
                     data: {
                         type: "list",
@@ -311,7 +311,7 @@ describe("JIAP API integration (Sieve APK)", () => {
         // getMethodXref
         describe("getMethodXref", () => {
             beforeAll(() => {
-                mockResponse("/api/jiap/get_method_xref", {
+                mockResponse("/api/decx/get_method_xref", {
                     success: true,
                     data: {
                         type: "list",
@@ -340,7 +340,7 @@ describe("JIAP API integration (Sieve APK)", () => {
         // getFieldXref
         describe("getFieldXref", () => {
             beforeAll(() => {
-                mockResponse("/api/jiap/get_field_xref", {
+                mockResponse("/api/decx/get_field_xref", {
                     success: true,
                     data: {
                         type: "list",
@@ -367,7 +367,7 @@ describe("JIAP API integration (Sieve APK)", () => {
         // getClassXref
         describe("getClassXref", () => {
             beforeAll(() => {
-                mockResponse("/api/jiap/get_class_xref", {
+                mockResponse("/api/decx/get_class_xref", {
                     success: true,
                     data: {
                         type: "list",
@@ -400,7 +400,7 @@ describe("JIAP API integration (Sieve APK)", () => {
         // getImplement
         describe("getImplement", () => {
             beforeAll(() => {
-                mockResponse("/api/jiap/get_implement", {
+                mockResponse("/api/decx/get_implement", {
                     success: true,
                     data: {
                         type: "list",
@@ -420,7 +420,7 @@ describe("JIAP API integration (Sieve APK)", () => {
         // getSubClasses
         describe("getSubClasses", () => {
             beforeAll(() => {
-                mockResponse("/api/jiap/get_sub_classes", {
+                mockResponse("/api/decx/get_sub_classes", {
                     success: true,
                     data: {
                         type: "list",
@@ -447,7 +447,7 @@ describe("JIAP API integration (Sieve APK)", () => {
         // getAppManifest
         describe("getAppManifest", () => {
             beforeAll(() => {
-                mockResponse("/api/jiap/get_app_manifest", {
+                mockResponse("/api/decx/get_app_manifest", {
                     success: true,
                     data: {
                         type: "code",
@@ -467,7 +467,7 @@ describe("JIAP API integration (Sieve APK)", () => {
         // getMainActivity
         describe("getMainActivity", () => {
             beforeAll(() => {
-                mockResponse("/api/jiap/get_main_activity", {
+                mockResponse("/api/decx/get_main_activity", {
                     name: "com.withsecure.example.sieve.activity.WelcomeActivity",
                     type: "code",
                     code: "package com.withsecure.example.sieve.activity;\n\nimport android.app.Activity;\nimport android.app.AlertDialog;\nimport android.content.DialogInterface;\nimport android.content.Intent;\nimport android.os.Bundle;\nimport android.util.Log;\nimport android.view.View;\nimport android.widget.Button;\nimport android.widget.EditText;\nimport android.widget.TextView;\nimport com.withsecure.example.sieve.R;\nimport com.withsecure.example.sieve.service.AuthService;\nimport com.withsecure.example.sieve.service.AuthServiceConnector;\nimport com.withsecure.example.sieve.service.CryptoService;\n\n/* JADX INFO: loaded from: classes.dex */\npublic class WelcomeActivity extends Activity implements AuthServiceConnector.ResponseListener {\n    private static final int IS_AUTHENTICATED = 4521387;\n    public static final int MAIN_PIN = 2;\n    public static final int MAIN_SETTINGS = 3;\n    public static final int MAIN_WELCOME = 1;\n    private static final int NOT_AUTHENTICATED = 654987;\n    private static final int NOT_INITALISED = 923472;\n    private static final String TAG = \"m_MainLogin\";\n    EditText entry;\n    Button login_button;\n    TextView prompt;\n    private AuthServiceConnector serviceConnection;\n    private int state = NOT_INITALISED;\n    private String workingPassword = null;\n    private Intent workingIntent = null;\n\n    @Override\n    public void checkKeyResult(boolean status) {\n        if (status) { loginSuccessful(); } else { loginFailed(); }\n    }\n\n    public void login(View view) {\n        this.workingPassword = this.entry.getText().toString();\n        Log.d(TAG, \"String enetered: \" + this.workingPassword);\n        this.serviceConnection.checkKey(this.workingPassword);\n        this.login_button.setEnabled(false);\n    }\n}",
@@ -487,7 +487,7 @@ describe("JIAP API integration (Sieve APK)", () => {
         // getApplication
         describe("getApplication", () => {
             beforeAll(() => {
-                mockResponse("/api/jiap/get_application", {
+                mockResponse("/api/decx/get_application", {
                     error: "handleGetApplication: no Application class found",
                 });
                 setupMockFetch();
@@ -502,7 +502,7 @@ describe("JIAP API integration (Sieve APK)", () => {
         // getExportedComponents
         describe("getExportedComponents", () => {
             beforeAll(() => {
-                mockResponse("/api/jiap/get_exported_components", {
+                mockResponse("/api/decx/get_exported_components", {
                     success: true,
                     data: {
                         type: "list",
@@ -581,7 +581,7 @@ describe("JIAP API integration (Sieve APK)", () => {
         // getDeepLinks
         describe("getDeepLinks", () => {
             beforeAll(() => {
-                mockResponse("/api/jiap/get_deep_links", {
+                mockResponse("/api/decx/get_deep_links", {
                     success: true,
                     data: {
                         type: "list",
@@ -603,7 +603,7 @@ describe("JIAP API integration (Sieve APK)", () => {
         // getDynamicReceivers
         describe("getDynamicReceivers", () => {
             beforeAll(() => {
-                mockResponse("/api/jiap/get_dynamic_receivers", {
+                mockResponse("/api/decx/get_dynamic_receivers", {
                     success: true,
                     data: {
                         type: "list",
@@ -642,7 +642,7 @@ describe("JIAP API integration (Sieve APK)", () => {
         // getAllResources
         describe("getAllResources", () => {
             beforeAll(() => {
-                mockResponse("/api/jiap/get_all_resources", {
+                mockResponse("/api/decx/get_all_resources", {
                     success: true,
                     data: {
                         type: "list",
@@ -668,7 +668,7 @@ describe("JIAP API integration (Sieve APK)", () => {
         // getResourceFile
         describe("getResourceFile", () => {
             beforeAll(() => {
-                mockResponse("/api/jiap/get_resource_file", {
+                mockResponse("/api/decx/get_resource_file", {
                     name: "res/layout/activity_main_login.xml",
                     type: "code",
                     code: "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<RelativeLayout xmlns:android=\"http://schemas.android.com/apk/res/android\"\n    android:background=\"@color/background\"\n    android:layout_width=\"match_parent\"\n    android:layout_height=\"match_parent\">\n    <Button\n        android:id=\"@+id/mainlogin_button_login\"\n        android:paddingLeft=\"32dp\"\n        android:paddingRight=\"32dp\"\n        android:layout_width=\"wrap_content\"\n        android:layout_height=\"wrap_content\"\n        android:layout_marginLeft=\"40dp\" />",
@@ -688,7 +688,7 @@ describe("JIAP API integration (Sieve APK)", () => {
         // getStrings
         describe("getStrings", () => {
             beforeAll(() => {
-                mockResponse("/api/jiap/get_strings", {
+                mockResponse("/api/decx/get_strings", {
                     success: true,
                     data: {
                         type: "list",
@@ -726,7 +726,7 @@ describe("JIAP API integration (Sieve APK)", () => {
     describe("AndroidFrameworkService", () => {
         describe("getSystemServiceImpl", () => {
             beforeAll(() => {
-                mockResponse("/api/jiap/get_system_service_impl", {
+                mockResponse("/api/decx/get_system_service_impl", {
                     success: true,
                     data: {
                         type: "list",

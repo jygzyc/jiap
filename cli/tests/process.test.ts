@@ -2,7 +2,7 @@
  * Process command unit tests.
  *
  * Tests command structure, option registration, and error handling.
- * Does NOT spawn real JIAP server processes — server interaction is mocked.
+ * Does NOT spawn real DECX server processes — server interaction is mocked.
  */
 
 import { Command } from "commander";
@@ -10,7 +10,7 @@ import { makeProcessCommand } from "../src/commands/process.js";
 
 function createProgram(): Command {
   const program = new Command();
-  program.name("jiap").version("2.0.0");
+  program.name("decx").version("2.0.0");
   program.addCommand(makeProcessCommand());
   return program;
 }

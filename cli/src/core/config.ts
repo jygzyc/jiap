@@ -1,5 +1,5 @@
 /**
- * Configuration management for JIAP CLI.
+ * Configuration management for DECX CLI.
  */
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync, renameSync } from "fs";
@@ -10,7 +10,7 @@ import type { Config } from "./types.js";
 import * as session from "./session.js";
 
 const HOME = os.homedir();
-const CONFIG_DIR = path.join(HOME, ".jiap");
+const CONFIG_DIR = path.join(HOME, ".decx");
 const CONFIG_FILE = path.join(CONFIG_DIR, "config.json");
 
 export * from "./session.js";
@@ -22,9 +22,9 @@ export function expandPath(p: string): string {
 
 function defaultConfig(): Config {
   return {
-    serverJar: { path: null, version: "1.0.0", installDir: "~/.jiap/bin" },
+    serverJar: { path: null, version: "1.0.0", installDir: "~/.decx/bin" },
     server: { defaultPort: 25419, timeout: 30 },
-    output: { defaultDir: "~/.jiap/output", decompileDir: "~/.jiap/decompiled" },
+    output: { defaultDir: "~/.decx/output", decompileDir: "~/.decx/decompiled" },
   };
 }
 

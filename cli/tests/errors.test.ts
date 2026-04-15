@@ -3,7 +3,7 @@
  */
 
 import {
-  JiapError,
+  DecxError,
   ProcessError,
   ServerError,
   FileError,
@@ -14,8 +14,8 @@ import { Formatter } from "../src/utils/formatter.js";
 import { jest } from "@jest/globals";
 
 describe("Error classes", () => {
-  it("JiapError has message, code, details", () => {
-    const err = new JiapError("test", "E001", { key: "val" });
+  it("DecxError has message, code, details", () => {
+    const err = new DecxError("test", "E001", { key: "val" });
     expect(err.message).toBe("test");
     expect(err.code).toBe("E001");
     expect(err.details).toEqual({ key: "val" });
@@ -67,7 +67,7 @@ describe("withErrorHandler", () => {
     expect(handler).toHaveBeenCalled();
   });
 
-  it("catches JiapError and formats it", async () => {
+  it("catches DecxError and formats it", async () => {
     const handler = jest.fn<() => Promise<string>>().mockRejectedValue(new ProcessError("test", 123));
     const wrapped = withErrorHandler(handler);
     await expect(wrapped()).rejects.toThrow("process.exit");

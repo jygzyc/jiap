@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * JIAP CLI - Java Intelligence Analysis Platform
+ * DECX CLI - Decompiler + X
  */
 
 import { Command } from "commander";
@@ -13,9 +13,9 @@ import { makeSelfCommand } from "./commands/self.js";
 const program = new Command();
 
 program
-  .name("jiap")
+  .name("decx")
   .version(process.env.npm_package_version || "0.0.0")
-  .description("JIAP CLI - Java Intelligence Analysis Platform")
+  .description("DECX CLI - Decompiler + X")
   .addCommand(makeProcessCommand())
   .addCommand(makeCodeCommand())
   .addCommand(makeArdCommand())

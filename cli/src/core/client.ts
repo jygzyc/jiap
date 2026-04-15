@@ -1,18 +1,18 @@
 /**
- * JIAP HTTP Client - Direct HTTP client for JIAP Server.
+ * DECX HTTP Client - Direct HTTP client for DECX Server.
  *
- * Communicates with the JIAP server via REST API endpoints.
+ * Communicates with the DECX server via REST API endpoints.
  * All methods return raw JSON responses — no data unwrapping.
  */
 
-import { JiapError } from "../utils/errors.js";
+import { DecxError } from "../utils/errors.js";
 import { logApiCall } from "../utils/logger.js";
 
-export { JiapError as JIAPError };
+export { DecxError };
 
 export type FetchFn = typeof globalThis.fetch;
 
-export class JIAPClient {
+export class DecxClient {
     private baseUrl: string;
     private timeout: number;
     private _fetch: FetchFn;
@@ -36,8 +36,8 @@ export class JIAPClient {
             "Content-Type": "application/json",
         };
 
-        // Debug log (opt-in via JIAP_DEBUG=1)
-        if (process.env.JIAP_DEBUG === "1") {
+        // Debug log (opt-in via DECX_DEBUG=1)
+        if (process.env.DECX_DEBUG === "1") {
             console.error(`[DEBUG] ${method} ${url}`);
             if (data) console.error(`[DEBUG] Body: ${JSON.stringify(data)}`);
         }
@@ -77,13 +77,13 @@ export class JIAPClient {
                 // ignore parse errors
             }
             errorMsg = errorMessage;
-            throw new JiapError(errorMessage, errorCode);
+            throw new DecxError(errorMessage, errorCode);
         } catch (err) {
-            if (err instanceof JiapError) throw err;
+            if (err instanceof DecxError) throw err;
             if ((err as Error).name === "AbortError") {
-                throw new JiapError("Request timed out", "TIMEOUT");
+                throw new DecxError("Request timed out", "TIMEOUT");
             }
-            throw new JiapError(`Connection failed: ${(err as Error).message}`, "CONNECTION_ERROR");
+            throw new DecxError(`Connection failed: ${(err as Error).message}`, "CONNECTION_ERROR");
         } finally {
             if (this.sessionName) {
                 logApiCall(this.sessionName, {
@@ -115,95 +115,95 @@ export class JIAPClient {
     // ── CommonService ───────────────────────────────────────────────────────
 
     async getAllClasses(page: number = 1): Promise<Record<string, unknown>> {
-        return this.request("POST", "/api/jiap/get_all_classes", { page });
+        return this.request("POST", "/api/decx/get_all_classes", { page });
     }
 
     async getClassInfo(cls: string, page: number = 1): Promise<Record<string, unknown>> {
-        return this.request("POST", "/api/jiap/get_class_info", { cls, page });
+        return this.request("POST", "/api/decx/get_class_info", { cls, page });
     }
 
     async getClassSource(cls: string, smali: boolean = false, page: number = 1): Promise<Record<string, unknown>> {
-        return this.request("POST", "/api/jiap/get_class_source", { cls, smali, page });
+        return this.request("POST", "/api/decx/get_class_source", { cls, smali, page });
     }
 
     async getMethodSource(mth: string, smali: boolean = false, page: number = 1): Promise<Record<string, unknown>> {
-        return this.request("POST", "/api/jiap/get_method_source", { mth, smali, page });
+        return this.request("POST", "/api/decx/get_method_source", { mth, smali, page });
     }
 
     async searchClassKey(key: string, page: number = 1): Promise<Record<string, unknown>> {
-        return this.request("POST", "/api/jiap/search_class_key", { key, page });
+        return this.request("POST", "/api/decx/search_class_key", { key, page });
     }
 
     async searchMethod(mth: string, page: number = 1): Promise<Record<string, unknown>> {
-        return this.request("POST", "/api/jiap/search_method", { mth, page });
+        return this.request("POST", "/api/decx/search_method", { mth, page });
     }
 
     async getMethodXref(mth: string, page: number = 1): Promise<Record<string, unknown>> {
-        return this.request("POST", "/api/jiap/get_method_xref", { mth, page });
+        return this.request("POST", "/api/decx/get_method_xref", { mth, page });
     }
 
     async getFieldXref(fld: string, page: number = 1): Promise<Record<string, unknown>> {
-        return this.request("POST", "/api/jiap/get_field_xref", { fld, page });
+        return this.request("POST", "/api/decx/get_field_xref", { fld, page });
     }
 
     async getClassXref(cls: string, page: number = 1): Promise<Record<string, unknown>> {
-        return this.request("POST", "/api/jiap/get_class_xref", { cls, page });
+        return this.request("POST", "/api/decx/get_class_xref", { cls, page });
     }
 
     async getImplement(iface: string, page: number = 1): Promise<Record<string, unknown>> {
-        return this.request("POST", "/api/jiap/get_implement", { iface, page });
+        return this.request("POST", "/api/decx/get_implement", { iface, page });
     }
 
     async getSubClasses(cls: string, page: number = 1): Promise<Record<string, unknown>> {
-        return this.request("POST", "/api/jiap/get_sub_classes", { cls, page });
+        return this.request("POST", "/api/decx/get_sub_classes", { cls, page });
     }
 
     // ── Android App Service ───────────────────────────────────────────────────
 
     async getAidlInterfaces(page: number = 1): Promise<Record<string, unknown>> {
-        return this.request("POST", "/api/jiap/get_aidl", { page });
+        return this.request("POST", "/api/decx/get_aidl", { page });
     }
 
     async getAppManifest(page: number = 1): Promise<Record<string, unknown>> {
-        return this.request("POST", "/api/jiap/get_app_manifest", { page });
+        return this.request("POST", "/api/decx/get_app_manifest", { page });
     }
 
     async getMainActivity(page: number = 1): Promise<Record<string, unknown>> {
-        return this.request("POST", "/api/jiap/get_main_activity", { page });
+        return this.request("POST", "/api/decx/get_main_activity", { page });
     }
 
     async getApplication(page: number = 1): Promise<Record<string, unknown>> {
-        return this.request("POST", "/api/jiap/get_application", { page });
+        return this.request("POST", "/api/decx/get_application", { page });
     }
 
     async getExportedComponents(page: number = 1): Promise<Record<string, unknown>> {
-        return this.request("POST", "/api/jiap/get_exported_components", { page });
+        return this.request("POST", "/api/decx/get_exported_components", { page });
     }
 
     async getDeepLinks(page: number = 1): Promise<Record<string, unknown>> {
-        return this.request("POST", "/api/jiap/get_deep_links", { page });
+        return this.request("POST", "/api/decx/get_deep_links", { page });
     }
 
     async getDynamicReceivers(page: number = 1): Promise<Record<string, unknown>> {
-        return this.request("POST", "/api/jiap/get_dynamic_receivers", { page });
+        return this.request("POST", "/api/decx/get_dynamic_receivers", { page });
     }
 
     async getAllResources(page: number = 1): Promise<Record<string, unknown>> {
-        return this.request("POST", "/api/jiap/get_all_resources", { page });
+        return this.request("POST", "/api/decx/get_all_resources", { page });
     }
 
     async getResourceFile(res: string, page: number = 1): Promise<Record<string, unknown>> {
-        return this.request("POST", "/api/jiap/get_resource_file", { res, page });
+        return this.request("POST", "/api/decx/get_resource_file", { res, page });
     }
 
     async getStrings(page: number = 1): Promise<Record<string, unknown>> {
-        return this.request("POST", "/api/jiap/get_strings", { page });
+        return this.request("POST", "/api/decx/get_strings", { page });
     }
 
     // ── AndroidFrameworkService ─────────────────────────────────────────────
 
     async getSystemServiceImpl(iface: string, page: number = 1): Promise<Record<string, unknown>> {
-        return this.request("POST", "/api/jiap/get_system_service_impl", { iface, page });
+        return this.request("POST", "/api/decx/get_system_service_impl", { iface, page });
     }
 
 }

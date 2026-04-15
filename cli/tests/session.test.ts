@@ -17,7 +17,7 @@ import * as os from "os";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const SESSIONS_DIR = path.join(os.homedir(), ".jiap", "sessions");
+const SESSIONS_DIR = path.join(os.homedir(), ".decx", "sessions");
 
 const TEST_PREFIX = "test_";
 

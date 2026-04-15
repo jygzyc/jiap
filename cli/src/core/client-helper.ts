@@ -2,13 +2,13 @@
  * Shared client resolution helper for commands.
  */
 
-import { JIAPClient } from "./client.js";
+import { DecxClient } from "./client.js";
 import { Formatter } from "../utils/formatter.js";
 import { Manager } from "./config.js";
 
 export function resolveClient(
   opts: Record<string, unknown>
-): { fmt: Formatter; client: JIAPClient } {
+): { fmt: Formatter; client: DecxClient } {
   const fmt = new Formatter();
   const mgr = Manager.get();
 
@@ -40,7 +40,7 @@ export function resolveClient(
     }
   }
 
-  const client = new JIAPClient("127.0.0.1", port, 30, undefined, sessionName);
+  const client = new DecxClient("127.0.0.1", port, 30, undefined, sessionName);
 
   // Sync server version in background (non-blocking)
   client.healthCheck().then((health) => {

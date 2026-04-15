@@ -1,5 +1,5 @@
 /**
- * jiap-server.jar finder and installer.
+ * decx-server.jar finder and installer.
  */
 
 import * as path from "path";
@@ -7,7 +7,7 @@ import * as os from "os";
 import { existsSync, mkdirSync, renameSync, unlinkSync } from "fs";
 import { downloadWithProgress } from "../utils/progress.js";
 
-const JIAP_SERVER_HOME: string | undefined = process.env.JIAP_SERVER_HOME;
+const DECX_SERVER_HOME: string | undefined = process.env.DECX_SERVER_HOME;
 
 /**
  * Compare two semver strings (e.g. "2.2.1" vs "2.3.0").
@@ -24,17 +24,17 @@ function compareSemver(a: string, b: string): number {
   return 0;
 }
 
-const INSTALL_DIR = path.join(os.homedir(), ".jiap", "bin");
-const INSTALL_PATH = path.join(INSTALL_DIR, "jiap-server.jar");
+const INSTALL_DIR = path.join(os.homedir(), ".decx", "bin");
+const INSTALL_PATH = path.join(INSTALL_DIR, "decx-server.jar");
 
 /**
- * Find jiap-server.jar from known locations.
- * Priority: JIAP_SERVER_HOME env > ~/.jiap/bin/jiap-server.jar
+ * Find decx-server.jar from known locations.
+ * Priority: DECX_SERVER_HOME env > ~/.decx/bin/decx-server.jar
  */
-export function findJiapServerJar(): string | null {
-  if (JIAP_SERVER_HOME) {
-    if (JIAP_SERVER_HOME.endsWith(".jar") && existsSync(JIAP_SERVER_HOME)) return JIAP_SERVER_HOME;
-    const fromDir = path.join(JIAP_SERVER_HOME, "jiap-server.jar");
+export function findDecxServerJar(): string | null {
+  if (DECX_SERVER_HOME) {
+    if (DECX_SERVER_HOME.endsWith(".jar") && existsSync(DECX_SERVER_HOME)) return DECX_SERVER_HOME;
+    const fromDir = path.join(DECX_SERVER_HOME, "decx-server.jar");
     if (existsSync(fromDir)) return fromDir;
   }
 
@@ -51,8 +51,8 @@ export async function checkForServerUpdate(
   prerelease: boolean = false
 ): Promise<{ available: boolean; latestVersion: string }> {
   const endpoint = prerelease
-    ? "https://api.github.com/repos/jygzyc/jiap/releases?per_page=10"
-    : "https://api.github.com/repos/jygzyc/jiap/releases/latest";
+    ? "https://api.github.com/repos/jygzyc/decx/releases?per_page=10"
+    : "https://api.github.com/repos/jygzyc/decx/releases/latest";
 
   const res = await fetch(endpoint, {
     headers: { "Accept": "application/vnd.github+json" },
@@ -77,18 +77,18 @@ export async function checkForServerUpdate(
 }
 
 /**
- * Download and install the latest jiap-server.jar from GitHub releases.
+ * Download and install the latest decx-server.jar from GitHub releases.
  * Returns [success, message, version?].
  */
-export async function installJiapServer(
+export async function installDecxServer(
   prerelease: boolean = false
 ): Promise<[boolean, string, string?]> {
   try {
     console.error(`  Fetching latest ${prerelease ? "prerelease" : "release"} info from GitHub...`);
 
     const endpoint = prerelease
-      ? "https://api.github.com/repos/jygzyc/jiap/releases?per_page=10"
-      : "https://api.github.com/repos/jygzyc/jiap/releases/latest";
+      ? "https://api.github.com/repos/jygzyc/decx/releases?per_page=10"
+      : "https://api.github.com/repos/jygzyc/decx/releases/latest";
 
     const res = await fetch(endpoint, {
       headers: { "Accept": "application/vnd.github+json" },
@@ -110,10 +110,10 @@ export async function installJiapServer(
       release = await res.json() as { tag_name: string; assets: Array<{ name: string; browser_download_url: string }> };
     }
 
-    const asset = release.assets.find((a) => a.name.includes("jiap-server"));
+    const asset = release.assets.find((a) => a.name.includes("decx-server"));
 
     if (!asset) {
-      return [false, `No jiap-server asset found in release ${release.tag_name}`];
+      return [false, `No decx-server asset found in release ${release.tag_name}`];
     }
 
     mkdirSync(INSTALL_DIR, { recursive: true });
@@ -136,7 +136,7 @@ export async function installJiapServer(
       return [false, "Failed to save downloaded file"];
     }
 
-    return [true, `Installed jiap-server v${release.tag_name} to ${INSTALL_PATH}`, release.tag_name];
+    return [true, `Installed decx-server v${release.tag_name} to ${INSTALL_PATH}`, release.tag_name];
   } catch (err) {
     return [false, `Installation failed: ${err}`];
   }

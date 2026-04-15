@@ -1,8 +1,8 @@
 /**
- * Lightweight append-only logger for JIAP CLI.
+ * Lightweight append-only logger for DECX CLI.
  *
  * Logs API calls and CLI events to session log files
- * at ~/.jiap/logs/<session>.log in JSONL format.
+ * at ~/.decx/logs/<session>.log in JSONL format.
  * Always-on, never throws — logging failures must not break the CLI.
  */
 
@@ -10,7 +10,7 @@ import { appendFileSync, mkdirSync, existsSync } from "fs";
 import * as path from "path";
 import * as os from "os";
 
-const LOG_DIR = path.join(os.homedir(), ".jiap", "logs");
+const LOG_DIR = path.join(os.homedir(), ".decx", "logs");
 const GENERAL_LOG = path.join(LOG_DIR, "cli.log");
 
 let dirInitialized = false;

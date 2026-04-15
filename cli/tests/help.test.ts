@@ -13,7 +13,7 @@ import { makeSelfCommand } from "../src/commands/self.js";
 
 function createProgram(): Command {
   const program = new Command();
-  program.name("jiap").version("2.0.0");
+  program.name("decx").version("2.0.0");
   program.addCommand(makeProcessCommand());
   program.addCommand(makeCodeCommand());
   program.addCommand(makeArdCommand());
@@ -51,7 +51,7 @@ describe("root", () => {
 });
 
 // ============================================================================
-// jiap process
+// decx process
 // ============================================================================
 
 describe("process", () => {
@@ -87,7 +87,7 @@ describe("process", () => {
 });
 
 // ============================================================================
-// jiap code
+// decx code
 // ============================================================================
 
 describe("code", () => {
@@ -132,7 +132,7 @@ describe("code", () => {
 });
 
 // ============================================================================
-// jiap ard
+// decx ard
 // ============================================================================
 
 describe("ard", () => {
