@@ -65,6 +65,8 @@ logs/
 *.db
 
 # AI
+CLAUDE.md
 AGENTS.md
 .claude/
+.agents/
 .sisyphus/

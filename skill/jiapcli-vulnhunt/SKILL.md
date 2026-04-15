@@ -28,7 +28,7 @@ jiap process open "<apk-path>" -P <port>  → 打开 APK（端口建议 25000–
 jiap process status -P <port>              → 确认服务正常
 ```
 
-分析完成后：`jiap process close "<name>" -P <port>`
+分析完成后不要自动关闭 session，告知用户：`jiap process close "<name>" -P <port>`
 
 ### Phase 2：攻击面枚举
 
@@ -37,7 +37,7 @@ jiap ard exported-components -P <port>  → 导出组件列表
 jiap ard app-deeplinks -P <port>        → Deep Link 入口
 jiap ard app-receivers -P <port>        → 动态广播接收器
 jiap ard app-manifest -P <port>         → 完整 Manifest
-jiap code get-aidl -P <port>           → AIDL 接口及实现类
+jiap ard get-aidl -P <port>            → AIDL 接口
 jiap ard strings -P <port>              → 硬编码字符串
 ```
 
@@ -248,7 +248,12 @@ com.target.EntryActivity.onCreate(android.os.Bundle):void  （入口）
 
 **禁止**：不可利用的发现、"已确认安全"列表、缺乏攻击路径的发现
 
-报告生成后，传递给 `jiapcli-poc` 构造 PoC 验证。
+报告生成后：
+
+1. 将报告传递给 `jiapcli-poc` 构造 PoC 验证（需要 jiap session 保持运行）
+2. 告知用户：
+   - session 仍处于运行状态，可通过 `jiap process close "<name>" -P <port>` 手动关闭
+   - 如需构造 PoC，可直接使用 `jiapcli-poc` skill（会利用当前 session 验证报告准确性）
 
 ## References
 
