@@ -132,7 +132,7 @@ export async function installJiapServer(
     const tmpPath = `${INSTALL_PATH}.tmp`;
     const totalSize = Number(downloadRes.headers.get("content-length") || 0);
     await downloadWithProgress(downloadRes.body, tmpPath, totalSize, {
-      label: `${asset.name} (v${release.tag_name})`,
+      label: asset.name,
     });
 
     try {
