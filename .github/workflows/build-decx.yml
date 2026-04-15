@@ -3,9 +3,6 @@ name: Build Decx
 on:
   push:
     branches: [ main ]
-    paths:
-      - 'decx/**'
-  push:
     tags:
       - 'v*'
   pull_request:
@@ -76,7 +73,18 @@ jobs:
       with:
         fetch-depth: 0
 
+    - name: Check for decx changes
+      id: changes
+      run: |
+        FILES=$(git diff --name-only HEAD~1 HEAD)
+        if echo "$FILES" | grep -q '^decx/'; then
+          echo "has_changes=true" >> $GITHUB_OUTPUT
+        else
+          echo "has_changes=false" >> $GITHUB_OUTPUT
+        fi
+
     - name: Generate prerelease version
+      if: steps.changes.outputs.has_changes == 'true'
       id: version
       run: |
         LATEST_TAG=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null | sed 's/^v//')
@@ -86,26 +94,31 @@ jobs:
         echo "Prerelease version: ${LATEST_TAG}-${TIMESTAMP}"
 
     - name: Set up JDK 11
+      if: steps.changes.outputs.has_changes == 'true'
       uses: actions/setup-java@v5
       with:
         java-version: '11'
         distribution: 'temurin'
 
     - name: Setup Gradle
+      if: steps.changes.outputs.has_changes == 'true'
       uses: gradle/actions/setup-gradle@v6
 
     - name: Build with Gradle
+      if: steps.changes.outputs.has_changes == 'true'
       run: ./gradlew dist
       working-directory: decx
       env:
         DECX_VERSION: ${{ steps.version.outputs.version }}
 
     - name: Prepare release files
+      if: steps.changes.outputs.has_changes == 'true'
       run: |
         cp decx/build/dist/*.jar ./
         ls -la *.jar
 
     - name: Delete old prereleases
+      if: steps.changes.outputs.has_changes == 'true'
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
@@ -114,6 +127,7 @@ jobs:
         | xargs -r -I {} gh release delete "{}" --cleanup-tag --yes
 
     - name: Create Prerelease
+      if: steps.changes.outputs.has_changes == 'true'
       uses: softprops/action-gh-release@v2
       with:
         tag_name: "prerelease-${{ steps.version.outputs.version }}"
