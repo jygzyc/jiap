@@ -4,10 +4,24 @@
 
 import { Command } from "commander";
 import { spawnSync } from "child_process";
+import { readFileSync } from "fs";
+import * as path from "path";
+import { fileURLToPath } from "url";
 import { Formatter } from "../utils/formatter.js";
 import { Manager } from "../core/config.js";
 import { checkForServerUpdate, installJiapServer } from "../server/installer.js";
 import { JiapError, ServerError, withErrorHandler } from "../utils/errors.js";
+
+function getCliVersion(): string {
+  if (process.env.npm_package_version) return process.env.npm_package_version;
+  try {
+    const pkgPath = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "package.json");
+    const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
+    return pkg.version ?? "unknown";
+  } catch {
+    return "unknown";
+  }
+}
 
 export function makeSelfCommand(): Command {
   const cmd = new Command("self");
@@ -58,7 +72,7 @@ export function makeSelfCommand(): Command {
 
       // Update CLI
       fmt.section("Updating jiap-cli");
-      const cliVersion = process.env.npm_package_version || "unknown";
+      const cliVersion = getCliVersion();
       fmt.info(`Current CLI version: v${cliVersion}`);
       fmt.info("Running: npm install -g jiap-cli@latest ...");
 

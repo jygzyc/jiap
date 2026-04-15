@@ -1,6 +1,6 @@
 {
   "name": "jiap-cli",
-  "version": "2.2.1",
+  "version": "2.2.2",
   "description": "JIAP CLI - Java Intelligence Analysis Platform (TypeScript)",
   "type": "module",
   "bin": {

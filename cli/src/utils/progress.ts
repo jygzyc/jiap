@@ -45,10 +45,14 @@ export async function downloadWithProgress(
     }
   }
 
-  fileStream.end();
   if (totalSize > 0) {
     process.stderr.write("\n");
   }
+
+  await new Promise<void>((resolve, reject) => {
+    fileStream.end(() => resolve());
+    fileStream.on("error", reject);
+  });
 
   return downloaded;
 }

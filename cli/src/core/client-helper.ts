@@ -42,5 +42,14 @@ export function resolveClient(
   }
 
   const client = new JIAPClient("127.0.0.1", port, 30, undefined, sessionName);
+
+  // Sync server version in background (non-blocking)
+  client.healthCheck().then((health) => {
+    const serverVersion = (health as Record<string, string>)?.version;
+    if (serverVersion && serverVersion !== mgr.serverJar.version) {
+      mgr.updateServerVersion(serverVersion);
+    }
+  }).catch(() => {});
+
   return { fmt, client };
 }

@@ -10,6 +10,21 @@ import { downloadWithProgress } from "../utils/progress.js";
 
 const JIAP_SERVER_HOME: string | undefined = process.env.JIAP_SERVER_HOME;
 
+/**
+ * Compare two semver strings (e.g. "2.2.1" vs "2.3.0").
+ * Returns >0 if a > b, <0 if a < b, 0 if equal.
+ */
+function compareSemver(a: string, b: string): number {
+  const pa = a.split("-")[0].split(".").map(Number);
+  const pb = b.split("-")[0].split(".").map(Number);
+  for (let i = 0; i < 3; i++) {
+    const va = pa[i] ?? 0;
+    const vb = pb[i] ?? 0;
+    if (va !== vb) return va - vb;
+  }
+  return 0;
+}
+
 const INSTALL_DIR = path.join(os.homedir(), ".jiap", "bin");
 const INSTALL_PATH = path.join(INSTALL_DIR, "jiap-server.jar");
 
@@ -58,7 +73,8 @@ export async function checkForServerUpdate(
 
   const latest = latestTag.replace(/^v/, "");
   const current = currentVersion.replace(/^v/, "");
-  return { available: latest !== current, latestVersion: latest };
+  const available = compareSemver(latest, current) > 0;
+  return { available, latestVersion: latest };
 }
 
 /**

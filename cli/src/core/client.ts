@@ -43,6 +43,8 @@ export class JIAPClient {
         }
 
         const startTime = Date.now();
+        let status: "ok" | "error" = "error";
+        let errorMsg: string | undefined;
 
         try {
             const controller = new AbortController();
@@ -58,17 +60,8 @@ export class JIAPClient {
             clearTimeout(timeoutId);
 
             if (response.status === 200) {
-                const result = await response.json() as T;
-                if (this.sessionName) {
-                    logApiCall(this.sessionName, {
-                        ts: new Date().toISOString(),
-                        method,
-                        path: apiPath,
-                        duration_ms: Date.now() - startTime,
-                        status: "ok",
-                    });
-                }
-                return result;
+                status = "ok";
+                return await response.json() as T;
             }
 
             // Server returns { "error": "E0xx", "message": "..." }
@@ -83,33 +76,25 @@ export class JIAPClient {
             } catch {
                 // ignore parse errors
             }
-            if (this.sessionName) {
-                logApiCall(this.sessionName, {
-                    ts: new Date().toISOString(),
-                    method,
-                    path: apiPath,
-                    duration_ms: Date.now() - startTime,
-                    status: "error",
-                    error: errorMessage,
-                });
-            }
+            errorMsg = errorMessage;
             throw new JiapError(errorMessage, errorCode);
         } catch (err) {
             if (err instanceof JiapError) throw err;
-            if (this.sessionName) {
-                logApiCall(this.sessionName, {
-                    ts: new Date().toISOString(),
-                    method,
-                    path: apiPath,
-                    duration_ms: Date.now() - startTime,
-                    status: "error",
-                    error: (err as Error).message,
-                });
-            }
             if ((err as Error).name === "AbortError") {
                 throw new JiapError("Request timed out", "TIMEOUT");
             }
             throw new JiapError(`Connection failed: ${(err as Error).message}`, "CONNECTION_ERROR");
+        } finally {
+            if (this.sessionName) {
+                logApiCall(this.sessionName, {
+                    ts: new Date().toISOString(),
+                    method,
+                    path: apiPath,
+                    duration_ms: Date.now() - startTime,
+                    status,
+                    error: errorMsg,
+                });
+            }
         }
     }
 
