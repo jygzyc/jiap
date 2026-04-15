@@ -95,11 +95,11 @@ describe("code", () => {
     cmd = findCommand(createProgram(), ["code"])!;
   });
 
-  it("registers 12 subcommands", () => {
+  it("registers 11 subcommands", () => {
     expect(getSubcommandNames(cmd)).toEqual([
       "all-classes", "class-info", "class-source", "method-source",
       "search-class", "search-method", "xref-method", "xref-class",
-      "xref-field", "implement", "subclass", "get-aidl",
+      "xref-field", "implement", "subclass",
     ]);
   });
 
@@ -140,12 +140,12 @@ describe("ard", () => {
     cmd = findCommand(createProgram(), ["ard"])!;
   });
 
-  it("registers 10 subcommands", () => {
+  it("registers 11 subcommands", () => {
     expect(getSubcommandNames(cmd)).toEqual([
       "app-manifest", "main-activity", "app-application",
       "exported-components", "app-deeplinks", "app-receivers",
       "system-service-impl",
-      "all-resources", "resource-file", "strings",
+      "all-resources", "resource-file", "strings", "get-aidl",
     ]);
   });
 

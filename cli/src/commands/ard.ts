@@ -113,5 +113,15 @@ export function makeArdCommand(): Command {
       fmt.output(await client.getStrings(page));
     });
 
+  cmd
+    .command("get-aidl")
+    .description("Get all AIDL interfaces")
+    .option("--page <n>", "Page number", String)
+    .action(async (opts) => {
+      const { fmt, client } = resolveClient(opts);
+      const page = opts.page ? parseInt(opts.page) : 1;
+      fmt.output(await client.getAidlInterfaces(page));
+    });
+
   return cmd;
 }
