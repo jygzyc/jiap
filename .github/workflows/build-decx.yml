@@ -5,6 +5,7 @@ on:
     branches: [ main ]
     paths:
       - 'decx/**'
+  push:
     tags:
       - 'v*'
   pull_request:
