@@ -31,50 +31,45 @@ export function makeSelfCommand(): Command {
     .command("install")
     .description("Install or update jiap-server.jar")
     .option("-p, --prerelease", "Install prerelease version")
-    .option("--json", "JSON output")
     .action(withErrorHandler(async (opts) => {
-      const fmt = new Formatter(opts.json);
-      const [ok, msg] = await installJiapServer(fmt, opts.prerelease);
+      const fmt = new Formatter();
+      const [ok, msg, version] = await installJiapServer(opts.prerelease);
       if (ok) {
-        fmt.success(msg);
+        fmt.output({ ok: true, version, path: msg });
       } else {
         throw new ServerError(msg);
       }
-    }, (opts) => new Formatter(Boolean(opts.json))));
+    }));
 
   cmd
     .command("update")
     .description("Update jiap-server and/or jiap-cli")
     .option("-p, --prerelease", "Install prerelease server version")
-    .option("--json", "JSON output")
     .action(withErrorHandler(async (opts) => {
-      const fmt = new Formatter(opts.json);
+      const fmt = new Formatter();
       const mgr = Manager.get();
       const currentVersion = mgr.serverJar.version;
 
       // Update server
-      fmt.section("Updating jiap-server");
-      fmt.info(`Current server version: v${currentVersion}`);
+      console.error(`  Updating jiap-server (current: v${currentVersion})...`);
 
       const updateInfo = await checkForServerUpdate(currentVersion, opts.prerelease);
       if (updateInfo.available) {
-        fmt.info(`New version available: v${updateInfo.latestVersion}`);
-        const [ok, msg, version] = await installJiapServer(fmt, opts.prerelease);
+        console.error(`  New version available: v${updateInfo.latestVersion}`);
+        const [ok, msg, version] = await installJiapServer(opts.prerelease);
         if (ok && version) {
           mgr.updateServerVersion(version);
-          fmt.success(msg);
+          console.error(`  ${msg}`);
         } else {
           throw new JiapError(msg, "UPDATE_ERROR");
         }
       } else {
-        fmt.success("Server already up to date");
+        console.error("  Server already up to date");
       }
 
       // Update CLI
-      fmt.section("Updating jiap-cli");
-      const cliVersion = getCliVersion();
-      fmt.info(`Current CLI version: v${cliVersion}`);
-      fmt.info("Running: npm install -g jiap-cli@latest ...");
+      console.error(`  Updating jiap-cli (current: v${getCliVersion()})...`);
+      console.error("  Running: npm install -g jiap-cli@latest ...");
 
       const result = spawnSync("npm", ["install", "-g", "jiap-cli@latest"], {
         stdio: "inherit",
@@ -85,8 +80,8 @@ export function makeSelfCommand(): Command {
         throw new JiapError("CLI update failed. Check npm output above.", "UPDATE_ERROR");
       }
 
-      fmt.success("CLI updated. Restart your shell to use the new version.");
-    }, (opts) => new Formatter(Boolean(opts.json))));
+      fmt.output({ ok: true, message: "Update complete. Restart your shell to use the new version." });
+    }));
 
   return cmd;
 }

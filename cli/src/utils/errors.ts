@@ -4,6 +4,7 @@
  */
 
 import { Formatter } from "./formatter.js";
+import { logError } from "./logger.js";
 
 /**
  * Base error class for JIAP CLI.
@@ -20,9 +21,6 @@ export class JiapError extends Error {
 
   format(fmt: Formatter): void {
     fmt.error(this.message);
-    if (this.details && Object.keys(this.details).length > 0) {
-      fmt.hint(JSON.stringify(this.details, null, 2));
-    }
   }
 }
 
@@ -72,13 +70,16 @@ export class ConfigError extends JiapError {
 export function handleCliError(error: unknown, formatter: Formatter): never {
   if (error instanceof JiapError) {
     error.format(formatter);
+    logError({ code: error.code, message: error.message, name: error.name });
   } else if (error instanceof Error) {
     formatter.error(error.message);
+    logError({ message: error.message, name: error.name });
     if (process.env.JIAP_DEBUG === "1") {
       console.error(error.stack);
     }
   } else {
     formatter.error(String(error));
+    logError({ message: String(error) });
   }
   process.exit(1);
 }
@@ -88,16 +89,12 @@ export function handleCliError(error: unknown, formatter: Formatter): never {
  */
 export function withErrorHandler<T extends unknown[], R>(
   fn: (...args: T) => Promise<R>,
-  formatterOrFactory: Formatter | ((...args: T) => Formatter)
 ): (...args: T) => Promise<R | void> {
   return async (...args: T) => {
     try {
       return await fn(...args);
     } catch (error) {
-      const fmt = typeof formatterOrFactory === "function"
-        ? formatterOrFactory(...args)
-        : formatterOrFactory;
-      handleCliError(error, fmt);
+      handleCliError(error, new Formatter());
     }
   };
 }

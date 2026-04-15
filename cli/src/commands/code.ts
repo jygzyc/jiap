@@ -7,8 +7,7 @@ export function makeCodeCommand(): Command {
 
   cmd
     .option("-s, --session <name>", "Target session by name")
-    .option("-P, --port <port>", "Server port")
-    .option("--json", "JSON output");
+    .option("-P, --port <port>", "Server port");
 
   cmd
     .command("all-classes")

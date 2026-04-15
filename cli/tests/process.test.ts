@@ -54,11 +54,10 @@ describe("process command structure", () => {
   // ── check ────────────────────────────────────────────────────────────────
 
   describe("check", () => {
-    it("has -P/--port and --json options", () => {
+    it("has -P/--port option", () => {
       const check = findCommand(processCmd, ["check"])!;
       const flags = getOptionFlags(check);
       expect(flags.some(f => f.includes("--port"))).toBe(true);
-      expect(flags.some(f => f.includes("--json"))).toBe(true);
     });
   });
 
@@ -76,7 +75,6 @@ describe("process command structure", () => {
       expect(flags.some(f => f.includes("--port"))).toBe(true);
       expect(flags.some(f => f.includes("--force"))).toBe(true);
       expect(flags.some(f => f.includes("--name"))).toBe(true);
-      expect(flags.some(f => f.includes("--json"))).toBe(true);
     });
   });
 
@@ -94,10 +92,9 @@ describe("process command structure", () => {
   // ── list ─────────────────────────────────────────────────────────────────
 
   describe("list", () => {
-    it("has --json option", () => {
+    it("has no options", () => {
       const list = findCommand(processCmd, ["list"])!;
-      const flags = getOptionFlags(list);
-      expect(flags.some(f => f.includes("--json"))).toBe(true);
+      expect(getOptionFlags(list)).toEqual([]);
     });
   });
 

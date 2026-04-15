@@ -5,7 +5,6 @@
 import * as path from "path";
 import * as os from "os";
 import { existsSync, mkdirSync, renameSync, unlinkSync } from "fs";
-import { Formatter } from "../utils/formatter.js";
 import { downloadWithProgress } from "../utils/progress.js";
 
 const JIAP_SERVER_HOME: string | undefined = process.env.JIAP_SERVER_HOME;
@@ -82,15 +81,10 @@ export async function checkForServerUpdate(
  * Returns [success, message, version?].
  */
 export async function installJiapServer(
-  fmt: Formatter,
   prerelease: boolean = false
 ): Promise<[boolean, string, string?]> {
   try {
-    if (prerelease) {
-      fmt.info("Fetching latest prerelease info from GitHub...");
-    } else {
-      fmt.info("Fetching latest release info from GitHub...");
-    }
+    console.error(`  Fetching latest ${prerelease ? "prerelease" : "release"} info from GitHub...`);
 
     const endpoint = prerelease
       ? "https://api.github.com/repos/jygzyc/jiap/releases?per_page=10"

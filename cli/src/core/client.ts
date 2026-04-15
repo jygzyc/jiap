@@ -87,7 +87,6 @@ export class JIAPClient {
         } finally {
             if (this.sessionName) {
                 logApiCall(this.sessionName, {
-                    ts: new Date().toISOString(),
                     method,
                     path: apiPath,
                     duration_ms: Date.now() - startTime,

@@ -62,30 +62,14 @@ describe("withErrorHandler", () => {
 
   it("calls handler normally on success", async () => {
     const handler = jest.fn<() => Promise<string>>().mockResolvedValue("ok");
-    const wrapped = withErrorHandler(handler, new Formatter(false));
+    const wrapped = withErrorHandler(handler);
     await wrapped();
     expect(handler).toHaveBeenCalled();
   });
 
   it("catches JiapError and formats it", async () => {
     const handler = jest.fn<() => Promise<string>>().mockRejectedValue(new ProcessError("test", 123));
-    const wrapped = withErrorHandler(handler, new Formatter(false));
+    const wrapped = withErrorHandler(handler);
     await expect(wrapped()).rejects.toThrow("process.exit");
-  });
-
-  it("accepts factory function for formatter", async () => {
-    const handler = jest.fn<() => Promise<string>>().mockRejectedValue(new JiapError("test"));
-    const factory = jest.fn<() => Formatter>(() => new Formatter(true));
-    const wrapped = withErrorHandler(handler, factory);
-    await expect(wrapped()).rejects.toThrow("process.exit");
-    expect(factory).toHaveBeenCalled();
-  });
-
-  it("factory receives handler args", async () => {
-    const handler = jest.fn<(a: string, b: string) => Promise<string>>().mockRejectedValue(new JiapError("test"));
-    const factory = jest.fn<(a: string, b: string) => Formatter>(() => new Formatter(true));
-    const wrapped = withErrorHandler(handler, factory);
-    await expect(wrapped("arg1", "arg2")).rejects.toThrow("process.exit");
-    expect(factory).toHaveBeenCalledWith("arg1", "arg2");
   });
 });

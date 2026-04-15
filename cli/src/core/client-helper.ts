@@ -9,8 +9,7 @@ import { Manager } from "./config.js";
 export function resolveClient(
   opts: Record<string, unknown>
 ): { fmt: Formatter; client: JIAPClient } {
-  const jsonMode = opts.json !== undefined ? Boolean(opts.json) : true;
-  const fmt = new Formatter(jsonMode);
+  const fmt = new Formatter();
   const mgr = Manager.get();
 
   if (opts.session && opts.port) {
