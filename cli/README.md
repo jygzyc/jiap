@@ -5,7 +5,7 @@ DECX CLI - Decompiler + X command-line tool.
 ## Install
 
 ```bash
-npm install -g decx-cli
+npm install -g @jygzyc/decx-cli
 ```
 
 ## Usage

@@ -173,7 +173,7 @@ DECX provides a TypeScript CLI for programmatic access to the analysis platform.
 **Installation:**
 
 ```bash
-npm install -g decx-cli
+npm install -g @jygzyc/decx-cli
 ```
 
 **Process Management:**
@@ -243,7 +243,7 @@ cp skill/decxcli-vulnhunt/SKILL.md .windsurfrules-decxcli-vulnhunt
 cp skill/decxcli-poc/SKILL.md .windsurfrules-decxcli-poc
 ```
 
-Dependency: `decx` CLI installed (`npm install -g decx-cli`).
+Dependency: `decx` CLI installed (`npm install -g @jygzyc/decx-cli`).
 
 ---
 
