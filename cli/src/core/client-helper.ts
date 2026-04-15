@@ -19,6 +19,7 @@ export function resolveClient(
   }
 
   let port: number;
+  let sessionName: string | undefined;
   if (opts.port) {
     port = parseInt(opts.port as string);
   } else if (opts.session) {
@@ -28,16 +29,18 @@ export function resolveClient(
       process.exit(1);
     }
     port = s.port;
+    sessionName = s.name;
   } else {
     // Auto-select: if exactly one alive session, use it; otherwise default port
     const auto = mgr.autoSelectSession();
     if (auto) {
       port = auto.port;
+      sessionName = auto.name;
     } else {
       port = mgr.server.defaultPort;
     }
   }
 
-  const client = new JIAPClient("127.0.0.1", port);
+  const client = new JIAPClient("127.0.0.1", port, 30, undefined, sessionName);
   return { fmt, client };
 }

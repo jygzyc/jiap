@@ -21,8 +21,10 @@ afterAll(() => {
 
 describe("resolveClient", () => {
   it("uses default port when no session or port specified", () => {
+    const mock = jest.spyOn(Manager.prototype, "autoSelectSession").mockReturnValue(null);
     const { fmt, client } = resolveClient({});
     expect((client as any).baseUrl).toBe("http://127.0.0.1:25419");
+    mock.mockRestore();
   });
 
   it("uses specified port with --port", () => {

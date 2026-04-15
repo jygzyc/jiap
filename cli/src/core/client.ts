@@ -6,6 +6,7 @@
  */
 
 import { JiapError } from "../utils/errors.js";
+import { logApiCall } from "../utils/logger.js";
 
 export { JiapError as JIAPError };
 
@@ -15,11 +16,13 @@ export class JIAPClient {
     private baseUrl: string;
     private timeout: number;
     private _fetch: FetchFn;
+    private sessionName: string | null;
 
-    constructor(host: string = "127.0.0.1", port: number = 25419, timeout: number = 30, fetchFn?: FetchFn) {
+    constructor(host: string = "127.0.0.1", port: number = 25419, timeout: number = 30, fetchFn?: FetchFn, sessionName?: string) {
         this.baseUrl = `http://${host}:${port}`;
         this.timeout = timeout * 1000;
         this._fetch = fetchFn ?? globalThis.fetch;
+        this.sessionName = sessionName ?? null;
     }
 
     private async request<T = unknown>(
@@ -39,6 +42,8 @@ export class JIAPClient {
             if (data) console.error(`[DEBUG] Body: ${JSON.stringify(data)}`);
         }
 
+        const startTime = Date.now();
+
         try {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), this.timeout);
@@ -53,7 +58,17 @@ export class JIAPClient {
             clearTimeout(timeoutId);
 
             if (response.status === 200) {
-                return (await response.json()) as T;
+                const result = await response.json() as T;
+                if (this.sessionName) {
+                    logApiCall(this.sessionName, {
+                        ts: new Date().toISOString(),
+                        method,
+                        path: apiPath,
+                        duration_ms: Date.now() - startTime,
+                        status: "ok",
+                    });
+                }
+                return result;
             }
 
             // Server returns { "error": "E0xx", "message": "..." }
@@ -68,9 +83,29 @@ export class JIAPClient {
             } catch {
                 // ignore parse errors
             }
+            if (this.sessionName) {
+                logApiCall(this.sessionName, {
+                    ts: new Date().toISOString(),
+                    method,
+                    path: apiPath,
+                    duration_ms: Date.now() - startTime,
+                    status: "error",
+                    error: errorMessage,
+                });
+            }
             throw new JiapError(errorMessage, errorCode);
         } catch (err) {
             if (err instanceof JiapError) throw err;
+            if (this.sessionName) {
+                logApiCall(this.sessionName, {
+                    ts: new Date().toISOString(),
+                    method,
+                    path: apiPath,
+                    duration_ms: Date.now() - startTime,
+                    status: "error",
+                    error: (err as Error).message,
+                });
+            }
             if ((err as Error).name === "AbortError") {
                 throw new JiapError("Request timed out", "TIMEOUT");
             }

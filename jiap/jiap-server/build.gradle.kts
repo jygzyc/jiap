@@ -18,6 +18,8 @@ dependencies {
 
 tasks.processResources {
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    val versionFile = File(sourceSets.main.get().output.resourcesDir!!, "version.properties")
+    versionFile.writeText("version=${project.version}\n")
 }
 
 tasks {

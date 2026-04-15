@@ -2,9 +2,10 @@
  * Configuration management for JIAP CLI.
  */
 
-import { existsSync, readFileSync } from "fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, renameSync } from "fs";
 import * as path from "path";
 import * as os from "os";
+import { randomBytes } from "crypto";
 import type { Config } from "./types.js";
 import * as session from "./session.js";
 
@@ -35,6 +36,13 @@ function readConfig(): Config {
   } catch {
     return defaultConfig();
   }
+}
+
+function writeConfig(config: Config): void {
+  mkdirSync(CONFIG_DIR, { recursive: true });
+  const tmpFile = `${CONFIG_FILE}.${randomBytes(4).toString("hex")}.tmp`;
+  writeFileSync(tmpFile, JSON.stringify(config, null, 2), "utf-8");
+  renameSync(tmpFile, CONFIG_FILE);
 }
 
 export class Manager {
@@ -77,4 +85,9 @@ export class Manager {
   }
 
   cleanupDead() { return session.cleanupDead(); }
+
+  updateServerVersion(version: string): void {
+    this.config.serverJar.version = version;
+    writeConfig(this.config);
+  }
 }

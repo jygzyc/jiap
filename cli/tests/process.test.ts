@@ -44,10 +44,10 @@ describe("process command structure", () => {
     processCmd = findCommand(createProgram(), ["process"])!;
   });
 
-  it("registers 6 subcommands (check, open, close, list, status, install)", () => {
+  it("registers 5 subcommands (check, open, close, list, status)", () => {
     const names = getSubcommandNames(processCmd);
     expect(names).toEqual([
-      "check", "open", "close", "list", "status", "install",
+      "check", "open", "close", "list", "status",
     ]);
   });
 
@@ -59,12 +59,6 @@ describe("process command structure", () => {
       const flags = getOptionFlags(check);
       expect(flags.some(f => f.includes("--port"))).toBe(true);
       expect(flags.some(f => f.includes("--json"))).toBe(true);
-    });
-
-    it("has --install option", () => {
-      const check = findCommand(processCmd, ["check"])!;
-      const flags = getOptionFlags(check);
-      expect(flags.some(f => f.includes("--install"))).toBe(true);
     });
   });
 
@@ -118,13 +112,4 @@ describe("process command structure", () => {
     });
   });
 
-  // ── install ──────────────────────────────────────────────────────────────
-
-  describe("install", () => {
-    it("has --json option", () => {
-      const install = findCommand(processCmd, ["install"])!;
-      const flags = getOptionFlags(install);
-      expect(flags.some(f => f.includes("--json"))).toBe(true);
-    });
-  });
 });

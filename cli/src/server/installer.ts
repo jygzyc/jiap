@@ -4,9 +4,11 @@
 
 import * as path from "path";
 import * as os from "os";
-import { existsSync, mkdirSync, createWriteStream } from "fs";
-const JIAP_SERVER_HOME: string | undefined = process.env.JIAP_SERVER_HOME;
+import { existsSync, mkdirSync, renameSync, unlinkSync } from "fs";
 import { Formatter } from "../utils/formatter.js";
+import { downloadWithProgress } from "../utils/progress.js";
+
+const JIAP_SERVER_HOME: string | undefined = process.env.JIAP_SERVER_HOME;
 
 const INSTALL_DIR = path.join(os.homedir(), ".jiap", "bin");
 const INSTALL_PATH = path.join(INSTALL_DIR, "jiap-server.jar");
@@ -28,9 +30,45 @@ export function findJiapServerJar(): string | null {
 }
 
 /**
- * Download and install the latest jiap-server.jar from GitHub releases.
+ * Check if a newer server version is available.
  */
-export async function installJiapServer(fmt: Formatter, prerelease: boolean = false): Promise<[boolean, string]> {
+export async function checkForServerUpdate(
+  currentVersion: string,
+  prerelease: boolean = false
+): Promise<{ available: boolean; latestVersion: string }> {
+  const endpoint = prerelease
+    ? "https://api.github.com/repos/jygzyc/jiap/releases?per_page=10"
+    : "https://api.github.com/repos/jygzyc/jiap/releases/latest";
+
+  const res = await fetch(endpoint, {
+    headers: { "Accept": "application/vnd.github+json" },
+  });
+  if (!res.ok) return { available: false, latestVersion: currentVersion };
+
+  let latestTag: string;
+  if (prerelease) {
+    const releases = await res.json() as Array<{ tag_name: string; prerelease: boolean }>;
+    const pre = releases.find((r) => r.prerelease);
+    if (!pre) return { available: false, latestVersion: currentVersion };
+    latestTag = pre.tag_name;
+  } else {
+    const release = await res.json() as { tag_name: string };
+    latestTag = release.tag_name;
+  }
+
+  const latest = latestTag.replace(/^v/, "");
+  const current = currentVersion.replace(/^v/, "");
+  return { available: latest !== current, latestVersion: latest };
+}
+
+/**
+ * Download and install the latest jiap-server.jar from GitHub releases.
+ * Returns [success, message, version?].
+ */
+export async function installJiapServer(
+  fmt: Formatter,
+  prerelease: boolean = false
+): Promise<[boolean, string, string?]> {
   try {
     if (prerelease) {
       fmt.info("Fetching latest prerelease info from GitHub...");
@@ -68,7 +106,6 @@ export async function installJiapServer(fmt: Formatter, prerelease: boolean = fa
       return [false, `No jiap-server asset found in release ${release.tag_name}`];
     }
 
-    fmt.info(`Downloading ${asset.name} (v${release.tag_name})...`);
     mkdirSync(INSTALL_DIR, { recursive: true });
 
     const downloadRes = await fetch(asset.browser_download_url, { redirect: "follow" });
@@ -77,15 +114,11 @@ export async function installJiapServer(fmt: Formatter, prerelease: boolean = fa
     }
 
     const tmpPath = `${INSTALL_PATH}.tmp`;
-    const fileStream = createWriteStream(tmpPath);
+    const totalSize = Number(downloadRes.headers.get("content-length") || 0);
+    await downloadWithProgress(downloadRes.body, tmpPath, totalSize, {
+      label: `${asset.name} (v${release.tag_name})`,
+    });
 
-    for await (const chunk of downloadRes.body as AsyncIterable<Buffer>) {
-      fileStream.write(chunk);
-    }
-    fileStream.end();
-
-    // Rename tmp to final
-    const { renameSync, unlinkSync } = await import("fs");
     try {
       renameSync(tmpPath, INSTALL_PATH);
     } catch {
@@ -93,7 +126,7 @@ export async function installJiapServer(fmt: Formatter, prerelease: boolean = fa
       return [false, "Failed to save downloaded file"];
     }
 
-    return [true, `Installed jiap-server v${release.tag_name} to ${INSTALL_PATH}`];
+    return [true, `Installed jiap-server v${release.tag_name} to ${INSTALL_PATH}`, release.tag_name];
   } catch (err) {
     return [false, `Installation failed: ${err}`];
   }

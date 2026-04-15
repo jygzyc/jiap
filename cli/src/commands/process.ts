@@ -6,14 +6,15 @@ import { Command } from "commander";
 import { spawn, execSync } from "child_process";
 import * as path from "path";
 import * as os from "os";
-import { createWriteStream, existsSync, mkdirSync, openSync, closeSync, readFileSync } from "fs";
+import { existsSync, mkdirSync, openSync, closeSync, readFileSync } from "fs";
+import { downloadWithProgress, formatBytes } from "../utils/progress.js";
 import { createHash } from "crypto";
 import { JIAPClient } from "../core/client.js";
 import { Formatter } from "../utils/formatter.js";
 import { Manager } from "../core/config.js";
 import { hashFile } from "../utils/hash.js";
 import { FileError, ProcessError, JiapError, ServerError, withErrorHandler } from "../utils/errors.js";
-import { findJiapServerJar, installJiapServer } from "../server/installer.js";
+import { findJiapServerJar } from "../server/installer.js";
 import { isSessionAlive } from "../core/session.js";
 
 export function makeProcessCommand(): Command {
@@ -25,7 +26,6 @@ export function makeProcessCommand(): Command {
     .command("check")
     .description("Check JIAP server status")
     .option("-P, --port <port>", "Server port", String)
-    .option("--install", "Install missing components")
     .option("--json", "JSON output")
     .action(async (opts) => {
       const fmt = new Formatter(opts.json);
@@ -35,7 +35,7 @@ export function makeProcessCommand(): Command {
       // Check jiap-server.jar
       const jarPath = findJiapServerJar();
       const jarOk = jarPath !== null;
-      const jarInfo = jarOk ? jarPath! : "Not found. Use --install or 'jiap process install' to install.";
+      const jarInfo = jarOk ? jarPath! : "Not found. Use 'jiap self install' to install.";
 
       // Check running server
       const [serverOk, serverInfo] = await checkServer(port);
@@ -59,10 +59,6 @@ export function makeProcessCommand(): Command {
         console.log(`  [${status}] ${name.padEnd(10)} ${info.info}`);
       }
 
-      if (opts.install && !jarOk) {
-        const [ok, msg] = await installJiapServer(fmt);
-        if (ok) { fmt.success(msg); } else { fmt.error(msg); }
-      }
     });
 
   // open
@@ -101,7 +97,7 @@ export function makeProcessCommand(): Command {
 
       const jarPath = findJiapServerJar();
       if (!jarPath) {
-        throw new FileError("jiap-server.jar not found. Run 'jiap process check --install' to install.");
+        throw new FileError("jiap-server.jar not found. Run 'jiap self install' to install.");
       }
 
       // Resolve input: local file or URL
@@ -323,22 +319,6 @@ export function makeProcessCommand(): Command {
       }
     }, (_name, opts) => new Formatter(Boolean(opts.json))));
 
-  // install
-  cmd
-    .command("install")
-    .description("Install or update jiap-server.jar")
-    .option("-p, --prerelease", "Install prerelease version")
-    .option("--json", "JSON output")
-    .action(withErrorHandler(async (opts) => {
-      const fmt = new Formatter(opts.json);
-      const [ok, msg] = await installJiapServer(fmt, opts.prerelease);
-      if (ok) {
-        fmt.success(msg);
-      } else {
-        throw new ServerError(msg);
-      }
-    }, (opts) => new Formatter(Boolean(opts.json))));
-
   return cmd;
 }
 
@@ -511,21 +491,10 @@ async function resolveFileInput(input: string): Promise<string> {
   }
 
   const totalSize = Number(response.headers.get("content-length") || 0);
-  const fileStream = createWriteStream(localPath);
-  const body = response.body!;
-
-  let downloaded = 0;
-  for await (const chunk of body as AsyncIterable<Buffer>) {
-    fileStream.write(chunk);
-    downloaded += chunk.length;
-    if (totalSize > 0) {
-      const pct = Math.round((downloaded / totalSize) * 100);
-      process.stderr.write(`\r  ${pct}% (${formatBytes(downloaded)} / ${formatBytes(totalSize)})`);
-    }
-  }
-
-  fileStream.end();
-  if (totalSize > 0) process.stderr.write("\n");
+  const downloaded = await downloadWithProgress(
+    response.body!, localPath, totalSize,
+    { label: path.basename(input) }
+  );
   fmt.success(`Saved to ${localPath} (${formatBytes(downloaded)})`);
 
   return localPath;
@@ -581,9 +550,3 @@ function extractPassthroughArgs(): string[] {
   return result;
 }
 
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
-}

@@ -110,6 +110,14 @@ describe("Session management", () => {
 
   describe("autoSelectSession", () => {
     it("returns null when no sessions exist", () => {
+      // Clean all sessions (including non-test ones) to ensure isolation
+      if (existsSync(SESSIONS_DIR)) {
+        for (const f of readdirSync(SESSIONS_DIR)) {
+          if (f.endsWith(".json")) {
+            try { rmSync(path.join(SESSIONS_DIR, f)); } catch { /* ignore */ }
+          }
+        }
+      }
       expect(autoSelectSession()).toBeNull();
     });
   });

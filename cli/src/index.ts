@@ -8,6 +8,7 @@ import { Command } from "commander";
 import { makeProcessCommand } from "./commands/process.js";
 import { makeCodeCommand } from "./commands/code.js";
 import { makeArdCommand } from "./commands/ard.js";
+import { makeSelfCommand } from "./commands/self.js";
 
 const program = new Command();
 
@@ -17,6 +18,7 @@ program
   .description("JIAP CLI - Java Intelligence Analysis Platform")
   .addCommand(makeProcessCommand())
   .addCommand(makeCodeCommand())
-  .addCommand(makeArdCommand());
+  .addCommand(makeArdCommand())
+  .addCommand(makeSelfCommand());
 
 program.parse();

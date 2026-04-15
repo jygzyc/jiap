@@ -202,6 +202,15 @@ API Endpoints:
 	}
 
 	private fun getVersion(): String {
+		try {
+			val props = java.util.Properties()
+			val input = JiapServerApp::class.java.getResourceAsStream("/version.properties")
+			if (input != null) {
+				props.load(input)
+				input.close()
+				return props.getProperty("version", "dev")
+			}
+		} catch (_: Exception) {}
 		return System.getenv("JIAP_VERSION") ?: "dev"
 	}
 }

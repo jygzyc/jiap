@@ -9,6 +9,7 @@ import { Command } from "commander";
 import { makeProcessCommand } from "../src/commands/process.js";
 import { makeCodeCommand } from "../src/commands/code.js";
 import { makeArdCommand } from "../src/commands/ard.js";
+import { makeSelfCommand } from "../src/commands/self.js";
 
 function createProgram(): Command {
   const program = new Command();
@@ -16,6 +17,7 @@ function createProgram(): Command {
   program.addCommand(makeProcessCommand());
   program.addCommand(makeCodeCommand());
   program.addCommand(makeArdCommand());
+  program.addCommand(makeSelfCommand());
   return program;
 }
 
@@ -42,9 +44,9 @@ function getOptionFlags(cmd: Command): string[] {
 // ============================================================================
 
 describe("root", () => {
-  it("registers 3 top-level commands", () => {
+  it("registers 4 top-level commands", () => {
     const program = createProgram();
-    expect(getSubcommandNames(program)).toEqual(["process", "code", "ard"]);
+    expect(getSubcommandNames(program)).toEqual(["process", "code", "ard", "self"]);
   });
 });
 
@@ -59,9 +61,9 @@ describe("process", () => {
     cmd = findCommand(createProgram(), ["process"])!;
   });
 
-  it("registers 6 subcommands (check, open, close, list, status, install)", () => {
+  it("registers 5 subcommands (check, open, close, list, status)", () => {
     expect(getSubcommandNames(cmd)).toEqual([
-      "check", "open", "close", "list", "status", "install",
+      "check", "open", "close", "list", "status",
     ]);
   });
 
