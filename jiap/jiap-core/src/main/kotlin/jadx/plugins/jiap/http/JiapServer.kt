@@ -147,6 +147,7 @@ class JiapServer(
             ctx.json(
                 mapOf(
                     "status" to if (started) "running" else "stopped",
+                    "version" to JiapConstants.getVersion(),
                     "url" to PluginUtils.buildServerUrl(port = port, running = started),
                     "port" to port,
                     "timestamp" to System.currentTimeMillis()

@@ -418,8 +418,8 @@ class AndroidAppService(override val decompiler: JadxDecompiler) : JiapServiceIn
             val aidlInterfaces = stubClasses.map { stub ->
                 val interfaceName = stub.fullName.removeSuffix(".Stub")
                 // smali uses '$' for inner classes: Lcom/example/IFoo$Stub;
-                val stubSmaliName = stub.fullName.replace('.', '/')
-                    .replace(".Stub", "\$Stub")
+                val stubSmaliName = stub.fullName.replace(".Stub", "\$Stub")
+                    .replace('.', '/')
                 val implClasses = decompiler.classesWithInners.filter { clazz ->
                     clazz.fullName != stub.fullName &&
                     !clazz.fullName.endsWith(".Proxy") &&

@@ -12,3 +12,11 @@ dependencies {
     compileOnly(libs.slf4j.api)
     compileOnly(libs.logback.classic)
 }
+
+tasks.processResources {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    val resourcesDir = sourceSets.main.get().output.resourcesDir!!
+    val versionFile = File(resourcesDir, "version.properties")
+    versionFile.parentFile.mkdirs()
+    versionFile.writeText("version=${project.version}\n")
+}

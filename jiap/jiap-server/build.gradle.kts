@@ -16,12 +16,6 @@ dependencies {
     implementation(libs.logback.classic)
 }
 
-tasks.processResources {
-    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-    val versionFile = File(sourceSets.main.get().output.resourcesDir!!, "version.properties")
-    versionFile.writeText("version=${project.version}\n")
-}
-
 tasks {
     named<com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar>("shadowJar") {
         archiveBaseName = "jiap-server"

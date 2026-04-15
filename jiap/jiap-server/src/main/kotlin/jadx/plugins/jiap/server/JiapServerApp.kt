@@ -29,7 +29,7 @@ object JiapServerApp {
 			return
 		}
 		if (jadxRawArgs.contains("--version")) {
-			println("JIAP ${getVersion()}")
+			println("JIAP ${JiapConstants.getVersion()}")
 			return
 		}
 
@@ -191,7 +191,7 @@ API Endpoints:
   GET  /health                           Health check
         """.trimIndent())
 		println()
-		println("JIAP version: ${getVersion()}")
+		println("JIAP version: ${JiapConstants.getVersion()}")
 		println("JADX core:   (bundled)")
 		println()
 		println("License: GNU General Public License v3.0")
@@ -199,18 +199,5 @@ API Endpoints:
 		println()
 		print("CLI tool connects to this server using: jiapcli -P <port>\n")
 		println()
-	}
-
-	private fun getVersion(): String {
-		try {
-			val props = java.util.Properties()
-			val input = JiapServerApp::class.java.getResourceAsStream("/version.properties")
-			if (input != null) {
-				props.load(input)
-				input.close()
-				return props.getProperty("version", "dev")
-			}
-		} catch (_: Exception) {}
-		return System.getenv("JIAP_VERSION") ?: "dev"
 	}
 }
