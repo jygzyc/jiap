@@ -1,10 +1,10 @@
 {
-  "name": "decx-cli",
+  "name": "@jygzyc/decx-cli",
   "version": "2.2.4",
   "description": "DECX CLI - Decompiler + X",
   "type": "module",
   "bin": {
-    "decx": "./dist/index.js"
+    "decx": "dist/index.js"
   },
   "scripts": {
     "clean": "rm -rf dist",
@@ -46,7 +46,7 @@
   "license": "GPL-3.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/jygzyc/decx"
+    "url": "git+https://github.com/jygzyc/decx.git"
   },
   "bugs": {
     "url": "https://github.com/jygzyc/decx/issues"
