@@ -26,18 +26,18 @@ metadata:
 
 | 命令 | 说明 |
 |------|------|
-| `jiap process check [-P <port>] [--json]` | 检查环境状态（server JAR、运行状态、端口） |
+| `jiap process check [-P <port>]` | 检查环境状态（server JAR、运行状态、端口） |
 | `jiap process open "<file>" [options]` | 打开文件分析（支持本地路径和 HTTP URL） |
-| `jiap process close "[name]" [-a] [--json]` | 关闭指定 session 或全部 |
-| `jiap process list [--json]` | 列出运行 session（NAME/PORT/PID/PATH） |
-| `jiap process status "[name]" [-P <port>] [--json]` | 检查服务器状态 |
+| `jiap process close "[name]" [-a]` | 关闭指定 session 或全部 |
+| `jiap process list` | 列出运行 session（NAME/PORT/PID/PATH） |
+| `jiap process status "[name]" [-P <port>]` | 检查服务器状态 |
 
 ### self - 自管理
 
 | 命令 | 说明 |
 |------|------|
-| `jiap self install [-p] [--json]` | 安装 jiap-server.jar（`-p` 安装 prerelease） |
-| `jiap self update [-p] [--json]` | 更新 jiap-server 和 jiap-cli（`-p` 使用 prerelease） |
+| `jiap self install [-p]` | 安装 jiap-server.jar（`-p` 安装 prerelease） |
+| `jiap self update [-p]` | 更新 jiap-server 和 jiap-cli（`-p` 使用 prerelease） |
 
 **open 选项：**
 
@@ -46,7 +46,6 @@ metadata:
 | `-P, --port <port>` | 服务器端口 |
 | `--force` | 强制启动（忽略已有 session） |
 | `-n, --name "<name>"` | 自定义 session 名（默认：APK 文件名去扩展名） |
-| `--json` | JSON 格式输出 |
 
 `open` 的 `<file>` 参数支持本地文件路径和 HTTP/HTTPS URL。URL 会自动下载到 `~/.jiap/tmp/` 并缓存。
 
@@ -100,8 +99,6 @@ metadata:
 |------|------|
 | `-s, --session "<name>"` | 指定目标 session 名称（APK 文件名） |
 | `-P, --port <port>` | 指定服务器端口（默认 25419） |
-| `--json` | JSON 格式输出 |
-
 `--page <n>` 是各子命令的独立选项（默认 1），用于分页，不属于全局选项。
 
 ## 环境变量
