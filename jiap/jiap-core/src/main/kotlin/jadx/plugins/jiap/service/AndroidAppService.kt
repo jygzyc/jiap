@@ -411,15 +411,19 @@ class AndroidAppService(override val decompiler: JadxDecompiler) : JiapServiceIn
 
     fun handleGetAidlInterfaces(): JiapApiResult {
         try {
+            // JADX uses '.' for inner classes in fullName (e.g. "IFoo.Stub"), but smali uses '$'
             val stubClasses = decompiler.classesWithInners.filter { clazz ->
-                clazz.fullName.contains("\$Stub")
+                clazz.fullName.endsWith(".Stub")
             }
             val aidlInterfaces = stubClasses.map { stub ->
-                val interfaceName = stub.fullName.removeSuffix("\$Stub")
+                val interfaceName = stub.fullName.removeSuffix(".Stub")
+                // smali uses '$' for inner classes: Lcom/example/IFoo$Stub;
+                val stubSmaliName = stub.fullName.replace('.', '/')
+                    .replace("/Stub;", "\$Stub;")
                 val implClasses = decompiler.classesWithInners.filter { clazz ->
                     clazz.fullName != stub.fullName &&
-                    !clazz.fullName.endsWith("\$Proxy") &&
-                    clazz.smali.contains(".super L${stub.fullName.replace('.', '/')};")
+                    !clazz.fullName.endsWith(".Proxy") &&
+                    clazz.smali.contains(".super L$stubSmaliName")
                 }
                 hashMapOf(
                     "interface" to interfaceName,

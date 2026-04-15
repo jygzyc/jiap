@@ -105,12 +105,12 @@ jobs:
         ls -la *.jar
 
     - name: Delete old prereleases
-      run: |
-        gh release list --limit 100 | awk '/^prerelease-/{print $1}' | while read -r tag; do
-          gh release delete "$tag" --cleanup-tag --yes || true
-        done
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        gh api "repos/{owner}/{repo}/releases" \
+          --jq '.[] | select(.prerelease) | .tag_name' \
+        | xargs -r -I {} gh release delete "{}" --cleanup-tag --yes
 
     - name: Create Prerelease
       uses: softprops/action-gh-release@v2
