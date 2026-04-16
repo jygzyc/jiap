@@ -8,7 +8,7 @@ An exported activity accepts an attacker-controlled nested Intent and forwards i
 
 The activity is externally reachable and reads a nested Intent, `ClipData`, or equivalent routing payload from an untrusted source, then forwards it through `startActivity()`, `startService()`, or `sendBroadcast()` without target validation.
 
-**Android Version Scope:** Relevant across all Android versions. App-layer forwarding bugs remain exploitable even though some framework redirect cases were hardened in Android 12 and later.
+**Android Version Scope:** Relevant across all Android versions. App forwarding bugs remain exploitable even as some platform redirect primitives became harder to abuse in Android 12 and later.
 
 ## Bypass Conditions / Uncertainties
 
@@ -101,4 +101,3 @@ protected void onCreate(Bundle savedInstanceState) {
 [[app-intent-pendingintent-escalation]]
 [[app-provider-fileprovider-misconfig]]
 [[app-webview-file-access]]
-[[framework-service-intent-redirect]]

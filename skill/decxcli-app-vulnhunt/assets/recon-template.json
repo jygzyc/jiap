@@ -1,0 +1,15 @@
+{
+  "target": "",
+  "artifactPath": "",
+  "sessionName": "",
+  "port": 0,
+  "phase": "recon",
+  "appInfo": {},
+  "permissions": [],
+  "components": [],
+  "aidlInterfaces": [],
+  "deepLinkEntries": [],
+  "scanEntrypoints": [],
+  "summary": "",
+  "notes": []
+}

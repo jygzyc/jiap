@@ -231,38 +231,43 @@ npm install -g @jygzyc/decx-cli
 | 技能 | 说明 | 依赖 |
 |------|------|------|
 | **decxcli** | 通用分析：代码导航、交叉引用、Manifest/资源检查 | `decx` |
-| **decxcli-vulnhunt** | 漏洞挖掘：攻击面枚举、静态追踪、可利用性评估、中英文报告生成 | `decx` |
+| **decxcli-app-vulnhunt** | App 漏洞挖掘：APK 攻击面枚举、组件/WebView/IPC 追踪、可利用性评估、中英文报告生成 | `decx` |
+| **decxcli-framework-vulnhunt** | Framework 漏洞挖掘：Binder 服务枚举、framework JAR 追踪、权限门审计、可利用性评估、中英文报告生成 | `decx` |
 | **decxcli-poc** | PoC 构造：漏洞归一化、Exploit 类实现、可选编译部署 | `decx`、`node`、`unzip` |
 
-技能按顺序协作：`decxcli`（分析） → `decxcli-vulnhunt`（漏洞挖掘） → `decxcli-poc`（PoC 构造）。
+技能按顺序协作：`decxcli`（分析） → `decxcli-app-vulnhunt` 或 `decxcli-framework-vulnhunt`（漏洞挖掘） → `decxcli-poc`（PoC 构造）。
 
 ### 安装
 
 **Claude Code**
 ```bash
 cp -r skill/decxcli ~/.claude/skills/
-cp -r skill/decxcli-vulnhunt ~/.claude/skills/
+cp -r skill/decxcli-app-vulnhunt ~/.claude/skills/
+cp -r skill/decxcli-framework-vulnhunt ~/.claude/skills/
 cp -r skill/decxcli-poc ~/.claude/skills/
 ```
 
 **Cursor**
 ```bash
 cp skill/decxcli/SKILL.md .cursor/rules/decxcli.md
-cp skill/decxcli-vulnhunt/SKILL.md .cursor/rules/decxcli-vulnhunt.md
+cp skill/decxcli-app-vulnhunt/SKILL.md .cursor/rules/decxcli-app-vulnhunt.md
+cp skill/decxcli-framework-vulnhunt/SKILL.md .cursor/rules/decxcli-framework-vulnhunt.md
 cp skill/decxcli-poc/SKILL.md .cursor/rules/decxcli-poc.md
 ```
 
 **Cline**
 ```bash
 cp skill/decxcli/SKILL.md .clinerules-decxcli
-cp skill/decxcli-vulnhunt/SKILL.md .clinerules-decxcli-vulnhunt
+cp skill/decxcli-app-vulnhunt/SKILL.md .clinerules-decxcli-app-vulnhunt
+cp skill/decxcli-framework-vulnhunt/SKILL.md .clinerules-decxcli-framework-vulnhunt
 cp skill/decxcli-poc/SKILL.md .clinerules-decxcli-poc
 ```
 
 **Windsurf**
 ```bash
 cp skill/decxcli/SKILL.md .windsurfrules-decxcli
-cp skill/decxcli-vulnhunt/SKILL.md .windsurfrules-decxcli-vulnhunt
+cp skill/decxcli-app-vulnhunt/SKILL.md .windsurfrules-decxcli-app-vulnhunt
+cp skill/decxcli-framework-vulnhunt/SKILL.md .windsurfrules-decxcli-framework-vulnhunt
 cp skill/decxcli-poc/SKILL.md .windsurfrules-decxcli-poc
 ```
 

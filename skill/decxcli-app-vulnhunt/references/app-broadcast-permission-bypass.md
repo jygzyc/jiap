@@ -8,7 +8,7 @@ A broadcast surface appears protected by a custom permission. The protection fai
 
 The receiver or broadcast path relies on a custom permission that is `normal`, `dangerous`, attacker-definable, or otherwise not strongly signature-bound to the target trust boundary.
 
-**Android Version Scope:** Relevant across Android versions. This is a permission-design flaw, not a framework-version bug.
+**Android Version Scope:** Relevant across Android versions. This is a permission-design flaw in broadcast protection logic.
 
 ## Bypass Conditions / Uncertainties
 

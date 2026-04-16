@@ -8,7 +8,7 @@ An exported activity returns unfiltered sensitive data or URI grants through `se
 
 The attacker can launch the activity for result, and the activity returns sensitive fields, a trusted URI, or a grant-bearing Intent without validating the caller and sanitizing the returned payload.
 
-**Android Version Scope:** Relevant across Android versions. This is an app-layer result-handling flaw.
+**Android Version Scope:** Relevant across Android versions. This is a result-handling flaw in activity return logic.
 
 ## Bypass Conditions / Uncertainties
 

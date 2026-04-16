@@ -8,7 +8,7 @@ A component or IPC surface deserializes attacker-controlled objects with an unsa
 
 The app reads attacker-controlled serialized data through APIs such as `getSerializableExtra()`, `readSerializable()`, `readValue()`, or an equivalent deserialization path, and the resolved class is not safely constrained.
 
-**Android Version Scope:** Relevant across Android versions where exported components or reachable Binder paths deserialize untrusted objects.
+**Android Version Scope:** Relevant across Android versions where exported components or reachable app IPC paths deserialize untrusted objects.
 
 ## Bypass Conditions / Uncertainties
 
@@ -23,7 +23,7 @@ Visible impact must be concrete, such as:
 
 - execution of attacker-influenced initialization or callback logic
 - privileged handling of an attacker-controlled object type
-- unsafe deserialization inside a privileged service path
+- unsafe deserialization inside a sensitive service path
 
 ## Attack Flow
 
@@ -64,11 +64,11 @@ SafeConfig config = intent.getParcelableExtra("config", SafeConfig.class);
 |------|--------|-----------|
 | + AIDL exposure | attacker reaches deserialization through a Binder method | [[app-service-aidl-expose]] |
 | + parcel mismatch | parser confusion helps smuggle an unsafe object past validation | [[app-intent-parcel-mismatch]] |
-| + missing framework permission enforcement | unsafe object handling happens in a privileged service path | [[framework-service-permission-missing]] |
+| + bound-service privilege abuse | unsafe object handling reaches a sensitive bound-service action | [[app-service-bind-escalation]] |
 
 ## Related
 
 [[app-intent]]
 [[app-service-aidl-expose]]
 [[app-intent-parcel-mismatch]]
-[[framework-service-permission-missing]]
+[[app-service-bind-escalation]]

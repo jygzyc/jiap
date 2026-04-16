@@ -41,5 +41,4 @@ Services expose long-lived IPC and background execution surfaces. Exported binde
 ## Related
 
 [[app-intent]]
-[[framework-service]]
 [[risk-rating]]

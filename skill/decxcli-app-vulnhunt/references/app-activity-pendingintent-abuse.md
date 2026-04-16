@@ -77,7 +77,7 @@ PendingIntent pi = PendingIntent.getActivity(
 | Chain | Effect | Reference |
 |------|--------|-----------|
 | + intent redirect | victim identity reaches an internal non-exported target | [[app-activity-intent-redirect]] |
-| + missing framework permission enforcement | victim identity reaches privileged Binder operations | [[framework-service-permission-missing]] |
+| + service command injection | victim identity reaches a protected service-side action | [[app-service-intent-inject]] |
 | + `setResult()` leak | executed action returns sensitive result data | [[app-activity-setresult-leak]] |
 | + task hijack | phishing flow convinces the user to drive a victim-identity action | [[app-activity-task-hijack]] |
 
@@ -86,6 +86,6 @@ PendingIntent pi = PendingIntent.getActivity(
 [[app-activity]]
 [[app-activity-intent-redirect]]
 [[app-intent-pendingintent-escalation]]
-[[framework-service-permission-missing]]
+[[app-service-intent-inject]]
 [[app-activity-setresult-leak]]
 [[app-activity-task-hijack]]

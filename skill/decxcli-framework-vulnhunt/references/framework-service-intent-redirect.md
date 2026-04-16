@@ -1,6 +1,6 @@
 # Framework Service - Intent - Redirect
 
-A framework service forwards attacker-controlled Intent-like data into a privileged launch path. Without strict target validation, untrusted input reaches components or `PendingIntent` executions with elevated identity.
+A framework service forwards attacker-controlled Intent-like data into a privileged launch path. Without strict target validation, untrusted input reaches privileged launches or `PendingIntent` executions with elevated identity.
 
 **Risk: HIGH**
 
@@ -20,8 +20,8 @@ The service receives externally influenced Intent data through Binder, notificat
 
 Visible impact must be concrete, such as:
 
-- launching a non-exported privileged component
-- reaching a root-path FileProvider or similar privileged file surface
+- launching a privileged internal target
+- reaching a privileged file or resource access path
 - executing a privileged PendingIntent flow under system identity
 
 ## Attack Flow
@@ -54,15 +54,13 @@ if (safeIntent != null) {
 
 | Chain | Effect | Reference |
 |------|--------|-----------|
-| + app intent redirect | same redirect concept appears in app-layer components | [[app-activity-intent-redirect]] |
-| + parcel mismatch | validation is bypassed before the privileged launch | [[app-intent-parcel-mismatch]] |
-| + FileProvider misconfig | privileged redirect reaches an over-broad file surface | [[app-provider-fileprovider-misconfig]] |
+| + sensitive data leak | leaked package or component metadata improves privileged launch targeting | [[framework-service-data-leak]] |
+| + identity confusion | attacker-controlled identity or user context broadens redirect reach | [[framework-service-identity-confusion]] |
 | + clear-calling-identity misuse | privileged identity context broadens the redirect impact | [[framework-service-clear-identity]] |
 
 ## Related
 
 [[framework-service]]
-[[app-activity-intent-redirect]]
-[[app-intent-parcel-mismatch]]
-[[app-provider-fileprovider-misconfig]]
+[[framework-service-data-leak]]
+[[framework-service-identity-confusion]]
 [[framework-service-clear-identity]]
