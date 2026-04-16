@@ -29,7 +29,9 @@ Command reference lives in `decxcli`.
 
 ### Command Rules
 
-- Every `decx code` and `decx ard` command must include `-P <port>`
+- Every session-backed `decx code` command and every session-backed `decx ard` command must include `-P <port>`
+- adb-backed `decx ard` commands such as `system-services`, `perm-info`, and `framework collect` / `framework process` do not use `-P <port>`; use `--serial` / `--adb-path` when needed
+- `decx ard framework run` and `decx ard framework open` use `-P <port>` only when they open a DECX session
 - Method signatures must use the full format: `"package.Class.method(paramType):returnType"`
 - Never use `...` in signatures
 - Quote package names, class names, method signatures, and file paths
@@ -82,11 +84,19 @@ Write the exact condition instead:
 
 ## Workflow
 
+Routing rule:
+
+- If the user is hunting an app APK, exported component, deep link, WebView host, provider, receiver, or app service: use the normal app workflow below
+- If the user explicitly mentions framework hunting, framework service hunting, `system_server`, vendor framework, OEM framework, framework JARs, or Binder service implementation review: switch to framework collection mode first, then continue with the same static triage workflow against the opened framework artifact
+- For framework hunts, prefer collecting from a connected device and opening the generated `framework_<oem>_<vendor>.jar` before doing source-level tracing
+- If the user already provides a framework JAR or there is already an active framework session, reuse it instead of recollecting
+- Do not start from `app-manifest`, exported components, or deep links when the request is clearly about framework hunting
+
 Track progress with:
 
 ```text
 VulnHunt Progress
-- [ ] Phase 1: Open APK and confirm session
+- [ ] Phase 1: Prepare target and confirm session
 - [ ] Phase 2: Enumerate attack surface
 - [ ] Phase 3: Trace per-target flows
 - [ ] Phase 4: Trace required cross-component chains
@@ -95,19 +105,52 @@ VulnHunt Progress
 - [ ] Handoff: Pass minimal finding set to decxcli-poc
 ```
 
-### Phase 1 - Environment
+### Phase 1 - Prepare Target
 
-Goal: open the APK and confirm DECX is healthy.
+Goal: open the correct analysis target and confirm DECX is healthy.
+
+App target path:
 
 ```bash
 decx process open "<apk-path>" -P <port>
 decx process status -P <port>
 ```
 
+Framework target path:
+
+Preferred end-to-end collection path:
+
+```bash
+decx ard framework run --serial <serial> -P <port>
+```
+
+Stepwise collection path when you need to preserve artifacts or inspect intermediate outputs:
+
+```bash
+decx ard framework collect --serial <serial>
+decx ard framework process <oem> --serial <serial>
+decx ard framework open -P <port> --serial <serial>
+```
+
+Framework preparation rules:
+
+- When the request is clearly about framework hunting, start here before Phase 2
+- Prefer `framework run` when the user wants the fastest route from device to an analyzable DECX session
+- Prefer `collect` -> `process` -> `open` when the user wants artifact retention, output-directory control, or to inspect the collected framework set before opening
+- If the user already provides a framework JAR, use:
+
+```bash
+decx ard framework open "<framework-jar-path>" -P <port>
+```
+
+- Reuse the generated `framework_<oem>_<vendor>.jar` session name when possible so later tracing stays stable
+- If no device is connected and no framework JAR is provided, stop and ask for one of those two inputs instead of guessing
+- `framework collect` and `framework process` are adb/local-artifact operations, not session-backed DECX reads, so do not add `-P <port>` to them
+
 Do not close the session automatically. Tell the user they can close it with:
 
 ```bash
-decx process close "<name>" -P <port>
+decx process close "<name>"
 ```
 
 ### Phase 2 - Recon
@@ -136,6 +179,18 @@ Recon rules:
 2. Exclude `signature` and `signatureOrSystem` components from third-party attack paths unless the app forwards or re-grants access
 3. Group targets by Activity, Service, Provider, Receiver, WebView, AIDL/Binder, framework service, Deep Link, and scan-driven entrypoint
 4. Initialize every retained target as `candidate`
+
+Framework recon entry:
+
+- For framework hunts, do not begin with app component enumeration
+- Start from one of these anchors instead:
+  - `decx ard system-services --serial <serial> --grep <keyword>`
+  - `decx ard system-service-impl "<interface>" -P <port>`
+  - `decx code implement "<interface>" -P <port>`
+  - `decx code search-method "<methodName>" -P <port>` only if the Binder entrypoint name is still unknown
+- Build the shortlist around Binder service name, AIDL interface, Stub implementation, manager facade, and privileged sink families instead of app components
+- When the request names a concrete service family such as package, activity, telecom, notification, or OEM vendor service, use that family name as the first `--grep` filter before broadening scope
+- Treat the generated framework artifact as the primary codebase under review; live-device `system-services` and `perm-info` data are support evidence, not substitutes for code tracing
 
 Framework-service recon notes:
 
