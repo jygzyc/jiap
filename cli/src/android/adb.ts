@@ -84,7 +84,7 @@ export function filterSystemServices(result: SystemServicesResult, keyword?: str
 }
 
 function shellQuote(value: string): string {
-  return `'${value.replace(/'/g, `'\"'\"'`)}'`;
+  return `'${value.replace(/'/g, `'"'"'`)}'`;
 }
 
 export function buildPermissionInfoCommand(permission: string): string {
