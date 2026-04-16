@@ -30,6 +30,9 @@ tasks {
         archiveClassifier = ""
         archiveVersion = project.version.toString()
         mergeServiceFiles()
+        manifest {
+            attributes("Implementation-Version" to project.version.toString())
+        }
     }
 
     register<Copy>("dist") {

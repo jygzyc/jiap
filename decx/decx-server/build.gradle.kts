@@ -23,7 +23,10 @@ tasks {
         archiveVersion = project.version.toString()
         mergeServiceFiles()
         manifest {
-            attributes("Main-Class" to "jadx.plugins.decx.server.DecxServerApp")
+            attributes(
+                "Main-Class" to "jadx.plugins.decx.server.DecxServerApp",
+                "Implementation-Version" to project.version.toString()
+            )
         }
     }
 

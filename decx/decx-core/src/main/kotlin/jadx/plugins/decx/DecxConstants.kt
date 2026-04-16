@@ -15,6 +15,9 @@ object DecxConstants {
                 return props.getProperty("version", "dev")
             }
         } catch (_: Exception) {}
+        DecxConstants::class.java.`package`?.implementationVersion
+            ?.takeIf { it.isNotBlank() }
+            ?.let { return it }
         return System.getenv("DECX_VERSION") ?: "dev"
     }
 }

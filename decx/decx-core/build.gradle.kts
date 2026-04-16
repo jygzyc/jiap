@@ -2,6 +2,8 @@ plugins {
     alias(libs.plugins.kotlin.jvm)
 }
 
+val generatedVersionResourcesDir = layout.buildDirectory.dir("generated/resources/version")
+
 dependencies {
     implementation(libs.gson)
     implementation(libs.javalin)
@@ -13,10 +15,32 @@ dependencies {
     compileOnly(libs.logback.classic)
 }
 
+sourceSets {
+    main {
+        resources.srcDir(generatedVersionResourcesDir)
+    }
+}
+
+val generateVersionProperties by tasks.registering {
+    val outputFile = generatedVersionResourcesDir.map { it.file("version.properties") }
+    val versionString = project.version.toString()
+    outputs.file(outputFile)
+
+    doLast {
+        val file = outputFile.get().asFile
+        file.parentFile.mkdirs()
+        file.writeText("version=$versionString\n")
+    }
+}
+
 tasks.processResources {
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-    val resourcesDir = sourceSets.main.get().output.resourcesDir!!
-    val versionFile = File(resourcesDir, "version.properties")
-    versionFile.parentFile.mkdirs()
-    versionFile.writeText("version=${project.version}\n")
+    dependsOn(generateVersionProperties)
+}
+
+tasks.jar {
+    dependsOn(generateVersionProperties)
+    manifest {
+        attributes("Implementation-Version" to project.version.toString())
+    }
 }
