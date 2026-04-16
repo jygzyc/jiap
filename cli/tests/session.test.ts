@@ -63,6 +63,7 @@ describe("Session management", () => {
     it("returns null for non-existent session", () => {
       expect(readSession("nonexistent_name")).toBeNull();
     });
+
   });
 
   describe("deleteSession", () => {

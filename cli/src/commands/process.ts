@@ -18,6 +18,114 @@ import { findDecxServerJar } from "../server/installer.js";
 import { isSessionAlive } from "../core/session.js";
 import { logCliEvent } from "../utils/logger.js";
 
+export interface OpenAnalysisTargetOptions {
+  port?: string;
+  force?: boolean;
+  name?: string;
+  passthroughArgs?: string[];
+}
+
+export async function openAnalysisTarget(
+  filePath: string,
+  opts: OpenAnalysisTargetOptions = {},
+): Promise<Record<string, unknown>> {
+  const mgr = Manager.get();
+  const port = opts.port ? parseInt(opts.port) : mgr.server.defaultPort;
+
+  const [portInUse] = await checkServer(port, 1);
+  if (portInUse) {
+    const aliveSessions = mgr.listAliveSessions();
+    const portSession = aliveSessions.find((s) => s.port === port);
+    if (portSession) {
+      throw new ProcessError(
+        `Port ${port} is already in use by session '${portSession.name}' (${portSession.path}). ` +
+        `Use --port to specify a different port, or close that session first.`,
+        port,
+      );
+    }
+    throw new ProcessError(
+      `Port ${port} is already in use by an unknown process. Use --port to specify a different port.`,
+      port,
+    );
+  }
+
+  const jarPath = findDecxServerJar();
+  if (!jarPath) {
+    throw new FileError("decx-server.jar not found. Run 'decx self install' to install.");
+  }
+
+  const resolvedFile = await resolveFileInput(filePath);
+  if (!existsSync(resolvedFile)) {
+    throw new FileError(`File not found: ${resolvedFile}`, resolvedFile);
+  }
+
+  const fileName = opts.name || path.basename(resolvedFile, path.extname(resolvedFile));
+  const fileHash = await hashFile(resolvedFile);
+  const existingSession = mgr.getSession(fileName);
+
+  if (existingSession && !opts.force) {
+    if (existingSession.hash === fileHash && isSessionAlive(existingSession)) {
+      logCliEvent({ command: "process", action: "open", session: existingSession.name, reused: true, pid: existingSession.pid, port: existingSession.port });
+      return { name: existingSession.name, hash: existingSession.hash, pid: existingSession.pid, port: existingSession.port, file: resolvedFile, reused: true };
+    }
+    if (existingSession.hash !== fileHash) {
+      throw new ProcessError(
+        `Session '${fileName}' already exists for a different APK (hash: ${existingSession.hash}). ` +
+        `Use --force to overwrite, or --name to choose a different session name.`,
+      );
+    }
+    mgr.removeSession(fileName);
+  }
+
+  if (!opts.force) {
+    for (const session of mgr.listAliveSessions()) {
+      if (session.hash === fileHash && session.name !== fileName) {
+        throw new ProcessError(`Already open as session '${session.name}'. Use --force to open again.`);
+      }
+    }
+  }
+
+  const javaArgs = ["-jar", jarPath, resolvedFile, "--port", String(port), ...(opts.passthroughArgs ?? [])];
+  const logDir = path.join(os.homedir(), ".decx", "logs");
+  mkdirSync(logDir, { recursive: true });
+  const logPath = path.join(logDir, `${fileName}.log`);
+  const logFd = openSync(logPath, "a");
+  let proc;
+
+  try {
+    proc = spawn("java", javaArgs, { detached: true, stdio: ["ignore", logFd, logFd] });
+  } finally {
+    closeSync(logFd);
+  }
+
+  if (!proc.pid) {
+    throw new ProcessError("Failed to get PID from spawned process");
+  }
+
+  proc.unref();
+
+  let processExited = false;
+  let processExitCode: number | null = null;
+  proc.on("exit", (code) => {
+    processExited = true;
+    processExitCode = code;
+  });
+
+  const session = await mgr.createSession(fileName, fileHash, resolvedFile, proc.pid, port);
+  const timeout = 120;
+  const ready = await waitForServer(port, timeout, logPath, () => processExited);
+  if (ready) {
+    logCliEvent({ command: "process", action: "open", session: session.name, pid: proc.pid, port, file: resolvedFile });
+    return { name: session.name, hash: session.hash, pid: proc.pid, port, file: resolvedFile, log: logPath, reused: false };
+  }
+
+  mgr.removeSession(fileName);
+  if (processExited) {
+    throw new ServerError(`decx-server exited unexpectedly (code: ${processExitCode}). Check log: ${logPath}`, port);
+  }
+  throw new ServerError(`Server did not start within ${timeout}s on port ${port}`, port);
+}
+
 export function makeProcessCommand(): Command {
   const cmd = new Command("process");
   cmd.description("Manage DECX server processes and installation");
@@ -65,123 +173,12 @@ export function makeProcessCommand(): Command {
     .action(async (filePath: string, opts) => {
       const fmt = new Formatter();
       try {
-      const mgr = Manager.get();
-      const port = opts.port ? parseInt(opts.port) : mgr.server.defaultPort;
-
-      // --- Check port availability first ---
-      const [portInUse] = await checkServer(port, 1);
-      if (portInUse) {
-        const aliveSessions = mgr.listAliveSessions();
-        const portSession = aliveSessions.find(s => s.port === port);
-        if (portSession) {
-          throw new ProcessError(
-            `Port ${port} is already in use by session '${portSession.name}' (${portSession.path}). ` +
-            `Use --port to specify a different port, or close that session first.`,
-            port
-          );
-        }
-        throw new ProcessError(
-          `Port ${port} is already in use by an unknown process. ` +
-          `Use --port to specify a different port.`,
-          port
-        );
-      }
-
-      const jarPath = findDecxServerJar();
-      if (!jarPath) {
-        throw new FileError("decx-server.jar not found. Run 'decx self install' to install.");
-      }
-
-      // Resolve input: local file or URL
-      const resolvedFile = await resolveFileInput(filePath);
-      if (!existsSync(resolvedFile)) {
-        throw new FileError(`File not found: ${resolvedFile}`, resolvedFile);
-      }
-
-      // --- Server mode: check for existing session ---
-      const fileName = opts.name || path.basename(resolvedFile, path.extname(resolvedFile));
-      const fileHash = await hashFile(resolvedFile);
-      const existingSession = mgr.getSession(fileName);
-
-      if (existingSession && !opts.force) {
-        if (existingSession.hash === fileHash && isSessionAlive(existingSession)) {
-          // Reuse existing session (same name + same hash + alive)
-          logCliEvent({ command: "process", action: "open", session: existingSession.name, reused: true, pid: existingSession.pid, port: existingSession.port });
-          fmt.output({ name: existingSession.name, hash: existingSession.hash, pid: existingSession.pid, port: existingSession.port, file: resolvedFile, reused: true });
-          return;
-        }
-        if (existingSession.hash !== fileHash) {
-          throw new ProcessError(
-            `Session '${fileName}' already exists for a different APK (hash: ${existingSession.hash}). ` +
-            `Use --force to overwrite, or --name to choose a different session name.`
-          );
-        }
-        // Same name + same hash but dead — clean up before spawning new one
-        mgr.removeSession(fileName);
-      }
-
-      // --- Check hash dedup: prevent same APK under different names ---
-      if (!opts.force) {
-        for (const s of mgr.listAliveSessions()) {
-          if (s.hash === fileHash && s.name !== fileName) {
-            throw new ProcessError(
-              `Already open as session '${s.name}'. Use --force to open again.`
-            );
-          }
-        }
-      }
-
-      // --- Spawn decx-server ---
-      const jadxArgs = extractPassthroughArgs();
-      const javaArgs = ["-jar", jarPath, resolvedFile, "--port", String(port), ...jadxArgs];
-
-      // Redirect stdout/stderr to a log file for debugging.
-      // On Windows, stdio:"ignore" sets handles to NULL which can crash Java on write.
-      const logDir = path.join(os.homedir(), ".decx", "logs");
-      mkdirSync(logDir, { recursive: true });
-      const logPath = path.join(logDir, `${fileName}.log`);
-      const logFd = openSync(logPath, "a");
-      let proc;
-
-      try {
-        proc = spawn("java", javaArgs, { detached: true, stdio: ["ignore", logFd, logFd] });
-      } finally {
-        closeSync(logFd); // Child has its own inherited handle
-      }
-
-      if (!proc.pid) {
-        throw new ProcessError("Failed to get PID from spawned process");
-      }
-
-      proc.unref();
-
-      // Early failure detection: if Java exits before the server is ready, fail fast
-      let processExited = false;
-      let processExitCode: number | null = null;
-      proc.on("exit", (code) => {
-        processExited = true;
-        processExitCode = code;
-      });
-
-      const session = await mgr.createSession(fileName, fileHash, resolvedFile, proc.pid, port);
-
-      // Wait for server (with early exit check)
-      const timeout = 120;
-      const ready = await waitForServer(port, timeout, logPath, () => processExited);
-      if (ready) {
-        logCliEvent({ command: "process", action: "open", session: session.name, pid: proc.pid, port, file: resolvedFile });
-        fmt.output({ name: session.name, hash: session.hash, pid: proc.pid, port, file: resolvedFile, log: logPath, reused: false });
-      } else {
-        // Server failed to start — clean up session
-        mgr.removeSession(fileName);
-        if (processExited) {
-          throw new ServerError(
-            `decx-server exited unexpectedly (code: ${processExitCode}). Check log: ${logPath}`,
-            port
-          );
-        }
-        throw new ServerError(`Server did not start within ${timeout}s on port ${port}`, port);
-      }
+      fmt.output(await openAnalysisTarget(filePath, {
+        port: opts.port,
+        force: opts.force ?? false,
+        name: opts.name,
+        passthroughArgs: extractPassthroughArgs(),
+      }));
       } catch (err) { handleCliError(err, fmt); }
     });
 
@@ -240,7 +237,7 @@ export function makeProcessCommand(): Command {
   cmd
     .command("list")
     .description("List running processes")
-    .action((opts) => {
+    .action(() => {
       const fmt = new Formatter();
       const mgr = Manager.get();
 

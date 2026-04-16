@@ -8,13 +8,14 @@
  */
 
 import { build } from "esbuild";
-import { rmSync, readdirSync, statSync } from "fs";
+import { rmSync, readdirSync, statSync, cpSync, existsSync } from "fs";
 import { join, dirname } from "path";
 import { execSync } from "child_process";
 
 const ROOT = join(dirname(new URL(import.meta.url).pathname), "..");
 const DIST = join(ROOT, "dist");
 const SRC = join(ROOT, "src");
+const BIN = join(SRC, "bin");
 
 // ── Step 1: Clean ──────────────────────────────────────────────────────────
 rmSync(DIST, { recursive: true, force: true });
@@ -88,6 +89,11 @@ const prodPkg = {
 };
 const { writeFileSync } = await import("fs");
 writeFileSync(join(DIST, "package.json"), JSON.stringify(prodPkg, null, 2) + "\n");
+
+// ── Step 5: Copy packaged native binaries ─────────────────────────────────
+if (existsSync(BIN)) {
+  cpSync(BIN, join(DIST, "bin"), { recursive: true });
+}
 
 // ── Done ───────────────────────────────────────────────────────────────────
 console.log("✓ Build complete");

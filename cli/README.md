@@ -64,7 +64,83 @@ decx ard all-resources                   # List all resource file names
 decx ard resource-file <res>             # Get resource file content
 decx ard strings                         # Get strings.xml content
 decx ard get-aidl                        # Get all AIDL interfaces
+decx ard framework collect               # Collect framework files from the connected device
+decx ard framework process <oem>         # Process local framework source files and pack the framework jar
+decx ard framework run                   # Collect, process, pack, and optionally open
+decx ard framework open [jar]            # Open the generated framework jar or a provided JAR
 ```
+
+### ard framework
+
+`decx ard framework` integrates the archived preprocessor workflow into the native CLI.
+It supports both end-to-end collection from a connected Android device and offline
+processing of an existing local framework dump.
+
+Framework artifacts are not treated as a separate runtime session type.
+Only `framework open` and `framework run` start a DECX server, and once opened they
+are managed exactly like any other DECX session through `decx process list`,
+`decx process status`, and `decx process close`.
+
+```bash
+decx ard framework run
+decx ard framework run --no-open
+decx ard framework collect --serial emulator-5554
+decx ard framework process xiaomi --out-dir ~/.decx/output/framework/xiaomi
+decx ard framework open
+decx ard framework open ~/.decx/output/framework/xiaomi/framework_xiaomi_k70_ultra.jar
+decx process list
+decx process close framework_xiaomi_k70_ultra
+```
+
+**Common framework options:**
+
+| Option | Description |
+|--------|-------------|
+| `--source-dir <dir>` | Framework source directory |
+| `--out-dir <dir>` | Framework output directory |
+| `--adb-path <path>` | ADB executable path |
+| `--serial <serial>` | ADB device serial |
+| `--clean-source` | Remove `source/` after the command finishes successfully |
+
+**run/open options:**
+
+| Option | Description |
+|--------|-------------|
+| `--no-open` | Do not open the generated framework jar after packing |
+| `-n, --name <name>` | Custom DECX session name when opening the jar |
+| `-P, --port <port>` | Server port when opening the jar |
+
+**Artifact naming**
+
+Packed framework artifacts are named:
+
+```text
+framework_<brand>_<vendor>.jar
+```
+
+Artifact segments are resolved like this:
+
+1. `brand` is the detected device OEM for `collect/run`, or the explicit `oem` passed to `process`
+2. `vendor` comes from previously collected metadata stored in `.meta.json`
+3. During `framework collect` / `framework run`, metadata is populated from:
+   `adb shell getprop ro.product.model`
+4. If metadata is unavailable, `vendor` falls back to `unknown`
+5. Framework artifact metadata is stored alongside the output under `.artifact.json`
+6. `framework open` and `framework run` create normal DECX process sessions with the default session name `framework_<brand>_<vendor>`
+7. `framework collect` and `framework process` only prepare artifacts; they do not create a running session
+
+**Platform notes**
+
+- Windows is not supported for `decx ard framework` yet
+- The CLI ships packaged extractor binaries for supported Darwin/Linux targets
+- `framework open` and `framework run` reuse the normal `decx process open` flow
+- After a framework jar is opened, use the existing `decx process` commands to inspect or close that session
+- `framework open` uses an explicit jar path when provided; otherwise it resolves the jar for the currently connected device OEM
+- Temporary processing directories are removed only after the command reaches its final step
+- `source/` is preserved by default and is removed only when `--clean-source` is set
+- If `adb devices` reports exactly one connected device, framework commands use it automatically
+- If multiple devices are connected, pass `--serial <serial>` to select the target device
+- `collect` and `run` detect the device OEM from adb properties; `process` requires an explicit `oem`
 
 ### code
 

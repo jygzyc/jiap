@@ -1,5 +1,7 @@
 // Shared types for DECX CLI
 
+export type SessionKind = "process" | "framework";
+
 export interface Session {
   name: string;
   hash: string;
@@ -7,6 +9,11 @@ export interface Session {
   port: number;
   path: string;
   startedAt: number;
+  kind?: SessionKind;
+  oem?: string;
+  vendor?: string;
+  rootDir?: string;
+  updatedAt?: number;
 }
 
 export interface ServerJarConfig {

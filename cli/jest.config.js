@@ -3,6 +3,7 @@ export default {
   preset: "ts-jest",
   testEnvironment: "node",
   testMatch: ["**/tests/**/*.test.ts"],
+  modulePathIgnorePatterns: ["<rootDir>/dist/"],
   transform: {
     "^.+\\.ts$": ["ts-jest", {
       useESM: true,

@@ -62,7 +62,7 @@ function atomicWriteJson(filePath: string, data: unknown): void {
 }
 
 export function createSession(name: string, hash: string, apkPath: string, pid: number, port: number): Session {
-  const session: Session = { name, hash, pid, port, path: apkPath, startedAt: Date.now() };
+  const session: Session = { name, hash, pid, port, path: apkPath, startedAt: Date.now(), kind: "process" };
   atomicWriteJson(sessionFilePath(name), session);
   return session;
 }
@@ -99,7 +99,7 @@ export function listAllSessions(): Session[] {
  */
 export function autoSelectSession(): Session | null {
   const all = listAllSessions();
-  const alive = all.filter(s => isSessionAlive(s));
+  const alive = all.filter((session) => isSessionAlive(session));
   return alive.length === 1 ? alive[0] : null;
 }
 

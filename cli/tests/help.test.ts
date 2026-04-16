@@ -147,7 +147,7 @@ describe("ard", () => {
       "app-manifest", "main-activity", "app-application",
       "exported-components", "app-deeplinks", "app-receivers",
       "system-service-impl",
-      "all-resources", "resource-file", "strings", "get-aidl",
+      "all-resources", "resource-file", "strings", "get-aidl", "framework",
     ]);
   });
 
@@ -159,5 +159,37 @@ describe("ard", () => {
   it("resource-file has <res> argument", () => {
     const rf = findCommand(cmd, ["resource-file"])!;
     expect(rf.registeredArguments.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("framework registers collect/process/run/open subcommands", () => {
+    const framework = findCommand(cmd, ["framework"])!;
+    expect(getSubcommandNames(framework)).toEqual([
+      "collect", "process", "run", "open",
+    ]);
+  });
+
+  it("framework collect has no positional argument and includes source/device options", () => {
+    const collect = findCommand(cmd, ["framework", "collect"])!;
+    expect(collect.registeredArguments.length).toBe(0);
+    const flags = getOptionFlags(collect);
+    expect(flags.some(f => f.includes("--brand"))).toBe(false);
+    expect(flags.some(f => f.includes("--vendor"))).toBe(false);
+    expect(flags.some(f => f.includes("--source-dir"))).toBe(true);
+    expect(flags.some(f => f.includes("--adb-path"))).toBe(true);
+    expect(flags.some(f => f.includes("--clean-source"))).toBe(true);
+  });
+
+  it("framework process requires <oem>", () => {
+    const process = findCommand(cmd, ["framework", "process"])!;
+    expect(process.registeredArguments.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("framework run has no positional argument and open control options", () => {
+    const run = findCommand(cmd, ["framework", "run"])!;
+    expect(run.registeredArguments.length).toBe(0);
+    const flags = getOptionFlags(run);
+    expect(flags.some(f => f.includes("--no-open"))).toBe(true);
+    expect(flags.some(f => f.includes("--name"))).toBe(true);
+    expect(flags.some(f => f.includes("--port"))).toBe(true);
   });
 });
