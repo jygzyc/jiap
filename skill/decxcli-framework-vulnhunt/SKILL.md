@@ -1,6 +1,6 @@
 ---
 name: decxcli-framework-vulnhunt
-description: Use when hunting Android framework vulnerabilities from a final integrated framework bundle, `system_server`, Binder services, AIDL implementations, vendor services, or OEM framework code. This skill stays on one processed framework bundle and does not proactively analyze split jars under `source/`.
+description: Use when hunting Android framework vulnerabilities in a processed final framework bundle, `system_server`, Binder services, AIDL implementations, vendor services, or OEM framework code.
 metadata:
   requires:
     bins: ["decx"]
@@ -10,115 +10,66 @@ metadata:
 
 ## Overview
 
-Use this skill for framework and Binder-service vulnerability hunting.
+Use this skill for static framework and Binder-service vulnerability hunting.
 
-Scope:
-
-- In scope: final integrated framework bundle collection/opening, Binder service enumeration, AIDL and Stub tracing, permission-gate review, framework exploitability triage, report drafting
-- Out of scope: app component recon, exported APK surface enumeration, PoC construction, runtime confirmation, proactive analysis of split jars under `source/`
-- App APK hunting belongs to `decxcli-app-vulnhunt`
-- PoC and runtime validation belong to `decxcli-poc`
-
-Conclusion ceiling:
-
-- Highest allowed state: `statically-supported`
+- In scope: processed final framework bundle analysis, Binder service enumeration, AIDL and Stub tracing, permission-gate review, exploitability triage, report drafting
+- Out of scope: APK entry-surface hunting, PoC construction, runtime confirmation, proactive analysis of split jars under `source/`
+- Use `decxcli-app-vulnhunt` for APK surfaces and `decxcli-poc` for PoC or runtime validation
+- Highest allowed conclusion: `statically-supported`
 - Never claim `poc-validated`, `runtime-validated`, `verified exploitable`, or equivalent
-
-Command reference lives in `decxcli`.
+- Command reference lives in `decxcli`
 
 ## Non-Negotiable Rules
+
+### Scope And Routing
+
+- Analyze exactly one framework code target per hunt: the processed final framework bundle such as `framework_<oem>_<vendor>.jar` or a user-provided equivalent final bundle
+- Do not proactively open, trace, compare, or switch to split framework jars under `source/` as separate DECX targets
+- If the only available path points to `source/` or another split jar, stop and ask for the processed final bundle
+- Use this skill for framework hunting, `system_server`, Binder services, AIDL implementations, vendor services, OEM framework code, and privileged manager or service families
+- If the request is really about exported Activities, Providers, Receivers, app Services, deep links, or WebView hosts, switch to `decxcli-app-vulnhunt`
 
 ### Command Rules
 
 - Every session-backed `decx code` command and every session-backed `decx ard` command must include `-P <port>`
-- adb-backed `decx ard` commands such as `system-services`, `perm-info`, and `framework collect` / `framework process` do not use `-P <port>`; use `--serial` / `--adb-path` when needed
+- adb-backed `decx ard` commands such as `system-services`, `perm-info`, `framework collect`, and `framework process` do not use `-P <port>`; use `--serial` and `--adb-path` when needed
 - `decx ard framework run` and `decx ard framework open` use `-P <port>` only when they open a DECX session
 - Method signatures must use the full format: `"package.Class.method(paramType):returnType"`
 - Never use `...` in signatures
 - Quote package names, class names, method signatures, interfaces, Binder names, and file paths
 - If a command is uncertain, check `--help` instead of guessing
 
-### Target Rules
+### Context, Persistence, And Output
 
-- Analyze exactly one framework code target per hunt: the final integrated framework bundle such as generated `framework_<oem>_<vendor>.jar` or a user-provided equivalent final bundle
-- Do not proactively open, trace, compare, or switch to split framework jars under `source/` as separate DECX targets
-- If the only available path points to `source/` or another split jar, stop and ask for the processed final bundle instead of starting analysis on that jar
-
-### Routing Rules
-
-- Use this skill when the user explicitly mentions framework hunting, a final framework bundle, `system_server`, Binder services, AIDL interface implementations, vendor services, OEM framework code, or privileged manager/service families
-- Do not begin with `app-manifest`, exported components, or app deep links
-- If the user is clearly asking about an APK entry surface such as exported Activities, Providers, Receivers, app Services, or WebView hosts, switch to `decxcli-app-vulnhunt`
-
-### Context Rules
-
-- Every subagent must watch context usage
-- Hand off at 60% context usage
-- Main agent keeps only structured summaries, not raw source dumps
+- Hand off at 60% context usage; keep only structured summaries, not raw source dumps
 - Outside final reporting, do not paste large command outputs or large code blocks
+- Persist small structured artifacts so work can survive interruption or session restarts
+- Use `.decx-analysis/<target-name>/`
+- Recommended artifacts: `recon.json`, `shortlist.json`, `findings.json`, `report.md`, `resume.json`, `poc-handoff.json`
+- Fill them from `assets/recon-template.json`, `assets/shortlist-template.json`, `assets/findings-template.json`, `assets/resume-template.json`, and `assets/poc-handoff-template.json`
+- If a persisted artifact conflicts with the current framework artifact, device build, or session target, treat it as stale and rebuild it
 
-### Persistence Rules
-
-- Intermediate analysis results may be persisted to local files so work can survive interruption, context handoff, or session restarts
-- Prefer JSON for machine-readable phase outputs and Markdown for final human-readable reports
-- Keep persisted artifacts small and structured; save parsed results, selected targets, findings, and resume metadata, not raw source dumps
-- Before restarting recon or tracing after an interruption, check whether a recent persisted artifact can be loaded and continued
-- If a persisted artifact conflicts with the current framework artifact, device build, or session target, treat it as stale and rebuild it instead of forcing reuse
-
-Recommended working directory:
-
-```text
-.decx-analysis/<target-name>/
-```
-
-Recommended phase artifacts:
-
-- `recon.json`
-- `shortlist.json`
-- `findings.json`
-- `report.md`
-- `resume.json`
-- `poc-handoff.json`
-
-Template files to fill and save:
-
-- `assets/recon-template.json`
-- `assets/shortlist-template.json`
-- `assets/findings-template.json`
-- `assets/resume-template.json`
-- `assets/poc-handoff-template.json`
-
-### Output States
+### Evidence And States
 
 | State | Meaning | Allowed |
 |------|---------|---------|
 | `candidate` | suspicious path found, still missing evidence | Yes |
 | `statically-supported` | static evidence supports reachability, control, bypassability, and visible impact | Yes |
 | `rejected` | unreachable, uncontrollable, blocked, or not impactful | Yes |
-| `poc-validated` | PoC-confirmed | No |
-| `runtime-validated` | runtime-confirmed | No |
 
-Downgrade rules:
+Every reported finding must answer:
 
-- If reachability, controllability, bypass conditions, or visible impact is unclear: downgrade to `candidate`
+- `reachable`
+- `controllable`
+- `bypassConditions`
+- `impactEvidence`
+- `ratingRationale`
+
+Decision rules:
+
+- If reachability, controllability, bypass conditions, or visible impact is unclear: keep or downgrade to `candidate`
 - If a non-bypassable guard exists or impact is not real: mark `rejected`
 - If impact cannot be mapped to `references/risk-rating.md`: do not report it
-
-### Evidence Rules
-
-Every reported finding must explicitly answer:
-
-1. `reachable`
-2. `controllable`
-3. `bypassConditions`
-4. `impactEvidence`
-5. `ratingRationale`
-
-Write the exact condition instead of vague language:
-
-- "Bypassable if the gating permission is `normal`/`dangerous`, attacker-defined, or not provably signature-bound"
-- "Visible impact: attacker can invoke a privileged Binder path that returns another user's data"
-- "HIGH because an untrusted local app can reach a system-privileged service action"
 
 ## Workflow
 
@@ -137,15 +88,15 @@ Framework VulnHunt Progress
 
 ### Phase 1 - Prepare Target
 
-Goal: open the correct final framework bundle and confirm DECX is healthy.
+Goal: open the final framework bundle and confirm DECX is healthy.
 
-Preferred end-to-end collection path:
+Fastest path:
 
 ```bash
 decx ard framework run --serial <serial> -P <port>
 ```
 
-Stepwise collection path when you need artifact retention or output-directory control:
+Artifact-retaining path:
 
 ```bash
 decx ard framework collect --serial <serial>
@@ -153,31 +104,23 @@ decx ard framework process <oem> --serial <serial>
 decx ard framework open -P <port> --serial <serial>
 ```
 
-If the user already provides the final integrated framework bundle, use:
+If the user already has the final bundle:
 
 ```bash
 decx ard framework open "<framework-jar-path>" -P <port>
 decx process status -P <port>
 ```
 
-Preparation rules:
+Rules:
 
-- Start here before any code tracing
-- Prefer `framework run` when the user wants the fastest route from device to an analyzable DECX session
-- Prefer `collect` -> `process` -> `open` when the user wants to preserve artifacts or inspect intermediate outputs
-- Reuse the generated `framework_<oem>_<vendor>.jar` session name when possible so later tracing stays stable
-- Treat the processed final bundle such as `framework_<oem>_<vendor>.jar` as the only analysis target for this workflow
-- If the input path points to `source/` or another split framework jar, do not open it under this skill; ask for the processed final bundle instead
-- Do not proactively inspect `source/` jars to shortlist services, confirm suspicions, or compare implementations; keep all tracing inside the already-open final bundle session
-- If no device is connected and no final framework bundle is provided, stop and ask for one of those two inputs instead of guessing
-- `framework collect` and `framework process` are adb/local-artifact operations, not session-backed DECX reads, so do not add `-P <port>` to them
-- If the user wants interruption-safe analysis, create the working directory early and keep phase outputs there
-
-Do not close the session automatically. Tell the user they can close it with:
-
-```bash
-decx process close "<name>"
-```
+- Start here before code tracing
+- Prefer `framework run` for fastest device-to-session flow
+- Prefer `collect` -> `process` -> `open` when artifact retention or output-directory control matters
+- Reuse the generated `framework_<oem>_<vendor>.jar` session name when possible
+- If no device is connected and no final framework bundle is provided, stop and ask for one
+- `framework collect` and `framework process` are adb or local-artifact operations, not session-backed reads, so do not add `-P <port>`
+- If interruption-safe analysis matters, create the working directory early and keep artifacts there
+- Do not close the session automatically; tell the user they can close it with `decx process close "<name>"`
 
 ### Phase 2 - Recon
 
@@ -188,69 +131,43 @@ Execution model:
 - Create one recon subagent
 - Main agent does not run Phase 2 `decx` commands
 
-Framework recon entry:
+Start from one of these anchors:
 
-- Start from one of these anchors:
-  - `decx ard system-services --serial <serial> --grep <keyword>`
-  - `decx ard system-service-impl "<interface>" -P <port>`
-  - `decx code implement "<interface>" -P <port>`
-  - `decx code search-method "<methodName>" -P <port>` only if the Binder entrypoint name is still unknown
+- `decx ard system-services --serial <serial> --grep <keyword>`
+- `decx ard system-service-impl "<interface>" -P <port>`
+- `decx code implement "<interface>" -P <port>`
+- `decx code search-method "<methodName>" -P <port>` only if the Binder entrypoint name is still unknown
+
+Recon rules:
+
 - Build the shortlist around Binder service name, AIDL interface, Stub implementation, manager facade, and privileged sink families instead of app components
 - When the request names a concrete service family such as package, activity, telecom, notification, or OEM vendor service, use that family name as the first `--grep` filter before broadening scope
-- Treat the generated final framework bundle as the primary and only codebase under review for this workflow; live-device `system-services` and `perm-info` data are support evidence, not substitutes for code tracing
-- Do not open side sessions for `source/` jars during recon or later phases
-
-Framework-service recon notes:
-
-- `system-services` returns structured JSON:
-  - `total`
-  - `services[]`
-  - per service: `index`, `name`, `interfaces`
-- Use `--grep` to narrow by service family or interface keyword before selecting framework-service targets
-- Do not treat `system-services` output as raw text; consume the JSON fields directly
-- Resolve permission levels with:
-
-```bash
-decx ard perm-info "<permission>" --serial <serial>
-```
-
-- `perm-info` returns one structured JSON object such as:
-  - `permission`
-  - `package`
-  - `label`
-  - `description`
-  - `protectionLevel`
-- Do not quote or reason over shell-grep snippets when a parsed `perm-info` object is available
+- Treat the open final framework bundle as the only codebase under review; `system-services` and `perm-info` are support evidence, not substitutes for code tracing
+- `system-services` returns structured JSON with `total` and `services[]`; use `name` and `interfaces` directly rather than grepping raw text
+- Resolve permission levels with `decx ard perm-info "<permission>" --serial <serial>` and reason from the parsed object instead of shell snippets
 
 Recon output:
 
 - JSON only
 - No raw command output
 - Only `needsAnalysis: true` targets move to Phase 3
-- If interruption-safe analysis is needed, persist the parsed recon result to `recon.json` before moving to Phase 3
-- Fill `recon.json` from `assets/recon-template.json`
+- Persist `recon.json` before deep tracing when interruption-safe analysis matters
 
 ### Phase 3 - Per-Service Analysis
 
 Goal: upgrade each retained framework target to `statically-supported` or downgrade it to `rejected`.
 
-Overview mapping:
+Core loop:
 
-| Target type | Overview file | Common entrypoints |
-|------------|---------------|--------------------|
-| Framework service | `references/framework-service.md` | Binder-exposed methods, Stub `onTransact`, service impl methods, privileged manager calls |
-
-Execution notes:
-
-- Start with `decx ard system-services --serial <serial> --grep <keyword>` to map the runtime service surface
-- Use the returned `interfaces[]` to choose the most relevant Binder contract before tracing code
-- Use `decx ard system-service-impl "<interface>" -P <port>` to resolve the implementation behind one selected interface
-- If a framework method path is permission-gated, pair the code trace with `decx ard perm-info "<permission>" --serial <serial>` and reason from the parsed JSON object
+- Start with `decx ard system-services --serial <serial> --grep <keyword>` to map the runtime surface
+- Use `interfaces[]` to choose the most relevant Binder contract
+- Use `decx ard system-service-impl "<interface>" -P <port>` to resolve one selected implementation
+- If a path is permission-gated, pair the code trace with `decx ard perm-info "<permission>" --serial <serial>`
 - Prefer exact interface names from `system-services.interfaces[]`; do not invent or normalize Binder names by hand
 
 Subagent split:
 
-- Service scout: reads `references/framework-service.md` plus target source and chooses likely vuln patterns and entry methods
+- Service scout: reads `references/framework-service.md` plus target source and selects likely vuln patterns and entry methods
 - Chain subagent: analyzes one method at a time
 
 Chain command:
@@ -269,7 +186,7 @@ Method labels:
 
 Common sources:
 
-- AIDL / Binder params
+- AIDL or Binder params
 - `Parcel` fields decoded from transactions
 - manager facade arguments forwarded into a service
 - attacker-controlled package names, UIDs, user IDs, Intents, URIs, or Bundles
@@ -277,8 +194,8 @@ Common sources:
 Common sinks:
 
 - privileged file, settings, package, account, telecom, notification, or user-state operations
-- cross-user reads/writes
-- privileged activity/service launches
+- cross-user reads or writes
+- privileged activity or service launches
 - identity transitions around `clearCallingIdentity`
 - hidden API or system-only operations exposed to an untrusted caller
 
@@ -289,44 +206,18 @@ Common non-bypassable guards:
 - immutable allowlists tied to trusted platform packages
 - explicit caller-user ownership checks that cannot be attacker-influenced
 
-Upgrade rules:
+Phase output:
 
-- Source and sink present but chain incomplete: keep `candidate`
-- Source, sink, chain, bypass conditions, and visible impact all established: upgrade to `statically-supported`
-- Non-bypassable guard, unreachable entry, or no real impact: `rejected`
-
-Persistence guidance:
-
-- Persist the retained shortlist before deep tracing if Phase 2 took meaningful effort
-- Fill `shortlist.json` from `assets/shortlist-template.json`
-- Persist findings incrementally in `findings.json` after each service family or confirmed finding
-- Fill `findings.json` from `assets/findings-template.json`
-- When resuming, load `recon.json`, `shortlist.json`, `findings.json`, and `resume.json` first, then continue from `lastCompletedPhase` instead of repeating completed work
-
-Minimum finding fields:
-
-- `vulnType`
-- `risk`
-- `status`
-- `serviceName`
-- `interface`
-- `entryPoint`
-- `source`
-- `sink`
-- `callChain`
-- `reachable`
-- `controllable`
-- `guardsChecked`
-- `bypassConditions`
-- `impactEvidence`
-- `ratingRationale`
+- Persist the retained shortlist in `shortlist.json` if recon took meaningful effort
+- Persist findings incrementally in `findings.json`
+- Minimum finding fields: `vulnType`, `risk`, `status`, `serviceName`, `interface`, `entryPoint`, `source`, `sink`, `callChain`, `reachable`, `controllable`, `guardsChecked`, `bypassConditions`, `impactEvidence`, `ratingRationale`
 
 ### Phase 4 - Cross-Service Analysis
 
 Continue only when needed:
 
-- chain crosses Binder boundary, manager facade, or internal service helper
-- framework APIs require downstream reachability confirmation
+- the chain crosses a Binder boundary, manager facade, or internal service helper
+- downstream reachability must be confirmed
 - identity, grant, or user-selection state crosses trust boundaries
 
 Rules:
@@ -343,17 +234,17 @@ Quick rejection checks:
 
 | Condition | Check |
 |----------|-------|
-| `signature` / `signatureOrSystem` permission | `perm-info.protectionLevel` |
+| `signature` or `signatureOrSystem` permission | `perm-info.protectionLevel` |
 | exact signature enforcement | `checkSignatures`, platform-signer compare |
-| hard package / UID allowlist | immutable trusted allowlist |
-| root / system-only path | privileged-only API or environment |
+| hard package or UID allowlist | immutable trusted allowlist |
+| root or system-only path | privileged-only API or environment |
 | non-bypassable guard on source-to-sink path | permission, ownership, identity, cryptographic, or strict type guard |
 
 Framework-specific rules:
 
-- If `perm-info` confirms `signature` or `signatureOrSystem`, treat the path as protected unless the app forwards access or re-grants capability
-- If the gating permission is missing from runtime resolution, custom, or not provably signature-bound, keep the finding at `candidate` unless bypass conditions are made explicit
-- If `system-services` shows no matching Binder service on the connected device, downgrade runtime-reachability confidence for that framework path
+- If `perm-info` confirms `signature` or `signatureOrSystem`, treat the path as protected unless access is forwarded or capability is re-granted
+- If the gating permission is missing from runtime resolution, custom, or not provably signature-bound, keep the finding at `candidate` unless bypass conditions are explicit
+- If `system-services` shows no matching Binder service on the connected device, downgrade runtime-reachability confidence
 
 Three-factor gate:
 
@@ -361,9 +252,9 @@ Three-factor gate:
 2. Controllable
 3. Impactful
 
-Decision rules:
+Decision:
 
-- All three factors plus bypass conditions plus impact evidence present: `statically-supported`
+- All three factors plus bypass conditions and impact evidence present: `statically-supported`
 - Any factor missing: `rejected`
 
 ### Phase 6 - Report
@@ -379,10 +270,7 @@ Reporting steps:
 
 1. Read `assets/report-template.md`
 2. Read `references/risk-rating.md`
-3. Pick language mode:
-   - `zh` -> `assets/report-template-zh.md`
-   - `en` -> `assets/report-template-en.md`
-   - `both` -> Chinese first, then English
+3. Pick language mode: `zh` -> `assets/report-template-zh.md`, `en` -> `assets/report-template-en.md`, `both` -> Chinese first then English
 4. Re-fetch only key source, sink, and missing-guard locations with `decx code method-source "<method>" -P <port>`
 5. Fill the selected template strictly
 
@@ -392,18 +280,14 @@ Mandatory report content:
 - `Visible Impact`
 - `Rating Rationale`
 
-Report wording rules:
+Report rules:
 
 - Use wording like "Static analysis supports this vulnerability chain"
 - Never write "verified", "fully exploited", or "confirmed exploitable in practice"
 - If impact is conditional, state the condition directly
+- Follow the selected report template exactly; do not add extra sections, reorder sections, insert JSON, or include rejected findings
 
-Format rules:
-
-- Follow `assets/report-template.md`
-- Do not add extra sections, reorder sections, insert JSON, or include rejected findings
-
-## Handoff Protocol
+## Handoff And Resume
 
 At 60% context usage, hand off immediately:
 
@@ -419,22 +303,15 @@ At 60% context usage, hand off immediately:
 }
 ```
 
-If file-backed continuation is enabled, also persist the same handoff state to `resume.json` using `assets/resume-template.json`.
-
-Phase-specific context:
-
-- Phase 2: parsed service list and remaining recon commands
-- Phase 3: `vulnTypesDone`, `vulnTypesPending`, current `chain`, finished findings
-- Phase 4: cross-service chain progress
-- Phase 6: completed and pending report sections
+If file-backed continuation is enabled, also persist the same state to `resume.json`.
 
 Resume procedure:
 
 1. Load `resume.json`
-2. Verify `target`, `artifactPath`, `sessionName`, `port`, and `serial` still match the current analysis target
-3. Load the referenced intermediate artifacts such as `recon.json`, `shortlist.json`, and `findings.json`
+2. Verify `target`, `artifactPath`, `sessionName`, `port`, and `serial` still match
+3. Load referenced intermediate artifacts such as `recon.json`, `shortlist.json`, and `findings.json`
 4. Reconfirm the DECX session with `decx process status -P <port>`
-5. Continue from `lastCompletedPhase` and `nextAction` instead of re-running completed phases
+5. Continue from `lastCompletedPhase` and `nextAction` instead of repeating completed work
 
 ## Handoff To `decxcli-poc`
 
@@ -442,17 +319,9 @@ Pass only the minimal static finding.
 
 - Fill `poc-handoff.json` from `assets/poc-handoff-template.json`
 - Keep only one finding per handoff file unless the user explicitly asks for a batch handoff
-
-Never pass:
-
-- large raw source blocks
-- full recon output
-- unrelated services
-- findings below `statically-supported`
+- Never pass large raw source blocks, full recon output, unrelated services, or findings below `statically-supported`
 
 ## References
-
-Use the overview files as the entry layer:
 
 - `references/framework-service.md`
 - `references/risk-rating.md`
