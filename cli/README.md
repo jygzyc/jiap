@@ -60,6 +60,8 @@ decx ard exported-components             # List exported components
 decx ard app-deeplinks                   # List deep link schemes
 decx ard app-receivers                   # List dynamic broadcast receivers
 decx ard system-service-impl <interface> # Find system service implementations
+decx ard system-services [--grep <kw>]  # List system services (filtered)
+decx ard perm-info <permission>          # Show permission details
 decx ard all-resources                   # List all resource file names
 decx ard resource-file <res>             # Get resource file content
 decx ard strings                         # Get strings.xml content
@@ -85,11 +87,11 @@ are managed exactly like any other DECX session through `decx process list`,
 decx ard framework run
 decx ard framework run --no-open
 decx ard framework collect --serial emulator-5554
-decx ard framework process xiaomi --out-dir ~/.decx/output/framework/xiaomi
+decx ard framework process google --out-dir ~/.decx/output/framework/google
 decx ard framework open
-decx ard framework open ~/.decx/output/framework/xiaomi/framework_xiaomi_k70_ultra.jar
+decx ard framework open ~/.decx/output/framework/google/framework_google_pixel.jar
 decx process list
-decx process close framework_xiaomi_k70_ultra
+decx process close framework_google_pixel
 ```
 
 **Common framework options:**
@@ -121,10 +123,10 @@ framework_<brand>_<vendor>.jar
 Artifact segments are resolved like this:
 
 1. `brand` is the detected device OEM for `collect/run`, or the explicit `oem` passed to `process`
-2. `vendor` comes from previously collected metadata stored in `.meta.json`
-3. During `framework collect` / `framework run`, metadata is populated from:
+2. `vendor` comes from the persisted `.artifact.json` record
+3. During `framework collect` / `framework run`, vendor is resolved from:
    `adb shell getprop ro.product.model`
-4. If metadata is unavailable, `vendor` falls back to `unknown`
+4. If no artifact record exists, `vendor` falls back to `unknown`
 5. Framework artifact metadata is stored alongside the output under `.artifact.json`
 6. `framework open` and `framework run` create normal DECX process sessions with the default session name `framework_<brand>_<vendor>`
 7. `framework collect` and `framework process` only prepare artifacts; they do not create a running session
