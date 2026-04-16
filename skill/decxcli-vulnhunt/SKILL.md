@@ -137,6 +137,34 @@ Recon rules:
 3. Group targets by Activity, Service, Provider, Receiver, WebView, AIDL/Binder, framework service, Deep Link, and scan-driven entrypoint
 4. Initialize every retained target as `candidate`
 
+Framework-service recon notes:
+
+- When the hunt includes framework Binder or vendor system-service surfaces, enumerate live service names with:
+
+```bash
+decx ard system-services --serial <serial> --grep <keyword>
+```
+
+- `system-services` returns structured JSON:
+  - `total`
+  - `services[]`
+  - per service: `index`, `name`, `interfaces`
+- Use `--grep` to narrow by service family or interface keyword before selecting framework-service targets
+- Do not treat `system-services` output as raw text; consume the JSON fields directly
+- Resolve permission levels with:
+
+```bash
+decx ard perm-info "<permission>" --serial <serial>
+```
+
+- `perm-info` returns one structured JSON object such as:
+  - `permission`
+  - `package`
+  - `label`
+  - `description`
+  - `protectionLevel`
+- Do not quote or reason over shell-grep snippets when a parsed `perm-info` object is available
+
 Modern surfaces that must be considered:
 
 - Deep Links and App Links
@@ -154,6 +182,13 @@ Permission triage:
 | `dangerous` | weak protection |
 | `signature` / `signatureOrSystem` | protected |
 | unknown / defined in another app | uncertain until bypass conditions are explicit |
+
+Permission resolution rules:
+
+- Prefer `decx ard perm-info "<permission>" --serial <serial>` over manual adb shell parsing whenever a device is connected
+- Use the parsed `protectionLevel` field from the JSON response as the source of truth
+- If `perm-info` returns no object or lacks `protectionLevel`, keep the permission state uncertain
+- For framework-service cases, record both the Binder service name and the permission object that gates the relevant method path
 
 Recon output:
 
@@ -184,6 +219,14 @@ Overview mapping:
 | Receiver | `references/app-broadcast.md` | `onReceive` |
 | WebView host | `references/app-webview.md` | host init, URL loaders, bridge registration, result handlers |
 | Framework service | `references/framework-service.md` | Binder-exposed methods |
+
+Framework-service execution notes:
+
+- Start with `decx ard system-services --serial <serial> --grep <keyword>` to map the runtime service surface
+- Use the returned `interfaces[]` to choose the most relevant Binder contract before tracing code
+- Use `decx ard system-service-impl "<interface>" -P <port>` to resolve the implementation behind one selected interface
+- If a framework method path is permission-gated, pair the code trace with `decx ard perm-info "<permission>" --serial <serial>` and reason from the parsed JSON object
+- Prefer exact interface names from `system-services.interfaces[]`; do not invent or normalize Binder names by hand
 
 Subagent split:
 
@@ -283,6 +326,12 @@ Quick rejection checks:
 | hard package / UID allowlist | immutable trusted allowlist |
 | root / system-only path | privileged-only API or environment |
 | non-bypassable guard on source-to-sink path | integrity, cryptographic, or strict type guard |
+
+For framework-service targets specifically:
+
+- If `perm-info` confirms `signature` or `signatureOrSystem`, treat the path as protected unless the app forwards access or re-grants capability
+- If the gating permission is missing from runtime resolution, custom, or not provably signature-bound, keep the finding at `candidate` unless bypass conditions are made explicit
+- If `system-services` shows no matching Binder service on the connected device, downgrade runtime-reachability confidence for that framework-service path
 
 Three-factor gate:
 

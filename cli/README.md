@@ -37,7 +37,7 @@ decx process status [name]         # Check server status
 
 ```bash
 decx self install [-p]          # Install decx-server.jar (-p for prerelease)
-decx self update [-p]           # Update decx-server.jar (-p for prerelease)
+decx self update [-p]           # Update decx-server.jar and the currently installed npm CLI package
 ```
 
 **open options:**
@@ -60,8 +60,8 @@ decx ard exported-components             # List exported components
 decx ard app-deeplinks                   # List deep link schemes
 decx ard app-receivers                   # List dynamic broadcast receivers
 decx ard system-service-impl <interface> # Find system service implementations
-decx ard system-services [--grep <kw>]  # List system services (filtered)
-decx ard perm-info <permission>          # Show permission details
+decx ard system-services [--serial <serial>] [--grep <kw>] # List Android system services as structured JSON
+decx ard perm-info <permission> [--serial <serial>]        # Show structured permission details
 decx ard all-resources                   # List all resource file names
 decx ard resource-file <res>             # Get resource file content
 decx ard strings                         # Get strings.xml content
@@ -70,6 +70,48 @@ decx ard framework collect               # Collect framework files from the conn
 decx ard framework process <oem>         # Process local framework source files and pack the framework jar
 decx ard framework run                   # Collect, process, pack, and optionally open
 decx ard framework open [jar]            # Open the generated framework jar or a provided JAR
+```
+
+**ADB-backed command output**
+
+`system-services` returns structured JSON:
+
+```json
+{
+  "total": 2,
+  "services": [
+    {
+      "index": 6,
+      "name": "activity",
+      "interfaces": ["android.app.IActivityManager"]
+    },
+    {
+      "index": 511,
+      "name": "window",
+      "interfaces": ["android.view.IWindowManager"]
+    }
+  ]
+}
+```
+
+`perm-info` returns one parsed permission object instead of raw shell text:
+
+```json
+{
+  "permission": "android.permission.DUMP",
+  "package": "android",
+  "label": null,
+  "description": null,
+  "protectionLevel": "signature|privileged|development"
+}
+```
+
+Examples:
+
+```bash
+decx ard system-services --serial emulator-5554
+decx ard system-services --serial emulator-5554 --grep permission
+decx ard perm-info android.permission.DUMP --serial emulator-5554
 ```
 
 ### ard framework
@@ -143,6 +185,13 @@ Artifact segments are resolved like this:
 - If `adb devices` reports exactly one connected device, framework commands use it automatically
 - If multiple devices are connected, pass `--serial <serial>` to select the target device
 - `collect` and `run` detect the device OEM from adb properties; `process` requires an explicit `oem`
+
+### self update notes
+
+- `decx self update` updates the DECX server JAR first, then runs `npm install -g <current-package-name>@latest`
+- The CLI package name is resolved from the installed package metadata instead of being hardcoded
+- `-p/--prerelease` currently affects the server JAR update path only
+- The CLI update step assumes the CLI was installed with global `npm`; if you installed it another way, update the package manager command yourself
 
 ### code
 

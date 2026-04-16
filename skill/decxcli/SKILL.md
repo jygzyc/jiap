@@ -23,7 +23,8 @@ Scope:
 
 ### Command Rules
 
-- Every `decx code` and `decx ard` command must include `-P <port>`
+- Every session-backed `decx code` command and every session-backed `decx ard` command must include `-P <port>`
+- adb-backed `decx ard` commands such as `system-services` and `perm-info` do not use `-P <port>`; they use `--serial` / `--adb-path` when needed
 - Quote package names, class names, method signatures, file paths, and resource paths
 - Method signatures must use the full format: `"package.Class.method(paramType1,paramType2):returnType"`
 - Never use `...` in signatures
@@ -109,6 +110,8 @@ decx ard app-deeplinks -P <port>
 decx ard app-receivers -P <port>
 decx ard get-aidl -P <port>
 decx ard strings -P <port>
+decx ard system-services --serial <serial> --grep <keyword>
+decx ard perm-info "<permission>" --serial <serial>
 ```
 
 Use `code` first when the question is about implementation details:
@@ -203,9 +206,26 @@ Do not fan out into bulk repeated searches if `class-source` + `xref-*` can answ
 | `decx ard app-receivers -P <port>` | List dynamic receivers |
 | `decx ard get-aidl -P <port>` | List AIDL interfaces |
 | `decx ard system-service-impl "<interface>" -P <port>` | Resolve framework service implementation |
+| `decx ard system-services --serial <serial> [--grep <keyword>]` | List live Binder/system services as structured JSON |
+| `decx ard perm-info "<permission>" --serial <serial>` | Resolve one permission into a structured JSON object |
 | `decx ard all-resources -P <port>` | List resource file names |
 | `decx ard resource-file "<res>" -P <port>` | Read one resource file |
 | `decx ard strings -P <port>` | Read `strings.xml` |
+
+adb-backed `ard` output notes:
+
+- `system-services` returns JSON with:
+  - `total`
+  - `services[]`
+  - per service: `index`, `name`, `interfaces`
+- `perm-info` returns one JSON object with fields like:
+  - `permission`
+  - `package`
+  - `label`
+  - `description`
+  - `protectionLevel`
+- Do not treat these commands as raw shell text lookups; consume the parsed JSON fields directly
+- Use `--grep` on `system-services` to narrow the runtime surface before choosing an interface for `system-service-impl`
 
 ### `self`
 
@@ -251,6 +271,7 @@ decx ard app-manifest -P <port>
 decx ard exported-components -P <port>
 decx ard app-deeplinks -P <port>
 decx code all-classes -P <port>
+decx ard system-services --serial <serial> --grep activity
 ```
 
 ### Trace a Specific Feature
@@ -268,6 +289,8 @@ decx code xref-field "com.example.AuthManager.mToken" -P <port>
 decx code subclass "com.example.BaseActivity" -P <port>
 decx code implement "com.example.MyInterface" -P <port>
 decx ard get-aidl -P <port>
+decx ard system-services --serial <serial> --grep permission
+decx ard perm-info "android.permission.DUMP" --serial <serial>
 ```
 
 ### Inspect Resources
