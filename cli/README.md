@@ -18,19 +18,26 @@ decx <command> [options]
 
 | Command | Description |
 |---------|-------------|
-| `decx process` | Manage DECX server processes and installation |
+| `decx process` | Manage DECX server processes |
+| `decx self` | Install and update decx-server.jar |
 | `decx ard` | Android specific analysis |
 | `decx code` | Common code analysis |
 
 ### process
 
 ```bash
-decx process check [--install]     # Check environment status
+decx process check               # Check environment status
 decx process open <file> [options] # Open and analyze a file (APK, DEX, JAR, etc.)
 decx process close [name] [--all]  # Stop session
 decx process list                  # List running sessions
 decx process status [name]         # Check server status
-decx process install [-p]          # Install decx-server.jar (-p for prerelease)
+```
+
+### self
+
+```bash
+decx self install [-p]          # Install decx-server.jar (-p for prerelease)
+decx self update [-p]           # Update decx-server.jar (-p for prerelease)
 ```
 
 **open options:**
@@ -40,7 +47,6 @@ decx process install [-p]          # Install decx-server.jar (-p for prerelease)
 | `-P, --port <port>` | Server port |
 | `--force` | Force start even if session exists |
 | `-n, --name <name>` | Custom session name |
-| `--json` | JSON output |
 
 All standard [jadx-cli options](https://github.com/skylot/jadx) are passed through directly. Common ones: `--deobf`, `--no-res`, `--show-bad-code`, `-j`/`--threads-count`, `--no-imports`, `--no-debug-info`, `--escape-unicode`, `--log-level`.
 
@@ -57,6 +63,7 @@ decx ard system-service-impl <interface> # Find system service implementations
 decx ard all-resources                   # List all resource file names
 decx ard resource-file <res>             # Get resource file content
 decx ard strings                         # Get strings.xml content
+decx ard get-aidl                        # Get all AIDL interfaces
 ```
 
 ### code
@@ -64,8 +71,8 @@ decx ard strings                         # Get strings.xml content
 ```bash
 decx code all-classes                    # Get all classes
 decx code class-info <class>             # Get class information
-decx code class-source <class>           # Get class source code
-decx code method-source <sig>            # Get method source
+decx code class-source <class>           # Get class source code (--smali for Smali)
+decx code method-source <sig>            # Get method source (--smali for Smali)
 decx code search-class <keyword>         # Search in class content
 decx code search-method <name>           # Search methods by name
 decx code xref-method <sig>              # Find method callers
@@ -81,7 +88,6 @@ decx code subclass <class>               # Find subclasses
 |--------|-------------|
 | `-s, --session <name>` | Target session name |
 | `-P, --port <port>` | Server port (default: 25419) |
-| `--json` | JSON output |
 | `--page <n>` | Page number (default: 1) |
 
 ## Method signature format
