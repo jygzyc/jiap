@@ -1,45 +1,45 @@
-# Service 安全审计
+# Service - Overview - Security Review
 
-Service 是 Android 后台执行组件。导出 Service 可被任意应用绑定或启动，AIDL 接口暴露、Messenger 滥用、Intent 注入等漏洞可导致权限提升和敏感操作执行。
+Services expose long-lived IPC and background execution surfaces. Exported binders, Messenger handlers, and start-command paths frequently become privilege-misuse or unauthorized-action bugs.
 
-## 风险清单
+## Risk Catalog
 
-| 风险 | 等级 | 详情 |
-|------|------|------|
-| AIDL 接口暴露 | HIGH | [[app-service-aidl-expose]] |
-| Messenger 消息滥用 | HIGH | [[app-service-messenger-abuse]] |
-| Intent 命令注入 | HIGH | [[app-service-intent-inject]] |
-| 绑定提权 | HIGH | [[app-service-bind-escalation]] |
-| 前台服务泄露 | MEDIUM | [[app-service-foreground-leak]] |
+| Risk | Rating | Reference |
+|------|--------|-----------|
+| AIDL exposure | HIGH | [[app-service-aidl-expose]] |
+| Messenger abuse | HIGH | [[app-service-messenger-abuse]] |
+| Intent command injection | HIGH | [[app-service-intent-inject]] |
+| Bound-service privilege abuse | HIGH | [[app-service-bind-escalation]] |
+| Foreground-notification leakage | LOW | [[app-service-foreground-leak]] |
 
-## 分析流程
+## Analysis Flow
 
+```text
+1. decx ard exported-components -P <port>
+2. decx ard get-aidl -P <port>
+3. decx code class-source "<ServiceClass>" -P <port>
+4. Inspect:
+   -> onBind
+   -> onStartCommand
+   -> onHandleIntent
+   -> Messenger / Handler callbacks
+5. Confirm whether the service enforces:
+   -> manifest permission
+   -> Binder caller validation
+   -> package/signature allowlists
+   -> action and parameter allowlists
 ```
-1. decx ard exported-components -P <port>          → 列出导出 Service
-2. 对每个导出 Service：
-   a. decx code class-source "<Service>" -P <port>   → 获取源码
-   b. 检查 onBind() 返回的 IBinder 接口
-   c. 检查 onHandleIntent() / onStartCommand() 对 Intent 的处理
-   d. 检查 Messenger 实现（handleMessage）
-3. 追踪 AIDL 接口：
-   decx code search-class "Stub" -P <port>         → 定位 AIDL Stub 实现
-   decx code class-source "<AidlClass.Stub>" -P <port> → 获取接口方法
-4. 检查权限保护：
-   搜索 enforcePermission / checkPermission 调用
-   检查 AndroidManifest 中 Service 的 android:permission 属性
-```
 
-## 关键追踪模式
+## Key Trace Patterns
 
-- **AIDL 暴露**：`onBind()` 返回的 `Stub` 实现，检查接口方法的权限校验
-- **Messenger 消息**：`handleMessage()` 中 `msg.what` 的分发，是否处理攻击者构造的消息
-- **Intent 注入**：`onStartCommand()` / `onHandleIntent()` 对传入 Intent 的处理
-- **绑定提权**：恶意应用通过 `bindService()` 获取高权限接口
+- Exported service returning a binder with no caller validation
+- `onStartCommand()` switching on attacker-controlled actions
+- Shell or file operations built from extras
+- Messenger handlers trusting `msg.what`, `replyTo`, or Bundle contents
+- Service-created `PendingIntent` objects that stay mutable
 
 ## Related
 
-[[app-activity]]
 [[app-intent]]
-[[app-broadcast]]
 [[framework-service]]
 [[risk-rating]]

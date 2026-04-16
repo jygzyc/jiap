@@ -1,79 +1,70 @@
-# 动态广播滥用
+# Broadcast - Dynamic Receiver - Abuse
 
-应用在运行时动态注册广播接收器，但未限制接收范围或校验数据来源，导致外部恶意应用可注入命令或窃取数据。
+A runtime-registered receiver may accept broadcasts more broadly than the developer expects. If it trusts attacker-controlled actions or extras, the broadcast becomes a command or data injection surface.
 
 **Risk: MEDIUM**
 
+## Exploit Prerequisites
 
-## 利用前提
+The app dynamically registers a receiver that accepts external broadcasts and processes actions, extras, URLs, or control flags without verifying the sender or restricting the registration scope.
 
-需要前置条件。目标应用动态注册的广播接收器处理外部 Intent 数据未校验来源，或应用发送的广播未指定接收权限。恶意应用可注册同名接收器监听敏感广播，或向目标接收器发送恶意数据。如果广播指定了 signature 级别权限则不可利用。
+**Android Version Scope:** Most relevant to pre-Android 14 behavior, though dynamic receiver misuse still matters wherever exported runtime registration or weak sender validation remains.
 
-**Android 版本范围：Android 13 及以下可利用** — Android 14 (API 34) 要求运行时注册的广播接收器必须指定 `RECEIVER_EXPORTED` 或 `RECEIVER_NOT_EXPORTED` 标志，默认不再导出到所有应用。仅接收系统广播的接收器无需指定标志。
+## Bypass Conditions / Uncertainties
 
+- If the receiver is registered as `RECEIVER_NOT_EXPORTED` or otherwise constrained to internal/system senders, reject the finding
+- If the receiver accepts arbitrary broadcasts but only performs benign work, reject the finding
+- If protection depends on a custom permission defined outside the APK, keep the finding conditional unless bypassability is explicit
 
-## 攻击流程
+## Visible Impact
 
+Visible impact must be concrete, such as:
+
+- triggering a command dispatcher
+- injecting a URL into a WebView flow
+- causing unauthorized writes or state changes
+
+## Attack Flow
+
+```text
+1. decx ard app-receivers -P <port>
+2. decx code search-method "registerReceiver" -P <port>
+3. Inspect onReceive() logic and registration flags
+4. Confirm whether attacker-controlled extras reach a sensitive action
 ```
-1. decx ard app-receivers → 列出动态注册的广播接收器
-2. decx code class-source <ReceiverClass> → 分析 onReceive() 处理逻辑
-3. 确认接收器处理外部 Intent 数据未校验
-4. 构造恶意广播发送到目标接收器
-5. 触发靮期操作（命令执行、数据写入、流程控制）
-```
 
+## Key Code Patterns
 
-## 关键特征与代码
-
-- 使用 `registerReceiver()` 注册接收器，IntentFilter 匹配范围过广，接收器处理外部 Intent 数据未做校验
-- 在 `onResume()` 中注册但未在 `onPause()` 中注销，扩大了接收窗口
+- broad IntentFilter
+- untrusted extras directly consumed in `onReceive()`
 
 ```java
-// 漏洞：动态注册的接收器处理外部数据未校验
-IntentFilter filter = new IntentFilter("com.app.ACTION");
 registerReceiver(new BroadcastReceiver() {
     @Override
     public void onReceive(Context context, Intent intent) {
         String cmd = intent.getStringExtra("command");
-        // 直接执行外部传入的命令
         executeCommand(cmd);
     }
 }, filter);
 ```
 
-
-## 经典案例
-
-| 案例 | 攻击场景 |
-|------|----------|
-| **CVE-2020-0391** | Android 系统动态注册的广播接收器未限制发送方，导致权限绕过 |
-| **第三方 SDK** | 多款广告 SDK 动态注册接收器处理 URL 参数，恶意广播可注入任意 URL |
-
-
-## 安全写法
+## Secure Pattern
 
 ```java
-// Android 14+: 注册时指定 RECEIVER_NOT_EXPORTED
 registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED);
-
-// 低版本: 使用 LocalBroadcastManager
-LocalBroadcastManager.getInstance(this).registerReceiver(receiver, filter);
 ```
 
+## Chaining Opportunities
 
-## 关联漏洞与组合利用
-
-| 组合 | 链条效果 | 参考文件 |
-|------|----------|----------|
-| + Service 命令注入 | 接收器收到命令后转发给导出 Service，扩大攻击面 | → [[app-service-intent-inject]] |
-| + URI 权限授予 | 广播 Intent 携带 content:// URI + FLAG_GRANT_READ，授予文件访问权 | → [[app-intent-uri-permission]] |
-| + 权限绕过 | 动态接收器未指定 RECEIVER_NOT_EXPORTED，外部恶意应用可直接发送 | → [[app-broadcast-permission-bypass]] |
-| + WebView URL 加载 | 接收器处理 URL 参数后传递给 WebView 加载 | → [[app-webview-url-bypass]] |
-
+| Chain | Effect | Reference |
+|------|--------|-----------|
+| + service command injection | broadcast becomes the first hop into a service action | [[app-service-intent-inject]] |
+| + URI-grant abuse | broadcast delivers attacker-controlled grant-bearing intents | [[app-intent-uri-permission]] |
+| + WebView URL bypass | broadcast injects navigation into a trusted WebView host | [[app-webview-url-bypass]] |
 
 ## Related
 
-- [[app-broadcast-permission-bypass]]
-- [[app-service-intent-inject]]
-
-- [[app-broadcast]]
+[[app-broadcast]]
+[[app-service-intent-inject]]
+[[app-intent-uri-permission]]
+[[app-webview-url-bypass]]

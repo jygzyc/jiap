@@ -1,82 +1,71 @@
-# getType() 信息泄露
+# Provider - getType() - Reconnaissance Leak
 
-`getType()` 方法根据 URI 返回不同 MIME 类型，攻击者可通过返回值差异探测文件是否存在，作为侦察手段。**Risk: LOW**
+`getType()` can act as an oracle when its return value changes based on whether a file, row, or object exists. On its own this is usually reconnaissance, but it matters when it strengthens a practical attack path.
 
+**Risk: LOW**
 
-## 利用前提
+## Exploit Prerequisites
 
-独立可利用（但危害低）。ContentProvider 导出后，攻击者通过 `getType()` 返回值差异（null vs MIME type）探测文件是否存在。纯侦察手段，不直接造成数据泄露。
+The provider is externally reachable and `getType()` returns distinguishable values based on the existence or state of a protected object.
 
-**Android 版本范围：所有版本可利用** — 但危害极低，纯侦察手段。
+**Android Version Scope:** Relevant across Android versions.
 
+## Bypass Conditions / Uncertainties
 
-## 攻击流程
+- Reject the finding if `getType()` returns a constant value that does not reveal object existence or state
+- Reject the finding if the provider is not externally reachable
+- Keep severity low unless the oracle materially enables a higher-value follow-on attack
+- Prefer not reporting it as a standalone issue unless the oracle clearly improves a practical attack path
 
+## Visible Impact
+
+Visible impact is usually limited to reconnaissance, such as:
+
+- determining whether a private file exists
+- mapping valid paths, record types, or internal object names
+
+Do not overstate this as direct data disclosure unless content itself is revealed. In many audits this is better treated as supporting evidence for another bug than as a standalone issue.
+
+## Attack Flow
+
+```text
+1. decx code class-source "<ProviderClass>" -P <port>
+2. Inspect getType()
+3. Confirm return values differ based on protected-object existence or state
+4. Confirm the provider is externally reachable
 ```
-1. decx code class-source <ProviderClass> → 从 Provider 源码检查 getType() 实现
-2. decx code xref-method "package.Provider.getType(android.net.Uri):java.lang.String" → 交叉引用追踪
-3. decx ard exported-components → 定位导出 Provider
-4. decx code class-source <ProviderClass> → 检查 getType() 实现
-5. 确认 getType() 返回值是否依赖文件存在性
-6. 枚举常见文件路径，通过返回值差异探测文件是否存在
-7. 建立文件存在性地图，为后续攻击提供侦察信息
-```
 
-
-## 关键特征与代码
-
-- `getType()` 方法根据 URI 对应的文件是否存在返回不同 MIME 类型（存在时返回具体 MIME 如 `image/jpeg`，不存在时返回 `null`），未做权限校验即可调用，返回值差异构成布尔型信息泄露
+## Key Code Patterns
 
 ```java
-// 漏洞：getType() 返回值泄露文件存在性
 @Override
 public String getType(Uri uri) {
-    String path = uri.getPath();
-    File file = new File(getContext().getFilesDir(), path);
+    File file = new File(getContext().getFilesDir(), uri.getPath());
     if (file.exists()) {
-        return "image/jpeg"; // 文件存在 → 返回具体 MIME
+        return "image/jpeg";
     }
-    return null; // 文件不存在 → 返回 null
-    // 攻击者可通过返回值差异枚举文件路径
+    return null;
 }
 ```
 
-
-## 经典案例
-
-| 案例 | 攻击场景 |
-|------|----------|
-| **CVE-2024-40676** | Android 系统 Provider 的 getType() 在不同时间返回不同 MIME，可被用于绕过 checkKeyIntent 类型检查 |
-| **CVE-2023-20944** | Android 系统 Provider 的 getType/openFile 路径未规范化，通过 MIME 差异探测文件存在性 |
-| **sieve.apk** | 密码管理器 Provider 的 getType() 返回值泄露文件存在性，辅助路径遍历攻击 |
-
-
-## 安全写法
+## Secure Pattern
 
 ```java
 @Override
 public String getType(Uri uri) {
-    // 方案 1：统一返回固定 MIME，不暴露文件存在性
     return "application/octet-stream";
-
-    // 方案 2：需要返回 MIME 时，先校验权限
-    // if (checkCallingPermission(...) != GRANTED) return null;
-    // return getMimeTypeFromExtension(uri);
 }
 ```
 
+## Chaining Opportunities
 
-## 关联漏洞与组合利用
-
-| 组合 | 链条效果 | 参考文件 |
-|------|----------|----------|
-| + 路径遍历 | 先用 getType() 探测文件存在，再用 openFile() 遍历读取 | → [[app-provider-path-traversal]] |
-| + 数据泄露 | 探测到敏感文件存在后，结合其他漏洞读取内容 | → [[app-provider-data-leak]] |
-| + Intent 重定向 | 探测到的文件路径用于构造 Intent 重定向的目标 URI | → [[app-activity-intent-redirect]] |
-| + CVE-2024-40676 | getType() 在不同时间返回不同 MIME，绕过 checkKeyIntent 类型检查 | → [[app-intent-parcel-mismatch]] |
-
+| Chain | Effect | Reference |
+|------|--------|-----------|
+| + provider traversal | attacker maps valid file targets before reading them | [[app-provider-path-traversal]] |
+| + parcel mismatch | MIME-based oracle helps validation-bypass style chains | [[app-intent-parcel-mismatch]] |
 
 ## Related
 
-- [[app-provider]]
-- [[app-provider-path-traversal]]
+[[app-provider]]
+[[app-provider-path-traversal]]
+[[app-intent-parcel-mismatch]]

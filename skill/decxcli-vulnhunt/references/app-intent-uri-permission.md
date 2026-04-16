@@ -1,98 +1,75 @@
-# URI 权限授予滥用
+# Intent - URI Grant - Abuse
 
-通过 Intent 的 `FLAG_GRANT_READ_URI_PERMISSION` / `FLAG_GRANT_WRITE_URI_PERMISSION` 授予对 content:// URI 的临时访问权限。如果 Intent 被恶意应用截获，可利用该权限访问敏感数据。
+Intent-based URI grants delegate access to a `content://` URI across app boundaries. If the grant reaches an attacker-controlled recipient or is made persistable without tight control, the attacker inherits access they should not have.
 
-**Risk: MEDIUM**
+**Risk: HIGH**
 
+## Exploit Prerequisites
 
-## 利用前提
+The app attaches a sensitive `content://` URI to an attacker-reachable Intent and includes `FLAG_GRANT_*`, `ClipData`, persistable grants, or equivalent delegated access behavior.
 
-需要前置条件。Intent 包含 content:// URI + `FLAG_GRANT_*`，且被发送到可被恶意应用截获的目标（隐式 Intent / setResult）。恶意应用截获后利用 URI 权限访问目标文件。如果使用 `setPackage()` 限制接收方则不可利用。
+**Android Version Scope:** Relevant across modern Android. Platform changes affect some routing patterns, but the core trust-boundary flaw remains.
 
-**Android 版本范围：Android 10+ 可利用** — Android 14 (API 34) 进一步限制后台 Activity 启动，可能影响部分 URI 权限利用链。
+## Bypass Conditions / Uncertainties
 
+- If the Intent is constrained to a trusted explicit package/component and no attacker-controlled relay exists, reject the finding
+- Persistable-grant impact requires the recipient to be able to call `takePersistableUriPermission()`
+- Prefix grants matter only when the shared subtree actually exposes more than a single intended object
+- If the granted URI does not expose meaningful data or write capability, reject the finding
 
-## 攻击流程
+## Visible Impact
 
+Visible impact must be concrete, such as:
+
+- reading a private file through a granted URI
+- writing to a protected file or record through a writable URI
+- preserving long-term access through a persistable grant
+
+## Attack Flow
+
+```text
+1. Trace grantUriPermission, Intent.addFlags/setFlags, and ClipData usage
+2. Identify FLAG_GRANT_READ / WRITE / PERSISTABLE / PREFIX paths
+3. Confirm the receiving flow is attacker-reachable:
+   -> implicit Intent
+   -> setResult()
+   -> exported component
+4. Confirm the URI grants meaningful read or write access
 ```
-1. decx code xref-method "android.content.Context.grantUriPermission(...)" → 定位 URI 权限授予
-2. decx code xref-method "android.content.Intent.addFlags(...)" → 追踪 addFlags 调用
-3. decx code xref-method "android.content.Intent.setFlags(...)" → 追踪 setFlags 调用
-4. decx code class-source <Class> → 获取源码，搜索 flag 值
-5. 在反编译代码中搜索：
-   → addFlags(1)  或 addFlags(0x1)  = FLAG_GRANT_READ_URI_PERMISSION
-   → addFlags(2)  或 addFlags(0x2)  = FLAG_GRANT_WRITE_URI_PERMISSION
-   → addFlags(3)  或 addFlags(0x3)  = READ + WRITE 组合
-6. decx code xref-method "android.content.Context.startActivity(...)" → 检查 Intent 的传递目标
-7. decx code xref-method "android.app.Activity.setResult(...)" → 检查 setResult 调用
-8. 在反编译源码中搜索 addFlags(1) / addFlags(3) 等 URI 权限 flag 值
-9. 检查 Intent 发送方式（startActivity / setResult）及是否限制接收方
-10. 恶意应用注册同名接收器截获带 URI 权限的 Intent
-11. 利用 URI 权限读取/写入目标应用的私有文件
-```
 
-
-## 关键特征与代码
-
-- Intent 包含 `content://` URI 并携带 `FLAG_GRANT_READ_URI_PERMISSION`（`addFlags(1)`/`addFlags(0x1)`）或 `FLAG_GRANT_WRITE_URI_PERMISSION`（`addFlags(2)`/`addFlags(3)`）
-- 通过隐式 Intent 或 `setResult` 发送，未使用 `setPackage()` / `setComponent()` 限制接收方
+## Key Code Patterns
 
 ```java
-// 反编译代码中的典型漏洞模式：
-Intent intent = new Intent("com.app.VIEW_FILE");
-intent.setData(contentUri);
-intent.addFlags(1);        // ⚠️ 0x1 = FLAG_GRANT_READ_URI_PERMISSION
-startActivity(intent);     // ⚠️ 隐式 Intent，恶意应用可截获
-
-// setResult 变体：
-Intent result = new Intent();
-result.setData(contentUri);
-result.addFlags(3);        // ⚠️ 0x3 = READ + WRITE
-setResult(-1, result);     // ⚠️ RESULT_OK = -1
-```
-
-
-## 经典案例
-
-| 案例 | 攻击场景 |
-|------|----------|
-| **CVE-2021-41256** | NextCloud News 通过 setResult 返回带 FLAG_GRANT 的 Intent，攻击者获得 FileProvider 读写权 |
-| **CVE-2020-0188** | Android 系统组件注入 URI 权限后通过隐式 Intent 传递，恶意应用截获 |
-
-
-## 安全写法
-
-```java
-// 显式指定接收方 + 及时撤销权限
 Intent intent = new Intent("com.app.VIEW_FILE");
 intent.setData(contentUri);
 intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-intent.setPackage("com.trusted.receiver"); // ✅ 限制接收方
 startActivity(intent);
+```
 
-// 使用完毕后撤销
+```java
+grantIntent.setClipData(clip);
+grantIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
+        | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+```
+
+## Secure Pattern
+
+```java
+intent.setPackage("com.trusted.receiver");
 revokeUriPermission(contentUri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
 ```
 
+## Chaining Opportunities
 
-## 关联漏洞与组合利用
-
-| 组合 | 链条效果 | 参考文件 |
-|------|----------|----------|
-| + Provider 路径遍历 | URI 指向的 Provider 存在路径遍历，扩大文件访问范围 | → [[app-provider-path-traversal]] |
-| + Activity 重定向 | 重定向到内部 WebView Activity，通过 content:// 加载恶意页面 | → [[app-webview-js-bridge]] |
-| + setResult 泄露 | setResult 返回带 FLAG_GRANT 的 URI，调用方可读取私有数据 | → [[app-activity-setresult-leak]] |
-
+| Chain | Effect | Reference |
+|------|--------|-----------|
+| + provider traversal | granted URI exposes arbitrary files | [[app-provider-path-traversal]] |
+| + `setResult()` leak | caller receives a reusable private URI | [[app-activity-setresult-leak]] |
+| + FileProvider misconfig | delegated URI points into an over-broad file surface | [[app-provider-fileprovider-misconfig]] |
 
 ## Related
 
-- [[app-activity-path-traversal]]
-- [[app-intent-implicit-hijack]]
-- [[app-provider-fileprovider-misconfig]]
-- [[app-provider-sql-injection]]
-- [[app-webview-url-bypass]]
-
-- [[app-intent]]
-- [[app-provider]]
-- [[app-provider-path-traversal]]
-- [[app-activity-setresult-leak]]
+[[app-intent]]
+[[app-provider-path-traversal]]
+[[app-activity-setresult-leak]]
+[[app-provider-fileprovider-misconfig]]

@@ -1,187 +1,151 @@
-# 漏洞风险评级标准
+# Reference - Rating - Vulnerability Risk Rating
 
-Android 移动端安全漏洞的风险评级参考。
+Reference guidance for rating Android security findings.
 
----
+## 1. Mandatory Exploitability Gate
 
-## 一、可利用性三要素
+Report a finding only if all three conditions are satisfied:
 
-每个发现必须**同时满足**以下三个条件才予以报告：
+1. **Reachable**: the attacker can trigger the path
+2. **Controllable**: the attacker can influence the security-relevant input
+3. **Impactful**: the path causes a visible security consequence
 
-1. **可达（Reachable）**：攻击者能触发该代码路径
-   - 组件是否导出（`exported=true` / 含 `intent-filter`）
-   - 是否需要特定权限（攻击者是否具备，`signature`/`privileged` 权限排除）
-   - 是否需要用户交互（交互次数直接影响评级）
+If any condition is missing, do not report it.
 
-2. **可控（Controllable）**：攻击者能影响关键数据
-   - Intent extras / URI / 路径参数是否可由攻击者控制
-   - AIDL / Messenger / ContentProvider 是否接受任意输入
-   - Bundle / Parcelable 数据是否可被恶意构造
+### Reachable
 
-3. **有影响（Impact）**：造成实际安全后果
-   - 敏感数据泄露（密码、Token、个人信息、照片、通讯录等）
-   - 权限提升（普通应用获得 system / root 权限）
-   - 任意代码执行（RCE / ACE）
-   - 持久性拒绝服务（需刷机/双清恢复，应用层临时崩溃不报告）
+- Is the component exported or otherwise externally invocable?
+- Is a permission required, and can the attacker actually satisfy it?
+- Does the chain require user interaction?
 
-任一条件不满足 → **不报告**。
+### Controllable
 
-**遇到未知/未列举的漏洞类型时**，仍按三要素逐项评估：
-- 可达性：从攻击者视角验证是否存在可触发的入口（导出组件、Deep Link、IPC 接口等）
-- 可控性：确认攻击者能否构造输入影响执行流或数据流
-- 影响面：根据实际后果（数据泄露范围、权限变化、持久性）对照第二节等级定义归级
-- 若三要素均满足但无法精确匹配已有等级条目，取**最接近的已知场景类比定级**，并在报告中标注推理依据
+- Can the attacker control the Intent extras, URI, path, Binder payload, or message body?
+- Can the attacker influence a nested Intent, `ClipData`, `PendingIntent`, scan result, or activity result?
+- Can the attacker shape the exact fields used by the sink?
 
----
+### Impactful
 
-## 二、评级等级
+Only count impacts that are visible and meaningful:
 
-### 总览
+- sensitive data disclosure
+- credential theft
+- unauthorized actions
+- privilege escalation
+- code execution
+- persistent denial of service
 
-| 等级 | 核心标准 |
-|------|----------|
-| **CRITICAL** | 远程利用 + 无/弱交互 + 系统级或持久性影响 |
-| **HIGH** | 远程弱交互或本地获取敏感信息/权限提升 |
-| **MEDIUM** | 本地利用 + 有限影响，或需特定前提条件 |
-| **LOW** | 利用条件苛刻或影响有限 |
-| **IGNORED** | 无实际安全影响或无法利用 |
+Do not report:
 
-### CRITICAL — 详细判定
+- crash-only malformed input issues
+- theoretical issues with no visible impact
+- permission declarations that cannot be abused in practice
 
-漏洞满足以下任一条件：
+## 2. Rating Levels
 
-| # | 条件 |
-|---|------|
-| 1 | 远程在特权进程中执行任意代码 |
-| 2 | 获取 ROOT 权限（包括解除 SELinux、namespace 限制等） |
-| 3 | 在 TEE 中执行任意代码 |
-| 4 | 未经授权访问 TEE 保护的认证数据（指纹、闪付卡、人脸等可造成财产损失的数据） |
-| 5 | 绕过 Secure Boot 远程发起永久性 DoS（需刷机/双清恢复） |
-| 6 | 远程静默安装任意应用（无/弱交互） |
-| 7 | 远程控制设备（结合利用门槛和实际危害综合评估） |
-| 8 | 远程永久篡改设备标识（如 IMEI） |
-| 9 | 未经授权解锁 fastboot 并刷机成功 |
-| 10 | 系统级锁屏密码/指纹绕过（通用可复现） |
-| 11 | 升级非官方签名的系统镜像 |
+| Rating | Core meaning |
+|--------|--------------|
+| `CRITICAL` | remote or low-friction exploitation with system-level, root-level, or persistent device impact |
+| `HIGH` | high-value local or remote compromise, including app-sandbox disclosure, strong credential theft, or privilege misuse |
+| `MEDIUM` | real but bounded impact, often requiring local installation, additional conditions, or stronger interaction |
+| `LOW` | limited impact, fragile conditions, or primarily social-engineering/UI abuse |
+| `IGNORED` | not security-relevant or not exploitable |
 
-### HIGH — 详细判定
+## 3. Detailed Rating Guidance
 
-| # | 条件 |
-|---|------|
-| 1 | 远程获取用户敏感信息（照片、通讯录、音频、录音等） |
-| 2 | 远程在普通应用进程中执行任意代码 |
-| 3 | 远程读取 APP 沙箱任意数据 |
-| 4 | 本地在特权进程（system_app / TCB / ICE）中执行任意代码 |
-| 5 | 获取 system 权限 |
-| 6 | 本地持久性 DoS（需刷机/双清恢复） |
-| 7 | 无需用户交互即可远程获取应用身份凭证 |
-| 8 | 远程弱交互获取大量用户敏感信息或身份凭证 |
-| 9 | 本地绕过开发者/安全相关的用户交互 |
-| 10 | 本地实现任意应用静默安装 |
-| 11 | 本地权限提升可执行危险操作（启动任意受保护组件、静默拨号/发短信等） |
-| 12 | 系统安全策略绕过（如绕过系统锁屏密码校验，非通用场景） |
+### CRITICAL
 
-### MEDIUM — 详细判定
+Use `CRITICAL` when the finding enables any of the following:
 
-| # | 条件 |
-|---|------|
-| 1 | 远程暂时性 DoS（设备重启或系统挂起） |
-| 2 | 接口逻辑漏洞可造成用户欺骗/钓鱼 |
-| 3 | 本地读取 APP 沙箱任意数据 |
-| 4 | APP 级别锁屏绕过 |
-| 5 | 本地绕过安全设置的交互要求 |
-| 6 | 本地无权限获取用户敏感信息（身份证、手机号等） |
-| 7 | 本地普通应用执行任意代码 |
-| 8 | 本地打开/关闭通常需要用户启动或用户许可的功能 |
-| 9 | 未实施有效证书校验，泄露用户身份凭证 |
-| 10 | 远程强交互或本地获取应用程序用户身份凭证 |
-| 11 | 本地访问受保护的敏感数据（需请求权限才能访问的数据） |
-| 12 | 中间人攻击实现代码执行或静默安装（需有效 PoC） |
-| 13 | IMEI、IMSI、手机号等普通用户信息泄露 |
-| 14 | 远程 DoS（应用级） |
-| 15 | 应用安全策略绕过（如绕过应用密码校验） |
+- code execution in a privileged process
+- root acquisition
+- code execution in TEE or equivalent trusted domains
+- unauthorized access to highly protected authentication material that can directly cause financial or identity harm
+- persistent device-level DoS requiring factory reset, reflashing, or equivalent recovery
+- remote silent app installation
+- remote device takeover
+- persistent tampering with device identity or secure boot state
 
-### LOW — 详细判定
+### HIGH
 
-| # | 条件 |
-|---|------|
-| 1 | 需用户多次交互（>2次）才能触发 |
-| 2 | APP 升级劫持类漏洞 |
-| 3 | 需物理接触、特定场景、用户配合才能触发 |
-| 4 | 获取非用户相关的敏感信息 |
-| 5 | 浏览器地址栏欺骗 |
-| 6 | 远程暂时性 DoS（应用崩溃重启） |
-| 7 | 在受限进程中执行任意代码 |
-| 8 | 轻微安全设计/逻辑缺陷 |
-| 9 | 本地 DoS 导致设备重启 |
-| 10 | 轻微信息泄露（日志打印等） |
-| 11 | 中间人攻击窃取敏感信息（需有效 PoC） |
-| 12 | 可造成实际危害的 UI 欺骗漏洞 |
+Use `HIGH` when the finding enables any of the following:
 
-### IGNORED — 不报告
+- remote disclosure of high-sensitivity user data such as photos, contacts, recordings, or equivalent
+- code execution in a normal app process
+- arbitrary read of app-sandbox data
+- local code execution in a privileged process
+- acquisition of `system`-level capabilities
+- local persistent DoS
+- no-interaction theft of app credentials or tokens
+- low-friction disclosure of sensitive user data or credentials
+- local bypass of meaningful security-related user interaction
+- local unauthorized dangerous actions such as launching protected components, silent dialing, or privileged broadcasts
 
-| 类别 | 详细场景 |
-|------|----------|
-| **代码/数据保护** | 缺少证书绑定；TLS 保护下的 URL/request body 敏感数据传输；用户数据未加密存储于外部存储（带敏感信息的日志除外）；缺少代码混淆；APK 可被重打包；硬编码密钥在私有目录保护下；`allowBackup=true`；缺乏二进制保护 |
-| **低影响 DoS** | 向导出组件发送畸形 Intent 导致崩溃；本地应用 DoS |
-| **无法利用** | 必要组件导出非安全策略绕过；无法复现/纯猜测；扫描器无意义报告（如自动反编译分析报告）；无 PoC 的中间人攻击 |
-| **功能性问题** | 产品功能缺陷、页面乱码、兼容性问题 |
-| **权限但不可利用** | 必要的危险权限已声明但不可被滥用利用 |
+### MEDIUM
 
----
+Use `MEDIUM` when the finding enables any of the following:
 
-## 三、名词定义
+- app-level remote DoS
+- local arbitrary read of a bounded but real data set
+- local disclosure of user-sensitive but non-system data
+- app-level lock or policy bypass
+- local execution in an ordinary app process
+- local access to protected data that normally requires user-granted permission
+- credential theft that still requires stronger interaction or additional conditions
+- logic flaws that enable real user deception or phishing
 
-### 攻击方式
+### LOW
 
-| 术语 | 定义 |
-|------|------|
-| **远程（Remote）** | 不安装应用、不接触设备（距离 >10m）的情况下利用漏洞。包括：网页浏览、短信/彩信、邮件、文件下载、无线网络通信（不含 <10cm 短距通信）。 |
-| **本地（Local）** | 需要在受害设备安装应用，或需要物理接触设备，或通过 <10cm 短距通信（NFC）、ADB、蓝牙等方式。 |
+Use `LOW` when the finding has real but limited security value, for example:
 
-### 用户交互等级
+- requires multiple user interactions
+- depends on highly specific physical or environmental conditions
+- primarily causes UI deception
+- leaks low-value or non-user-sensitive information
+- only supports weak reconnaissance
+- temporary crash/restart behavior with no broader security effect
 
-| 等级 | 定义 | 对评级的影响 |
-|------|------|-------------|
-| **无交互** | 攻击者不接触或操作目标手机，被攻击者无任何感知 | 不降级 |
-| **弱交互** | 诱导用户单次操作（点击一次链接、访问一个页面） | 一般不降级或轻度降级 |
-| **强交互** | 需用户反复配合或主动提供信息（≥2 次点击确认、安装恶意软件、有危险警告提示） | 降低一级或按实际影响评估 |
+### IGNORED
 
-### 进程权限级别
+Do not report the following:
 
-| 术语 | 定义 |
-|------|------|
-| **受限进程** | 比普通应用受到更严格权限约束，或运行在高度受限的 SELinux 域中 |
-| **普通应用进程** | 运行在 SELinux 的 `untrusted_app` 或 `platform_app` 域（第三方应用或无 system 权限的内置应用） |
-| **特权进程** | 运行在 SELinux 的 `system_app` 域，或以 system / root 权限运行的进程 |
-| **TCB（可信计算基）** | 硬件、固件、软件的保护装置总体，包括部分内核及驱动程序、等同内核的用户服务（init、vold 等） |
-| **TEE（可信执行环境）** | 与 Android 系统并存的安全运行环境，提供可信计算、可信存储等安全服务 |
-| **ICE（独立计算环境）** | 功能聚焦、拥有独立计算单元和固件的组件（如基带 Modem） |
+- missing obfuscation
+- repackaging resistance issues
+- `allowBackup=true` by itself
+- hardcoded values that remain unreachable to attackers
+- TLS pinning absence without a validated exploit chain
+- malformed-input component crashes with no broader impact
+- purely functional or compatibility bugs
 
-### 敏感信息分类
+## 4. Adjustment Factors
 
-| 类型 | 内容 | 说明 |
-|------|------|------|
-| **用户敏感个人信息** | 生物特征、身份证件、金融财产、医疗健康、儿童信息、通讯录、位置、通话记录、短信 | 通常 ≥3 类字段组合构成重要敏感数据 |
-| **用户一般信息** | IMEI、IMSI、手机号、浏览历史 | 泄露影响相对有限 |
-| **应用凭证** | 登录 Token、Session ID、密码、AK/SK | 可直接用于身份冒充 |
+Raise the rating when:
 
----
+- the bug chains cleanly with another weakness
+- exploitation requires no malicious app installation
+- the effect persists after the initial trigger
+- the chain bypasses a modern Android mitigation
+- the vulnerable app or service is broadly deployed
 
-## 四、评级调整因素
+Lower the rating when:
 
-| 方向 | 因素 | 说明 |
-|:----:|------|------|
-| ↑ | 链式利用 | 多个漏洞组合提升等级（如 MEDIUM + MEDIUM → HIGH） |
-| ↑ | 无安装提示 | 通过 Deep Link 触发，无需安装恶意应用 |
-| ↑ | 持久化 | 漏洞效果持续存在而非一次性 |
-| ↑ | 绕过缓解措施 | 绕过 Android 新版本安全防护（如 `checkKeyIntent`、`PendingIntent` 可变性检查） |
-| ↑ | 影响范围广 | 预装 APP、框架级漏洞影响全量设备 |
-| ↑ | 0-day | 外界未曝光细节与 PoC 的未知漏洞 |
-| ↓ | 需物理接触 | 攻击者需要实际接触设备，降低一级 |
-| ↓ | 需特定系统版本 | 仅影响低版本或特定机型，标注范围 |
-| ↓ | 强交互 | 需用户 ≥2 次确认或安装恶意软件，降低一级 |
-| ↓ | 影响范围极小 | 仅特定机型/特定配置下复现 |
-| ↓ | 无法稳定复现 | 偶发且缺乏明确触发条件 |
-| ↓ | 边缘应用 | 非核心/预装应用 |
-| ✕ | 仅影响调试版本 | Release 版不受影响，不报告 |
+- physical access is required
+- the issue is version-specific or device-specific
+- multiple user confirmations are required
+- the impact scope is narrow
+- exploitation is highly unstable
+- the issue affects only debug builds
+
+## 5. Mandatory Rating Notes
+
+Every final finding must include:
+
+- `Visible Impact`: what the attacker actually gains or changes
+- `Rating Rationale`: one sentence mapping the finding to the categories above
+- `Bypass Conditions / Uncertainties`: only when protection cannot be confirmed statically
+
+Examples:
+
+- "HIGH because the exported provider allows arbitrary reads of app-sandbox account data"
+- "MEDIUM because exploitation requires a malicious local app and yields only a bounded settings change"
+- "Candidate only: the custom permission is defined outside the APK, so bypassability depends on whether the defining app is attacker-controlled or the permission is non-signature"

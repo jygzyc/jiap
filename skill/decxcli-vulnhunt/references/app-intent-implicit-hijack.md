@@ -1,77 +1,65 @@
-# 隐式 Intent 劫持
+# Intent - Routing - Implicit Hijack
 
-应用发送隐式 Intent（未指定目标组件），被恶意应用截获，获取其中的敏感数据或劫持操作。
+An app sends an implicit Intent without binding it to a trusted receiver. Another app can claim the action and intercept the payload or workflow.
 
 **Risk: MEDIUM**
 
+## Exploit Prerequisites
 
-## 利用前提
+The app sends an implicit activity, service, or broadcast Intent that carries sensitive data or triggers a sensitive action, and the attacker can register a matching exported handler.
 
-独立可利用。目标应用发送隐式广播/启动隐式 Activity 时，恶意应用注册了高优先级的同名接收器/Activity。攻击者截获 Intent 获取其中的数据。如果使用 `setPackage()` / `setComponent()` 或 `LocalBroadcastManager` 则不可利用。
+**Android Version Scope:** Historically strongest on Android 10 to 13 routing behavior, but still relevant whenever sensitive data is sent implicitly.
 
-**Android 版本范围：Android 10 ~ 13 可利用** — Android 14 (API 34) 限制：隐式 intent 只能传送到导出的组件，不能传送到未导出的组件。应用必须使用显式 intent 访问未导出组件。这有效防止了通过隐式 intent 劫持非导出组件。
+## Bypass Conditions / Uncertainties
 
+- If the Intent is made explicit with `setPackage()` or `setComponent()`, reject the finding
+- If the Intent carries no sensitive data and does not trigger a meaningful action, reject the finding
+- If Android-version routing rules prevent the intended hijack path, downgrade or reject accordingly
 
-## 攻击流程
+## Visible Impact
 
+Visible impact must be concrete, such as:
+
+- leaking tokens or passwords
+- capturing an internal command or workflow step
+- receiving a URI grant or sensitive app state meant for another component
+
+## Attack Flow
+
+```text
+1. Trace startActivity, startService, bindService, and sendBroadcast calls
+2. Identify Intents with no explicit package or component
+3. Inspect payload fields and flags
+4. Confirm a malicious matching component could intercept the flow
 ```
-1. decx ard exported-components → 定位组件和源码
-2. decx code xref-method "android.content.Context.startActivity(...)" → 交叉引用追踪 Intent 发送
-3. decx code xref-method "android.content.Context.sendBroadcast(...)" → 追踪 sendBroadcast 调用
-4. decx code xref-method "android.content.Context.startService(...)" → 追踪 startService 调用
-5. decx code xref-method "android.content.Context.bindService(...)" → 追踪 bindService 调用
-6. decx code class-source <Class> → 定位 sendBroadcast/startActivity/startService 调用
-7. 确认 Intent 是否为隐式（未指定 Component/Package）
-8. 确认 Intent 中是否携带敏感数据（Token、密码、用户信息）
-9. 恶意应用注册同名 action 的接收器/Activity
-10. 截获 Intent 获取敏感数据
-```
 
-
-## 关键特征与代码
-
-- 创建 Intent 时未调用 `setClassName()` / `setComponent()` / `setPackage()` 指定目标，发送包含敏感数据的隐式广播或启动隐式 Activity/Service
+## Key Code Patterns
 
 ```java
-// 漏洞：隐式 Intent 携带敏感数据
 Intent intent = new Intent("com.app.ACTION_LOGIN");
 intent.putExtra("password", userPassword);
-sendBroadcast(intent); // 任何注册了该 action 的应用都能接收
+sendBroadcast(intent);
 ```
 
-
-## 经典案例
-
-| 案例 | 攻击场景 |
-|------|----------|
-| **CVE-2018-9489** | Android 系统通过隐式广播发送 WiFi 状态信息（SSID、BSSID、IP），任意应用可截获 |
-| **CVE-2020-0108** | Android 系统组件通过隐式 Intent 启动 Service，恶意应用可劫持 |
-| **Plaid CTF 2019** | 银行应用通过隐式广播发送交易确认信息，恶意应用截获交易详情 |
-
-
-## 安全写法
+## Secure Pattern
 
 ```java
-// 使用显式 Intent 指定目标组件
 Intent intent = new Intent(this, TargetActivity.class);
 intent.putExtra("password", userPassword);
 startActivity(intent);
 ```
 
+## Chaining Opportunities
 
-## 关联漏洞与组合利用
-
-| 组合 | 链条效果 | 参考文件 |
-|------|----------|----------|
-| + Broadcast 泄露 | 劫持隐式广播，获取本应只在应用内传播的凭证 | → [[app-broadcast-local-leak]] |
-| + PendingIntent 窃取 | 隐式 Intent 携带 PendingIntent，劫持后可篡改执行 | → [[app-intent-pendingintent-escalation]] |
-| + Service 命令注入 | 劫持隐式 Intent 发送的 Service 启动请求，恶意应用伪装为目标 Service | → [[app-service-intent-inject]] |
-| + URI 权限授予 | 隐式 Intent 携带 FLAG_GRANT + content:// URI，截获后获得文件访问权 | → [[app-intent-uri-permission]] |
-
+| Chain | Effect | Reference |
+|------|--------|-----------|
+| + broadcast data leak | hijacked broadcast reveals internal data | [[app-broadcast-local-leak]] |
+| + mutable `PendingIntent` | hijacked routing yields victim-identity handles | [[app-intent-pendingintent-escalation]] |
+| + URI-grant abuse | intercepted Intent carries delegated file access | [[app-intent-uri-permission]] |
 
 ## Related
 
-- [[framework-service-data-leak]]
-
-- [[app-broadcast]]
-- [[app-intent]]
+[[app-intent]]
+[[app-broadcast-local-leak]]
+[[app-intent-pendingintent-escalation]]
+[[app-intent-uri-permission]]
