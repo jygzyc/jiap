@@ -1,0 +1,16 @@
+{
+  "target": "",
+  "artifactPath": "",
+  "sessionName": "",
+  "port": 0,
+  "serial": "",
+  "phase": "recon",
+  "frameworkArtifact": "",
+  "serviceFamilies": [],
+  "binderServices": [],
+  "aidlInterfaces": [],
+  "managerFacades": [],
+  "permissionObjects": [],
+  "summary": "",
+  "notes": []
+}

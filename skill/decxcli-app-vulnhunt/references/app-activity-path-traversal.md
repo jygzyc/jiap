@@ -8,7 +8,7 @@ An exported activity accepts an untrusted path or URI and uses it in file operat
 
 The activity is externally reachable and attacker-controlled path data reaches file open, read, write, rename, delete, or share logic.
 
-**Android Version Scope:** Relevant across Android versions. This is an app-layer path-validation failure.
+**Android Version Scope:** Relevant across Android versions. This is a path-validation failure in activity-side file handling.
 
 ## Bypass Conditions / Uncertainties
 

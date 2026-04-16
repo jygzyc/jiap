@@ -39,5 +39,4 @@ Framework services run in `system_server` or other privileged processes. The sam
 
 ## Related
 
-[[app-intent]]
 [[risk-rating]]

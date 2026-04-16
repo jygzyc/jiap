@@ -1,6 +1,6 @@
 # Intent - Overview - Security Review
 
-Intents are the transport layer of Android trust boundaries. They carry data across activities, services, receivers, providers, and framework components, so Intent review is usually chain review.
+Intents are the transport layer of Android trust boundaries. They carry data across activities, services, receivers, providers, and internal app handoff paths, so Intent review is usually chain review.
 
 ## Risk Catalog
 

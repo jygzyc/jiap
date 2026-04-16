@@ -10,13 +10,13 @@ metadata:
 
 ## Overview
 
-Use this skill to turn a `decxcli-vulnhunt` finding into a buildable Android PoC project.
+Use this skill to turn a `decxcli-app-vulnhunt` or `decxcli-framework-vulnhunt` finding into a buildable Android PoC project.
 
 Scope:
 
 - In scope: finding normalization, static re-verification, exploit-mode selection, PoC project setup, exploit-class implementation, Manifest updates, optional compile/deploy
 - Out of scope: vulnerability discovery, final risk rating, and unsupported exploit claims
-- Vulnerability hunting belongs to `decxcli-vulnhunt`
+- Vulnerability hunting belongs to `decxcli-app-vulnhunt` and `decxcli-framework-vulnhunt`
 
 Command reference lives in `decxcli`.
 
@@ -108,7 +108,7 @@ If one of these fields is missing, fill it first from the report or from DECX.
 
 PoC input gate:
 
-- Preferred source: `statically-supported` findings from `decxcli-vulnhunt`
+- Preferred source: `statically-supported` findings from `decxcli-app-vulnhunt` or `decxcli-framework-vulnhunt`
 - `candidate` findings should not become full PoCs unless the user explicitly asks for exploratory probing
 - `rejected` findings should not be implemented
 

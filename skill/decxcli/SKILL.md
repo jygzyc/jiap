@@ -16,7 +16,8 @@ Scope:
 
 - In scope: open APK/DEX/JAR files, inspect manifest and resources, navigate source, inspect xrefs, trace inheritance and interfaces, manage DECX sessions
 - Out of scope: exploitability rating, final vulnerability triage, and PoC construction
-- Vulnerability hunting belongs to `decxcli-vulnhunt`
+- App vulnerability hunting belongs to `decxcli-app-vulnhunt`
+- Framework vulnerability hunting belongs to `decxcli-framework-vulnhunt`
 - PoC construction belongs to `decxcli-poc`
 
 ## Non-Negotiable Rules
@@ -34,7 +35,7 @@ Scope:
 
 - Open a session before analysis
 - Reuse the same session for related work instead of reopening the same target repeatedly
-- Do not close the session automatically if downstream work is likely to continue in `decxcli-vulnhunt` or `decxcli-poc`
+- Do not close the session automatically if downstream work is likely to continue in `decxcli-app-vulnhunt`, `decxcli-framework-vulnhunt`, or `decxcli-poc`
 - If you opened a session only for a one-off lookup and no follow-up work is needed, close it before finishing
 - `process close` and `process list` do not take `-P <port>` in the current CLI surface; do not invent unsupported flags
 

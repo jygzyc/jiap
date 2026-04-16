@@ -1,0 +1,12 @@
+{
+  "target": "",
+  "artifactPath": "",
+  "sessionName": "",
+  "port": 0,
+  "phase": "findings",
+  "findings": [],
+  "rejectedFindings": [],
+  "pendingFindings": [],
+  "summary": "",
+  "notes": []
+}

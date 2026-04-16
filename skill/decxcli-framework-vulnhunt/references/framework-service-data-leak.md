@@ -55,13 +55,12 @@ getContext().enforceCallingPermission(
 
 | Chain | Effect | Reference |
 |------|--------|-----------|
-| + implicit Intent hijack | leaked package/component info improves targeting | [[app-intent-implicit-hijack]] |
+| + framework redirect | leaked package or target metadata improves privileged launch targeting | [[framework-service-intent-redirect]] |
 | + framework redirect | leaked privileged targets enable redirect chains | [[framework-service-intent-redirect]] |
 | + identity confusion | fake identity returns another user's data | [[framework-service-identity-confusion]] |
 
 ## Related
 
 [[framework-service]]
-[[app-intent-implicit-hijack]]
 [[framework-service-intent-redirect]]
 [[framework-service-identity-confusion]]

@@ -8,7 +8,7 @@
 
 This usually requires an exported provider or another reachable grant chain. The provider exposes `applyBatch()` or `bulkInsert()` and fails to enforce caller authorization, target-URI validation, or per-row validation for each operation.
 
-**Android Version Scope:** Affects all Android versions. This is an app-layer authorization design flaw.
+**Android Version Scope:** Affects all Android versions. This is an authorization design flaw in provider-side logic.
 
 ## Bypass Conditions / Uncertainties
 
