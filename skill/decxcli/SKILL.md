@@ -1,166 +1,295 @@
 ---
 name: decxcli
-description: Android APK/DEX/JAR 通用分析 CLI。基于 JADX 反编译器，支持代码检索、交叉引用、组件分析。当用户提到 decx、jadx、android analysis、APK 分析、反编译、decompile、代码审查、code review 时使用。
+description: General Android analysis skill for DECX CLI. Use for APK/DEX/JAR opening, source lookup, cross-reference tracing, manifest inspection, resource inspection, and session management.
 metadata:
   requires:
     bins: ["decx"]
 ---
 
-# DECX CLI — 通用分析
+# DECX CLI - General Analysis
 
-基于 JADX 的 Android 通用分析工具。用于 APK/DEX/JAR 的反编译、代码检索、交叉引用和组件分析。
+## Overview
 
-## 使用原则
+Use this skill for general Android reverse-engineering and code navigation with DECX.
 
-不确定命令或选项时，优先通过 `--help` 确认，不要猜测。例如 `decx process open --help`、`decx code --help`。
+Scope:
 
-**每个 `open` 任务结束后必须调用 `close` 释放资源。** 使用 `decx process close "name"` 关闭指定 session，或 `decx process close -a` 关闭全部。
+- In scope: open APK/DEX/JAR files, inspect manifest and resources, navigate source, inspect xrefs, trace inheritance and interfaces, manage DECX sessions
+- Out of scope: exploitability rating, final vulnerability triage, and PoC construction
+- Vulnerability hunting belongs to `decxcli-vulnhunt`
+- PoC construction belongs to `decxcli-poc`
 
-**必须通过 `-P <port>` 指定端口。** 端口可随机选取，建议在 25000–65535 之间以避免与常见服务冲突。
+## Non-Negotiable Rules
 
-**参数必须用引号包裹。** 含包名、类名、方法签名、文件路径的参数值必须用双引号包裹，防止括号、冒号、空格等字符被 shell 错误解析。
+### Command Rules
 
-## 命令参考
+- Every `decx code` and `decx ard` command must include `-P <port>`
+- Quote package names, class names, method signatures, file paths, and resource paths
+- Method signatures must use the full format: `"package.Class.method(paramType1,paramType2):returnType"`
+- Never use `...` in signatures
+- If a command is uncertain, check `--help` instead of guessing
 
-### process - 进程管理
+### Session Rules
 
-| 命令 | 说明 |
-|------|------|
-| `decx process check [-P <port>]` | 检查环境状态（server JAR、运行状态、端口） |
-| `decx process open "<file>" [options]` | 打开文件分析（支持本地路径和 HTTP URL） |
-| `decx process close "[name]" [-a]` | 关闭指定 session 或全部 |
-| `decx process list` | 列出运行 session（NAME/PORT/PID/PATH） |
-| `decx process status "[name]" [-P <port>]` | 检查服务器状态 |
+- Open a session before analysis
+- Reuse the same session for related work instead of reopening the same target repeatedly
+- Do not close the session automatically if downstream work is likely to continue in `decxcli-vulnhunt` or `decxcli-poc`
+- If you opened a session only for a one-off lookup and no follow-up work is needed, close it before finishing
+- `process close` and `process list` do not take `-P <port>` in the current CLI surface; do not invent unsupported flags
 
-### self - 自管理
+### Output Rules
 
-| 命令 | 说明 |
-|------|------|
-| `decx self install [-p]` | 安装 decx-server.jar（`-p` 安装 prerelease） |
-| `decx self update [-p]` | 更新 decx-server 和 decx-cli（`-p` 使用 prerelease） |
+- Prefer targeted commands over broad search
+- Keep only the code and metadata needed for the active question
+- Do not paste long raw source dumps unless the user explicitly asks for them
+- Treat `search-class` and `search-method` as expensive discovery tools, not default navigation tools
 
-**open 选项：**
+## Core Workflow
 
-| 选项 | 说明 |
-|------|------|
-| `-P, --port <port>` | 服务器端口 |
-| `--force` | 强制启动（忽略已有 session） |
-| `-n, --name "<name>"` | 自定义 session 名（默认：APK 文件名去扩展名） |
+Track progress with:
 
-`open` 的 `<file>` 参数支持本地文件路径和 HTTP/HTTPS URL。URL 会自动下载到 `~/.decx/tmp/` 并缓存。
-
-**open 的 session 管理行为：**
-- 同名 + 同 hash + 存活 → 自动复用已有 session
-- 同名 + 不同 hash → 报错，提示使用 `--force` 或 `--name`
-- 不同名 + 同 hash → 报错，提示使用 `--force`
-- 端口被占用 → 报错，提示使用 `--port` 指定其他端口或关闭占用 session
-
-**jadx-cli 选项透传：**
-
-所有标准 jadx-cli 选项直接透传，常用：`--deobf`、`--no-res`、`--show-bad-code`、`-j`/`--threads-count`、`--no-imports`、`--no-debug-info`、`--escape-unicode`、`--log-level` 等，推荐`--show-bad-code`和`--no-imports`用于完整分析。
-
-### code - 代码分析
-
-| 命令 | 说明 |
-|------|------|
-| `decx code all-classes [--page <n>]` | 列出所有类 |
-| `decx code class-info "<class>" [--page <n>]` | 获取类信息 |
-| `decx code class-source "<class>" [--smali] [--page <n>]` | 获取类源码 |
-| `decx code method-source "<sig>" [--smali] [--page <n>]` | 获取方法源码 |
-| `decx code xref-method "<sig>" [--page <n>]` | 方法交叉引用（谁调用了它） |
-| `decx code xref-class "<class>" [--page <n>]` | 类交叉引用 |
-| `decx code xref-field "<field>" [--page <n>]` | 字段交叉引用 |
-| `decx code implement "<interface>" [--page <n>]` | 查找接口实现 |
-| `decx code subclass "<class>" [--page <n>]` | 查找子类 |
-| `decx code search-class "<keyword>" [--page <n>]` | 搜索类内容（占资源，必要场景使用，禁止批量调用） |
-| `decx code search-method "<name>" [--page <n>]` | 搜索方法名（占资源，必要场景使用，禁止批量调用） |
-
-### ard - Android 分析
-
-| 命令 | 说明 |
-|------|------|
-| `decx ard app-manifest [--page <n>]` | AndroidManifest.xml |
-| `decx ard main-activity [--page <n>]` | 主 Activity |
-| `decx ard app-application [--page <n>]` | Application 类 |
-| `decx ard exported-components [--page <n>]` | 导出组件列表 |
-| `decx ard app-deeplinks [--page <n>]` | Deep Link 列表 |
-| `decx ard all-resources [--page <n>]` | 所有资源文件名 |
-| `decx ard resource-file "<res>" [--page <n>]` | 获取资源文件内容 |
-| `decx ard strings [--page <n>]` | 获取 strings.xml 内容 |
-| `decx ard app-receivers [--page <n>]` | 动态广播接收器 |
-| `decx ard get-aidl [--page <n>]` | 获取所有 AIDL 接口 |
-| `decx ard system-service-impl "<interface>" [--page <n>]` | 系统服务实现类 |
-
-### 全局选项
-
-适用于 `code`/`ard`：
-
-| 选项 | 说明 |
-|------|------|
-| `-s, --session "<name>"` | 指定目标 session 名称（APK 文件名） |
-| `-P, --port <port>` | 指定服务器端口（默认 25419） |
-`--page <n>` 是各子命令的独立选项（默认 1），用于分页，不属于全局选项。
-
-## 环境变量
-
-| 变量 | 说明 |
-|------|------|
-| `DECX_SERVER_HOME` | 自定义 decx-server.jar 路径。可指向 jar 文件本身或包含 jar 的目录。默认 `~/.decx/bin/decx-server.jar` |
-
-## 方法签名格式
-
-用于 `code method-source` 和 `code xref-method`：
-
+```text
+DECX Progress
+- [ ] Phase 1: Confirm environment or active session
+- [ ] Phase 2: Open or reuse target session
+- [ ] Phase 3: Identify target class, method, component, or resource
+- [ ] Phase 4: Read only the minimal source or metadata needed
+- [ ] Phase 5: Follow xrefs or inheritance if needed
+- [ ] Phase 6: Close session if no downstream work remains
 ```
+
+### Phase 1 - Confirm Environment
+
+Use these commands when you need to confirm DECX health:
+
+```bash
+decx process check -P <port>
+decx process status -P <port>
+decx process list
+```
+
+Use `process check` when you are unsure whether the local DECX runtime is ready.
+
+### Phase 2 - Open or Reuse a Session
+
+Open a file:
+
+```bash
+decx process open "<file-or-url>" -P <port>
+```
+
+Useful options:
+
+```text
+-P, --port <port>     server port
+-n, --name <name>     explicit session name
+--force               reopen even if DECX detects an existing conflicting session
+```
+
+Notes:
+
+- `<file-or-url>` can be a local path or an HTTP/HTTPS URL
+- URL targets are downloaded into DECX temporary storage and cached
+- Use explicit `--name` when you want a stable session identifier across repeated analysis turns
+
+Session conflict behavior:
+
+- same name + same hash + alive process: DECX reuses the session
+- same name + different hash: DECX errors unless `--force` or a new `--name` is used
+- different name + same hash: DECX errors unless `--force` is used
+
+### Phase 3 - Pick the Right Surface
+
+Use `ard` first when the question is about Android structure:
+
+```bash
+decx ard app-manifest -P <port>
+decx ard exported-components -P <port>
+decx ard app-deeplinks -P <port>
+decx ard app-receivers -P <port>
+decx ard get-aidl -P <port>
+decx ard strings -P <port>
+```
+
+Use `code` first when the question is about implementation details:
+
+```bash
+decx code class-info "<class>" -P <port>
+decx code class-source "<class>" -P <port>
+decx code method-source "<signature>" -P <port>
+decx code xref-method "<signature>" -P <port>
+decx code xref-class "<class>" -P <port>
+decx code xref-field "<field>" -P <port>
+decx code implement "<interface>" -P <port>
+decx code subclass "<class>" -P <port>
+```
+
+### Phase 4 - Read Minimal Source
+
+Default navigation order:
+
+1. `class-info`
+2. `class-source` or `method-source`
+3. `xref-*`
+4. `implement` or `subclass`
+5. `search-*` only if the target entry is still unknown
+
+Prefer:
+
+- `method-source` when you already know the exact entrypoint
+- `class-source` when you need surrounding context
+- `xref-method` when you want callers
+- `xref-field` when you want reads and writes
+- `implement` for interfaces
+- `subclass` for base classes or framework callbacks
+
+### Phase 5 - Use Search Sparingly
+
+Search commands:
+
+```bash
+decx code search-class "<keyword>" -P <port>
+decx code search-method "<name>" -P <port>
+```
+
+Use them only when:
+
+- the real target class is unknown
+- the real method name is uncertain
+- a keyword is the only stable starting point
+
+Do not fan out into bulk repeated searches if `class-source` + `xref-*` can answer the question.
+
+## Command Surface
+
+### `process`
+
+| Command | Purpose |
+|--------|---------|
+| `decx process check -P <port>` | Check DECX environment and local runtime readiness |
+| `decx process open "<file>" -P <port>` | Open a target for analysis |
+| `decx process close "[name]"` | Close one session |
+| `decx process close -a` | Close all sessions |
+| `decx process list` | List active sessions |
+| `decx process status "[name]" -P <port>` | Check active server or session status |
+
+### `code`
+
+| Command | Purpose |
+|--------|---------|
+| `decx code all-classes -P <port>` | List classes |
+| `decx code class-info "<class>" -P <port>` | Show class metadata |
+| `decx code class-source "<class>" -P <port>` | Show class source |
+| `decx code class-source "<class>" --smali -P <port>` | Show class smali |
+| `decx code method-source "<signature>" -P <port>` | Show method source |
+| `decx code method-source "<signature>" --smali -P <port>` | Show method smali |
+| `decx code xref-method "<signature>" -P <port>` | Show method callers |
+| `decx code xref-class "<class>" -P <port>` | Show class references |
+| `decx code xref-field "<field>" -P <port>` | Show field reads and writes |
+| `decx code implement "<interface>" -P <port>` | List interface implementations |
+| `decx code subclass "<class>" -P <port>` | List subclasses |
+| `decx code search-class "<keyword>" -P <port>` | Search class content |
+| `decx code search-method "<name>" -P <port>` | Search method names |
+
+### `ard`
+
+| Command | Purpose |
+|--------|---------|
+| `decx ard app-manifest -P <port>` | Read `AndroidManifest.xml` |
+| `decx ard main-activity -P <port>` | Show main activity |
+| `decx ard app-application -P <port>` | Show application class |
+| `decx ard exported-components -P <port>` | List exported components |
+| `decx ard app-deeplinks -P <port>` | List deep links |
+| `decx ard app-receivers -P <port>` | List dynamic receivers |
+| `decx ard get-aidl -P <port>` | List AIDL interfaces |
+| `decx ard system-service-impl "<interface>" -P <port>` | Resolve framework service implementation |
+| `decx ard all-resources -P <port>` | List resource file names |
+| `decx ard resource-file "<res>" -P <port>` | Read one resource file |
+| `decx ard strings -P <port>` | Read `strings.xml` |
+
+### `self`
+
+| Command | Purpose |
+|--------|---------|
+| `decx self install` | Install `decx-server.jar` |
+| `decx self install -p` | Install prerelease server |
+| `decx self update` | Update CLI and server |
+| `decx self update -p` | Update with prerelease server |
+
+## Signature and Identifier Formats
+
+Method signature:
+
+```text
 package.Class.methodName(paramType1,paramType2):returnType
 ```
 
-示例：`"com.example.MainActivity.onCreate(android.os.Bundle):void"`（传给 CLI 时必须用引号包裹）
+Example:
 
-## 分析策略
-
-优先使用 `class-source` + `xref-*` + `implement` 定位代码。`search-*` 必要场景使用，禁止批量调用。
-
-```
-典型流程：
-1. decx ard exported-components                   → 定位目标组件
-2. decx code class-source "com.example.MyClass"  → 获取源码，找到关键方法
-3. decx code xref-method "com.example.MyClass.myMethod(java.lang.String):void"  → 追踪调用链
-4. decx code implement "com.example.MyInterface"  → 查找所有实现
-
-必要时可使用 `search-class` 搜索全局关键字，`search-method` 按名称搜索方法。
-找到具体实现后，再查找接口的所有实现类。
+```text
+"com.example.MainActivity.onCreate(android.os.Bundle):void"
 ```
 
-## 常见分析场景
+Field identifier:
 
-### 理解应用结构
-```
-decx ard app-manifest               → 了解组件注册和权限声明
-decx ard exported-components        → 查看对外暴露的组件
-decx ard app-deeplinks              → 查看 Deep Link 入口
-decx code all-classes               → 浏览包结构
+```text
+"package.Class.fieldName"
 ```
 
-### 追踪特定功能
-```
-decx code search-method "login"     → 定位登录相关方法
-decx code class-source "com.example.MyClass"  → 阅读实现
-decx code xref-method "com.example.MyClass.login(java.lang.String):void"  → 追踪谁调用了它
-decx code xref-field "com.example.MyClass.mToken"  → 追踪字段读写
+Resource path:
+
+```text
+"res/xml/file_paths.xml"
 ```
 
-### 分析继承和实现
-```
-decx code subclass "com.example.BaseActivity"     → 查找所有子类
-decx code implement "com.example.MyInterface"     → 查找接口实现
-decx ard get-aidl                                 → 发现所有 AIDL 接口
-decx code class-info "com.example.MyClass"        → 查看类的方法和字段列表
+## Common Analysis Patterns
+
+### Understand App Structure
+
+```bash
+decx ard app-manifest -P <port>
+decx ard exported-components -P <port>
+decx ard app-deeplinks -P <port>
+decx code all-classes -P <port>
 ```
 
-### 检查资源和配置
+### Trace a Specific Feature
+
+```bash
+decx code search-method "login" -P <port>
+decx code class-source "com.example.AuthManager" -P <port>
+decx code xref-method "com.example.AuthManager.login(java.lang.String,java.lang.String):boolean" -P <port>
+decx code xref-field "com.example.AuthManager.mToken" -P <port>
 ```
-decx ard all-resources              → 浏览资源文件
-decx ard resource-file "res/xml/file_paths.xml"  → 查看具体资源内容
-decx ard strings                    → 查看字符串资源
+
+### Analyze Inheritance or Interfaces
+
+```bash
+decx code subclass "com.example.BaseActivity" -P <port>
+decx code implement "com.example.MyInterface" -P <port>
+decx ard get-aidl -P <port>
 ```
+
+### Inspect Resources
+
+```bash
+decx ard all-resources -P <port>
+decx ard resource-file "res/xml/file_paths.xml" -P <port>
+decx ard strings -P <port>
+```
+
+## Session Closure
+
+Close one session:
+
+```bash
+decx process close "<name>"
+```
+
+Close all sessions:
+
+```bash
+decx process close -a
+```
+
+If the user is likely to continue into vulnerability hunting or PoC work, keep the session alive and state which session name and port should be reused.
