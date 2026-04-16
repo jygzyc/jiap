@@ -179,23 +179,21 @@ npm install -g @jygzyc/decx-cli
 **Process Management:**
 - `decx process check` - Check DECX server status
 - `decx process open <file>` - Open and analyze a file (APK, DEX, JAR, etc.)
-- `decx process close [name]` - Stop Decx server by session name
+- `decx process close [name]` - Stop DECX server by session name
 - `decx process list` - List running processes
-- `decx process install` - Install or update decx-server.jar
 
 **Code Analysis:**
 - `decx code all-classes` - Get all classes
 - `decx code class-info <class>` - Get class information
-- `decx code class-source <class>` - Get class source code
+- `decx code class-source <class>` - Get class source code (`--smali` for Smali output)
 - `decx code search-class <keyword>` - Search in class content
 - `decx code search-method <name>` - Find methods by name
-- `decx code method-source <signature>` - Get method source
+- `decx code method-source <signature>` - Get method source (`--smali` for Smali output)
 - `decx code xref-method <signature>` - Find method callers
 - `decx code xref-class <class>` - Find class usages
 - `decx code xref-field <field>` - Find field usages
 - `decx code implement <interface>` - Find implementations
 - `decx code subclass <class>` - Find subclasses
-- `decx code get-aidl` - Get all AIDL interfaces
 
 **Android Analysis:**
 - `decx ard app-manifest` - Get AndroidManifest.xml
@@ -208,12 +206,31 @@ npm install -g @jygzyc/decx-cli
 - `decx ard all-resources` - List all resource file names
 - `decx ard resource-file <res>` - Get resource file content by name
 - `decx ard strings` - Get strings.xml content
+- `decx ard get-aidl` - Get all AIDL interfaces
+
+**Self Management:**
+- `decx self install` - Install or update decx-server.jar (`-p` for prerelease)
+- `decx self update` - Update decx-server.jar (`-p` for prerelease)
+
+All `code` and `ard` commands support `--page <n>` for pagination.
 
 ---
 
-## AI Agent Skill Installation
+## AI Agent Skills
 
-The `skill/` directory contains Decx's AI Agent skill definition files (SKILL.md), supporting the following AI assistants:
+The `skill/` directory contains AI Agent skill definitions (SKILL.md), enabling AI assistants to perform automated Android analysis.
+
+### Available Skills
+
+| Skill | Description | Dependencies |
+|-------|-------------|--------------|
+| **decxcli** | General analysis: code navigation, xrefs, manifest/resources inspection | `decx` |
+| **decxcli-vulnhunt** | Vulnerability hunting: attack-surface enumeration, static tracing, exploitability triage, bilingual report generation (zh/en) | `decx` |
+| **decxcli-poc** | PoC construction: finding normalization, exploit-class implementation, optional compile/deploy | `decx`, `node`, `unzip` |
+
+Skills are designed to work in sequence: `decxcli` (analysis) → `decxcli-vulnhunt` (vulnerability hunting) → `decxcli-poc` (PoC construction).
+
+### Installation
 
 **Claude Code**
 ```bash

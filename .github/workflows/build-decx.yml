@@ -12,9 +12,9 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-and-release:
+  release:
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: write
     steps:
@@ -44,10 +44,11 @@ jobs:
       env:
         DECX_VERSION: ${{ steps.version.outputs.version }}
 
-    - name: Prepare release files
+    - name: Verify release artifacts
       run: |
-        cp decx/build/dist/*.jar ./
-        ls -la *.jar
+        ls -la decx/build/dist/
+        test -f "decx/build/dist/jadx_decx_plugin-${{ steps.version.outputs.version }}.jar"
+        test -f "decx/build/dist/decx-server-${{ steps.version.outputs.version }}.jar"
 
     - name: Create Release
       uses: softprops/action-gh-release@v2
@@ -55,7 +56,7 @@ jobs:
         tag_name: ${{ github.ref_name }}
         name: ${{ github.ref_name }}
         files: |
-          *.jar
+          decx/build/dist/*.jar
         body_path: RELEASE.md
         draft: false
         prerelease: false
@@ -65,7 +66,7 @@ jobs:
 
   prerelease:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
     permissions:
       contents: write
     steps:
@@ -76,7 +77,21 @@ jobs:
     - name: Check for decx changes
       id: changes
       run: |
-        FILES=$(git diff --name-only HEAD~1 HEAD)
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          echo "has_changes=true" >> $GITHUB_OUTPUT
+          echo "Manual run requested from main; forcing prerelease build"
+          exit 0
+        fi
+
+        BASE_SHA="${{ github.event.before }}"
+        HEAD_SHA="${{ github.sha }}"
+
+        if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
+          FILES=$(git diff-tree --no-commit-id --name-only -r "$HEAD_SHA")
+        else
+          FILES=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
+        fi
+
         if echo "$FILES" | grep -q '^decx/'; then
           echo "has_changes=true" >> $GITHUB_OUTPUT
         else
@@ -111,7 +126,7 @@ jobs:
       env:
         DECX_VERSION: ${{ steps.version.outputs.version }}
 
-    - name: Prepare release files
+    - name: Prepare prerelease files
       if: steps.changes.outputs.has_changes == 'true'
       run: |
         cp decx/build/dist/*.jar ./

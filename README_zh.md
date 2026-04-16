@@ -181,21 +181,19 @@ npm install -g @jygzyc/decx-cli
 - `decx process open <file>` - 打开并分析文件（APK、DEX、JAR 等）
 - `decx process close [name]` - 按会话名停止 DECX 服务器
 - `decx process list` - 列出运行中的进程
-- `decx process install` - 安装或更新 decx-server.jar
 
 **代码分析：**
 - `decx code all-classes` - 获取所有类
 - `decx code class-info <class>` - 获取类信息
-- `decx code class-source <class>` - 获取类源代码
+- `decx code class-source <class>` - 获取类源代码（`--smali` 输出 Smali 格式）
 - `decx code search-class <keyword>` - 搜索类内容
 - `decx code search-method <name>` - 按名称搜索方法
-- `decx code method-source <signature>` - 获取方法源代码
+- `decx code method-source <signature>` - 获取方法源代码（`--smali` 输出 Smali 格式）
 - `decx code xref-method <signature>` - 查找方法调用者
 - `decx code xref-class <class>` - 查找类使用位置
 - `decx code xref-field <field>` - 查找字段使用位置
 - `decx code implement <interface>` - 查找接口实现
 - `decx code subclass <class>` - 查找子类
-- `decx code get-aidl` - 获取所有 AIDL 接口
 
 **Android 分析：**
 - `decx ard app-manifest` - 获取 AndroidManifest.xml
@@ -208,12 +206,31 @@ npm install -g @jygzyc/decx-cli
 - `decx ard all-resources` - 列出所有资源文件名
 - `decx ard resource-file <res>` - 按名称获取资源文件内容
 - `decx ard strings` - 获取 strings.xml 内容
+- `decx ard get-aidl` - 获取所有 AIDL 接口
+
+**自管理：**
+- `decx self install` - 安装或更新 decx-server.jar（`-p` 安装预发布版）
+- `decx self update` - 更新 decx-server.jar（`-p` 更新预发布版）
+
+所有 `code` 和 `ard` 命令支持 `--page <n>` 分页。
 
 ---
 
-## AI Agent 技能安装
+## AI Agent 技能
 
-`skill/` 目录下包含 Decx 的 AI Agent 技能定义文件（SKILL.md），支持以下 AI 编程助手：
+`skill/` 目录下包含 AI Agent 技能定义文件（SKILL.md），支持 AI 编程助手执行自动化 Android 分析。
+
+### 可用技能
+
+| 技能 | 说明 | 依赖 |
+|------|------|------|
+| **decxcli** | 通用分析：代码导航、交叉引用、Manifest/资源检查 | `decx` |
+| **decxcli-vulnhunt** | 漏洞挖掘：攻击面枚举、静态追踪、可利用性评估、中英文报告生成 | `decx` |
+| **decxcli-poc** | PoC 构造：漏洞归一化、Exploit 类实现、可选编译部署 | `decx`、`node`、`unzip` |
+
+技能按顺序协作：`decxcli`（分析） → `decxcli-vulnhunt`（漏洞挖掘） → `decxcli-poc`（PoC 构造）。
+
+### 安装
 
 **Claude Code**
 ```bash
