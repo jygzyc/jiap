@@ -203,6 +203,8 @@ npm install -g @jygzyc/decx-cli
 - `decx ard app-deeplinks` - 列出深度链接
 - `decx ard app-receivers` - 列出动态广播接收器
 - `decx ard system-service-impl <interface>` - 查找系统服务实现
+- `decx ard system-services [--serial <serial>] [--grep <keyword>]` - 以结构化 JSON 列出当前设备上的系统服务
+- `decx ard perm-info <permission> [--serial <serial>]` - 查看结构化权限详情
 - `decx ard all-resources` - 列出所有资源文件名
 - `decx ard resource-file <res>` - 按名称获取资源文件内容
 - `decx ard strings` - 获取 strings.xml 内容
@@ -210,9 +212,13 @@ npm install -g @jygzyc/decx-cli
 
 **自管理：**
 - `decx self install` - 安装或更新 decx-server.jar（`-p` 安装预发布版）
-- `decx self update` - 更新 decx-server.jar（`-p` 更新预发布版）
+- `decx self update` - 更新 decx-server.jar 和当前已安装的 npm CLI 包（`-p` 目前只影响 server JAR 更新路径）
 
-所有 `code` 和 `ard` 命令支持 `--page <n>` 分页。
+所有基于会话的 `code` 和 `ard` 命令都支持 `--page <n>` 分页。
+基于 adb 的 `system-services` 和 `perm-info` 不使用 `-P <port>`，而是使用 `--serial` / `--adb-path`。
+
+`system-services` 返回结构化 JSON，包含 `total` 和 `services[]`；每个服务对象含 `index`、`name`、`interfaces`。
+`perm-info` 返回单个已解析的权限对象，字段包括 `permission`、`package`、`label`、`description`、`protectionLevel` 等。
 
 ---
 

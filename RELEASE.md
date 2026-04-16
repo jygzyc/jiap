@@ -1,13 +1,15 @@
-# DECX v2.3.0
+# DECX v2.5.0
 
 ### Changes
 
-- Server: improve version resolution — use Gradle task to generate `version.properties` into build directory instead of writing in `processResources`, and add `Implementation-Version` manifest attribute as fallback when `version.properties` is unavailable.
+- CLI: add `ard system-services` subcommand to list Android system services via `adb shell service list`, with `--grep` keyword filter.
 
-- Skill (decxcli-vulnhunt): rewrite all 52 vulnerability reference documents with restructured format and clearer guidance. Add 2 new references: `app-provider-batch-abuse` and `app-webview-scan-result-inject`.
+- CLI: add `ard perm-info <permission>` subcommand to query permission details via `adb shell pm list permissions`.
 
-- Skill (decxcli-vulnhunt): add bilingual report templates (zh/en) for both full reports and single-issue reports (`report-template-en.md`, `report-template-zh.md`, `report-target-vuln-en.md`, `report-target-vuln-zh.md`).
+- CLI: extend `AdbClient` with `listSystemServices()` and `getPermissionInfo()` methods, along with `parseSystemServicesOutput`, `filterSystemServices`, `parsePermissionInfoOutput`, and `buildPermissionInfoCommand` utility functions.
 
-- Skill (decxcli-poc): rewrite PoC reference documents and scripts (`setup-poc.mjs`, `check-env.mjs`) for improved clarity and maintainability.
+- CLI: refactor framework artifact metadata — remove legacy `.meta.json` mechanism, unify vendor identity on `.artifact.json` with automatic cleanup of stale meta files.
 
-- Skill (decxcli): update SKILL.md with refined command reference, session management rules, and output guidelines.
+- CLI: fix `extractZipEntry` to use stream-based fd writing instead of buffering entire output in memory, preventing buffer overflow on large dex files.
+
+- CLI: improve `self update` — read CLI package name dynamically from `package.json` instead of hardcoding `decx-cli`, and add `signal`/`error` handling for the npm install process.

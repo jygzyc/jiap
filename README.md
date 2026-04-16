@@ -203,6 +203,8 @@ npm install -g @jygzyc/decx-cli
 - `decx ard app-deeplinks` - List deep link schemes
 - `decx ard app-receivers` - List dynamic broadcast receivers
 - `decx ard system-service-impl <interface>` - Find system service implementations
+- `decx ard system-services [--serial <serial>] [--grep <keyword>]` - List live Android system services as structured JSON
+- `decx ard perm-info <permission> [--serial <serial>]` - Show structured Android permission details
 - `decx ard all-resources` - List all resource file names
 - `decx ard resource-file <res>` - Get resource file content by name
 - `decx ard strings` - Get strings.xml content
@@ -210,9 +212,13 @@ npm install -g @jygzyc/decx-cli
 
 **Self Management:**
 - `decx self install` - Install or update decx-server.jar (`-p` for prerelease)
-- `decx self update` - Update decx-server.jar (`-p` for prerelease)
+- `decx self update` - Update decx-server.jar and the currently installed npm CLI package (`-p` affects the server JAR path only)
 
-All `code` and `ard` commands support `--page <n>` for pagination.
+All session-backed `code` and `ard` commands support `--page <n>` for pagination.
+The adb-backed `system-services` and `perm-info` commands use `--serial` / `--adb-path` instead of `-P <port>`.
+
+`system-services` returns structured JSON with `total` and `services[]`, where each service includes `index`, `name`, and `interfaces`.
+`perm-info` returns one parsed permission object with fields such as `permission`, `package`, `label`, `description`, and `protectionLevel`.
 
 ---
 
