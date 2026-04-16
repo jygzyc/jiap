@@ -1,5 +1,6 @@
 import { Command } from "commander";
 import { resolveClient } from "../core/client-helper.js";
+import { AdbClient, filterSystemServices } from "../android/adb.js";
 import { Formatter } from "../utils/formatter.js";
 import { withErrorHandler } from "../utils/errors.js";
 import { logCliEvent } from "../utils/logger.js";
@@ -13,12 +14,16 @@ import {
   summarizeFrameworkJarPath,
 } from "../android/framework.js";
 
-function addFrameworkCommonOptions(cmd: Command): Command {
+function addAdbDeviceOptions(cmd: Command): Command {
   return cmd
+    .option("--adb-path <path>", "ADB executable path")
+    .option("--serial <serial>", "ADB device serial");
+}
+
+function addFrameworkCommonOptions(cmd: Command): Command {
+  return addAdbDeviceOptions(cmd)
     .option("--source-dir <dir>", "Framework source directory")
     .option("--out-dir <dir>", "Framework output directory")
-    .option("--adb-path <path>", "ADB executable path")
-    .option("--serial <serial>", "ADB device serial")
     .option("--clean-source", "Remove source/ after the command finishes successfully");
 }
 
@@ -102,6 +107,48 @@ export function makeArdCommand(): Command {
       const page = opts.page ? parseInt(opts.page) : 1;
       fmt.output(await client.getSystemServiceImpl(iface, page));
     });
+
+  addAdbDeviceOptions(
+    cmd
+      .command("system-services")
+      .description("List Android system services via adb shell service list")
+      .option("--grep <keyword>", "Filter services by keyword")
+  )
+    .action(withErrorHandler(async (opts) => {
+      const fmt = new Formatter();
+      const adb = new AdbClient({ adbPath: opts.adbPath, serial: opts.serial });
+      adb.ensureAvailable();
+      adb.ensureDeviceConnected();
+      const services = filterSystemServices(adb.listSystemServices(), opts.grep);
+      logCliEvent({
+        command: "ard",
+        action: "system_services",
+        serial: opts.serial,
+        grep: opts.grep,
+        count: services.total,
+      });
+      fmt.output(services);
+    }));
+
+  addAdbDeviceOptions(
+    cmd
+      .command("perm-info <permission>")
+      .description("Show adb shell pm list permissions details for one permission")
+  )
+    .action(withErrorHandler(async (permission: string, opts) => {
+      const fmt = new Formatter();
+      const adb = new AdbClient({ adbPath: opts.adbPath, serial: opts.serial });
+      adb.ensureAvailable();
+      adb.ensureDeviceConnected();
+      const info = adb.getPermissionInfo(permission);
+      logCliEvent({
+        command: "ard",
+        action: "perm_info",
+        serial: opts.serial,
+        permission,
+      });
+      fmt.output(info);
+    }));
 
   cmd
     .command("all-resources")

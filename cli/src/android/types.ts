@@ -11,6 +11,26 @@ export interface AdbClientOptions {
   serial?: string;
 }
 
+export interface SystemServiceInfo {
+  index: number;
+  name: string;
+  interfaces: string[];
+}
+
+export interface SystemServicesResult {
+  total: number;
+  services: SystemServiceInfo[];
+}
+
+export interface PermissionInfo {
+  permission: string;
+  package?: string | null;
+  label?: string | null;
+  description?: string | null;
+  protectionLevel?: string | null;
+  [key: string]: string | null | undefined;
+}
+
 export interface FrameworkToolPaths {
   adb: string;
   debugfs: string;
@@ -23,7 +43,6 @@ export interface FrameworkPathLayout {
   outDir: string;
   outTmpDir: string;
   apexTmpDir: string;
-  metadataPath: string;
   artifactPath: string;
   jarPath: string;
 }
@@ -73,10 +92,6 @@ export interface FrameworkBuildResult {
   layout: FrameworkPathLayout;
   process: FrameworkProcessResult;
   pack: FrameworkPackResult;
-}
-
-export interface FrameworkArtifactMetadata {
-  vendor: string;
 }
 
 export interface FrameworkArtifactSummary {

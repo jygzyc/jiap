@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "fs";
+import { closeSync, copyFileSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, rmSync } from "fs";
 import * as os from "os";
 import * as path from "path";
 import { spawnSync } from "child_process";
@@ -53,14 +53,25 @@ function listZipEntries(inputFile: string): string[] {
 }
 
 function extractZipEntry(inputFile: string, entryName: string, targetPath: string): void {
-  const result = spawnSync("unzip", ["-p", inputFile, entryName], { encoding: null });
-  if (result.error) {
-    throw new FileError(`Failed to read '${entryName}' from ${inputFile}: ${result.error.message}`);
+  const outputFd = openSync(targetPath, "w");
+  try {
+    const result = spawnSync("unzip", ["-p", inputFile, entryName], {
+      stdio: ["ignore", outputFd, "pipe"],
+    });
+    if (result.error) {
+      throw new FileError(`Failed to read '${entryName}' from ${inputFile}: ${result.error.message}`);
+    }
+    if (result.status !== 0) {
+      throw new FileError(
+        result.stderr?.toString().trim() || `Failed to extract '${entryName}' from ${inputFile}`,
+      );
+    }
+  } catch (error) {
+    rmSync(targetPath, { force: true });
+    throw error;
+  } finally {
+    closeSync(outputFd);
   }
-  if (result.status !== 0 || !result.stdout) {
-    throw new FileError(`Failed to extract '${entryName}' from ${inputFile}`);
-  }
-  writeFileSync(targetPath, result.stdout);
 }
 
 function extractDexFromZip(inputFile: string, outputDir: string, prefix: string): void {

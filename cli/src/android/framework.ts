@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "fs";
 import * as path from "path";
 import { AdbClient } from "./adb.js";
 import { collectFrameworkFiles, normalizeOem } from "./framework-collector.js";
@@ -8,7 +8,6 @@ import { packFrameworkJar } from "./framework-packer.js";
 import { openAnalysisTarget } from "../commands/process.js";
 import { FileError } from "../utils/errors.js";
 import type {
-  FrameworkArtifactMetadata,
   FrameworkArtifactRecord,
   FrameworkArtifactSummary,
   FrameworkBuildResult,
@@ -35,21 +34,16 @@ function sanitizeArtifactSegment(value: string): string {
     .replace(/^_+|_+$/g, "") || "unknown";
 }
 
-function readFrameworkMetadata(metadataPath: string): FrameworkArtifactMetadata | null {
-  if (!existsSync(metadataPath)) return null;
-  try {
-    const parsed = JSON.parse(readFileSync(metadataPath, "utf-8")) as Partial<FrameworkArtifactMetadata>;
-    if (typeof parsed.vendor !== "string") return null;
-    return {
-      vendor: sanitizeArtifactSegment(parsed.vendor),
-    };
-  } catch {
-    return null;
-  }
+function frameworkJarPathFor(outDir: string, oem: string, vendor: string): string {
+  return path.join(outDir, `framework_${sanitizeArtifactSegment(oem)}_${sanitizeArtifactSegment(vendor)}.jar`);
 }
 
-function writeFrameworkMetadata(metadataPath: string, metadata: FrameworkArtifactMetadata): void {
-  writeFileSync(metadataPath, JSON.stringify(metadata, null, 2) + "\n", "utf-8");
+function legacyFrameworkMetadataPath(outDir: string): string {
+  return path.join(outDir, ".meta.json");
+}
+
+function removeLegacyFrameworkMetadata(outDir: string): void {
+  rmSync(legacyFrameworkMetadataPath(outDir), { force: true });
 }
 
 function readFrameworkArtifact(artifactPath: string): FrameworkArtifactRecord | null {
@@ -66,10 +60,12 @@ function readFrameworkArtifact(artifactPath: string): FrameworkArtifactRecord | 
     ) {
       return null;
     }
+    const normalizedOem = sanitizeArtifactSegment(parsed.oem);
+    const normalizedVendor = sanitizeArtifactSegment(parsed.vendor);
     return {
-      name: parsed.name,
-      oem: parsed.oem,
-      vendor: parsed.vendor,
+      name: `framework_${normalizedOem}_${normalizedVendor}`,
+      oem: normalizedOem,
+      vendor: normalizedVendor,
       rootDir: parsed.rootDir,
       jarPath: parsed.jarPath,
       updatedAt: parsed.updatedAt,
@@ -91,21 +87,18 @@ function buildFrameworkArtifactRecord(layout: FrameworkPathLayout, oem: string, 
     oem: normalizedOem,
     vendor: normalizedVendor,
     rootDir: layout.rootDir,
-    jarPath: layout.jarPath,
+    jarPath: frameworkJarPathFor(layout.outDir, normalizedOem, normalizedVendor),
     updatedAt: Date.now(),
   };
 }
 
-function resolveArtifactIdentity(metadataPath: string): FrameworkArtifactMetadata {
-  const metadata = readFrameworkMetadata(metadataPath);
-  return {
-    vendor: sanitizeArtifactSegment(metadata?.vendor ?? "unknown"),
-  };
-}
-
 export function summarizeFrameworkArtifact(layout: FrameworkPathLayout, oem: string): FrameworkArtifactSummary {
-  const identity = resolveArtifactIdentity(layout.metadataPath);
-  const session = buildFrameworkArtifactRecord(layout, oem, identity.vendor);
+  const artifact = readFrameworkArtifact(layout.artifactPath);
+  const session = buildFrameworkArtifactRecord(
+    layout,
+    artifact?.oem ?? oem,
+    artifact?.vendor ?? "unknown",
+  );
   return {
     session: session.name,
     oem: session.oem,
@@ -138,10 +131,10 @@ export function resolveFrameworkLayout(options: FrameworkCommandOptions, require
   const outDir = ensureDirectory(rootDir);
   const outTmpDir = ensureDirectory(path.join(outDir, "out_tmp"));
   const apexTmpDir = ensureDirectory(path.join(outDir, "apex_tmp"));
-  const metadataPath = path.join(outDir, ".meta.json");
   const artifactPath = path.join(outDir, ".artifact.json");
-  const identity = resolveArtifactIdentity(metadataPath);
-  const brand = sanitizeArtifactSegment(oem ?? "google");
+  const artifact = readFrameworkArtifact(artifactPath);
+  const brand = sanitizeArtifactSegment(oem ?? artifact?.oem ?? "google");
+  const vendor = sanitizeArtifactSegment(artifact?.vendor ?? "unknown");
 
   return {
     rootDir: outDir,
@@ -149,9 +142,8 @@ export function resolveFrameworkLayout(options: FrameworkCommandOptions, require
     outDir,
     outTmpDir,
     apexTmpDir,
-    metadataPath,
     artifactPath,
-    jarPath: path.join(outDir, `framework_${brand}_${identity.vendor}.jar`),
+    jarPath: frameworkJarPathFor(outDir, brand, vendor),
   };
 }
 
@@ -163,16 +155,14 @@ export async function collectFramework(
   adb.ensureAvailable();
   adb.ensureDeviceConnected();
   const oem = adb.detectFrameworkOem();
-  const baseLayout = resolveFrameworkLayout({ ...options, oem }, true);
-  const vendorFromDevice = adb.getProp("ro.product.model");
-  writeFrameworkMetadata(baseLayout.metadataPath, {
-    vendor: sanitizeArtifactSegment(vendorFromDevice || "unknown"),
-  });
   const layout = resolveFrameworkLayout({ ...options, oem }, true);
-  const artifact = buildFrameworkArtifactRecord(layout, oem, sanitizeArtifactSegment(vendorFromDevice || "unknown"));
+  const vendor = sanitizeArtifactSegment(adb.getProp("ro.product.model") || "unknown");
+  const artifact = buildFrameworkArtifactRecord(layout, oem, vendor);
   writeFrameworkArtifact(layout.artifactPath, artifact);
-  const result = await collectFrameworkFiles(adb, oem, layout.sourceDir);
-  return { oem, layout, result };
+  removeLegacyFrameworkMetadata(layout.outDir);
+  const refreshedLayout = resolveFrameworkLayout({ ...options, oem }, true);
+  const result = await collectFrameworkFiles(adb, oem, refreshedLayout.sourceDir);
+  return { oem, layout: refreshedLayout, result };
 }
 
 export async function processFramework(
@@ -190,6 +180,7 @@ export async function packFramework(
   const layout = resolveFrameworkLayout(options);
   mkdirSync(layout.outDir, { recursive: true });
   const result = await packFrameworkJar(layout);
+  removeLegacyFrameworkMetadata(layout.outDir);
   cleanFrameworkOutputs(layout, options.cleanSource ?? false);
   return { layout, result };
 }
@@ -206,9 +197,10 @@ export async function buildFramework(
     oem: summary.oem,
     vendor: summary.vendor,
     rootDir: layout.rootDir,
-    jarPath: layout.jarPath,
+    jarPath: frameworkJarPathFor(layout.outDir, summary.oem, summary.vendor),
     updatedAt: Date.now(),
   });
+  removeLegacyFrameworkMetadata(layout.outDir);
   cleanFrameworkOutputs(layout, options.cleanSource ?? false);
   return { layout, process, pack };
 }

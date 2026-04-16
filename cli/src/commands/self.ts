@@ -12,15 +12,30 @@ import { Manager } from "../core/config.js";
 import { checkForServerUpdate, installDecxServer } from "../server/installer.js";
 import { DecxError, ServerError, withErrorHandler } from "../utils/errors.js";
 
-function getCliVersion(): string {
-  if (process.env.npm_package_version) return process.env.npm_package_version;
+interface CliPackageMetadata {
+  name: string;
+  version: string;
+}
+
+function readCliPackageJson(): Partial<CliPackageMetadata> {
   try {
     const pkgPath = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "package.json");
-    const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
-    return pkg.version ?? "unknown";
+    return JSON.parse(readFileSync(pkgPath, "utf-8")) as Partial<CliPackageMetadata>;
   } catch {
-    return "unknown";
+    return {};
   }
+}
+
+export function getCliPackageMetadata(env: NodeJS.ProcessEnv = process.env): CliPackageMetadata {
+  const pkg = readCliPackageJson();
+  return {
+    name: env.npm_package_name ?? pkg.name ?? "unknown",
+    version: env.npm_package_version ?? pkg.version ?? "unknown",
+  };
+}
+
+export function buildCliUpdateArgs(packageName: string, tag: string = "latest"): string[] {
+  return ["install", "-g", `${packageName}@${tag}`];
 }
 
 export function makeSelfCommand(): Command {
@@ -49,6 +64,7 @@ export function makeSelfCommand(): Command {
       const fmt = new Formatter();
       const mgr = Manager.get();
       const currentVersion = mgr.serverJar.version;
+      const cliPackage = getCliPackageMetadata();
 
       // Update server
       console.error(`  Updating decx-server (current: v${currentVersion})...`);
@@ -68,14 +84,23 @@ export function makeSelfCommand(): Command {
       }
 
       // Update CLI
-      console.error(`  Updating decx-cli (current: v${getCliVersion()})...`);
-      console.error("  Running: npm install -g decx-cli@latest ...");
+      if (cliPackage.name === "unknown") {
+        throw new DecxError("Unable to determine CLI package name from package.json", "UPDATE_ERROR");
+      }
+      console.error(`  Updating ${cliPackage.name} (current: v${cliPackage.version})...`);
+      console.error(`  Running: npm ${buildCliUpdateArgs(cliPackage.name).join(" ")} ...`);
 
-      const result = spawnSync("npm", ["install", "-g", "decx-cli@latest"], {
+      const result = spawnSync("npm", buildCliUpdateArgs(cliPackage.name), {
         stdio: "inherit",
         timeout: 120_000,
       });
 
+      if (result.error) {
+        throw new DecxError(`CLI update failed: ${result.error.message}`, "UPDATE_ERROR");
+      }
+      if (result.signal) {
+        throw new DecxError(`CLI update failed: npm exited with signal ${result.signal}`, "UPDATE_ERROR");
+      }
       if (result.status !== 0) {
         throw new DecxError("CLI update failed. Check npm output above.", "UPDATE_ERROR");
       }

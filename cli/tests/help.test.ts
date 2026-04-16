@@ -39,6 +39,10 @@ function getOptionFlags(cmd: Command): string[] {
   return cmd.options.map(o => o.flags);
 }
 
+function hasFlag(cmd: Command, flag: string): boolean {
+  return getOptionFlags(cmd).some(optionFlags => optionFlags.includes(flag));
+}
+
 // ============================================================================
 // Root
 // ============================================================================
@@ -70,14 +74,12 @@ describe("process", () => {
   it("open has <file> argument and -P/--port option", () => {
     const open = findCommand(cmd, ["open"])!;
     expect(open.registeredArguments.length).toBeGreaterThanOrEqual(1);
-    const flags = getOptionFlags(open);
-    expect(flags.some(f => f.includes("--port"))).toBe(true);
+    expect(hasFlag(open, "--port")).toBe(true);
   });
 
   it("open has --force option", () => {
     const open = findCommand(cmd, ["open"])!;
-    const flags = getOptionFlags(open);
-    expect(flags.some(f => f.includes("--force"))).toBe(true);
+    expect(hasFlag(open, "--force")).toBe(true);
   });
 
   it("close has optional [name] argument", () => {
@@ -142,11 +144,11 @@ describe("ard", () => {
     cmd = findCommand(createProgram(), ["ard"])!;
   });
 
-  it("registers 11 subcommands", () => {
+  it("registers adb and framework subcommands under ard", () => {
     expect(getSubcommandNames(cmd)).toEqual([
       "app-manifest", "main-activity", "app-application",
       "exported-components", "app-deeplinks", "app-receivers",
-      "system-service-impl",
+      "system-service-impl", "system-services", "perm-info",
       "all-resources", "resource-file", "strings", "get-aidl", "framework",
     ]);
   });
@@ -161,6 +163,21 @@ describe("ard", () => {
     expect(rf.registeredArguments.length).toBeGreaterThanOrEqual(1);
   });
 
+  it("perm-info has <permission> argument and adb device options", () => {
+    const permInfo = findCommand(cmd, ["perm-info"])!;
+    expect(permInfo.registeredArguments.length).toBeGreaterThanOrEqual(1);
+    expect(hasFlag(permInfo, "--adb-path")).toBe(true);
+    expect(hasFlag(permInfo, "--serial")).toBe(true);
+  });
+
+  it("system-services includes adb device options", () => {
+    const systemServices = findCommand(cmd, ["system-services"])!;
+    expect(systemServices.registeredArguments.length).toBe(0);
+    expect(hasFlag(systemServices, "--adb-path")).toBe(true);
+    expect(hasFlag(systemServices, "--serial")).toBe(true);
+    expect(hasFlag(systemServices, "--grep")).toBe(true);
+  });
+
   it("framework registers collect/process/run/open subcommands", () => {
     const framework = findCommand(cmd, ["framework"])!;
     expect(getSubcommandNames(framework)).toEqual([
@@ -171,12 +188,11 @@ describe("ard", () => {
   it("framework collect has no positional argument and includes source/device options", () => {
     const collect = findCommand(cmd, ["framework", "collect"])!;
     expect(collect.registeredArguments.length).toBe(0);
-    const flags = getOptionFlags(collect);
-    expect(flags.some(f => f.includes("--brand"))).toBe(false);
-    expect(flags.some(f => f.includes("--vendor"))).toBe(false);
-    expect(flags.some(f => f.includes("--source-dir"))).toBe(true);
-    expect(flags.some(f => f.includes("--adb-path"))).toBe(true);
-    expect(flags.some(f => f.includes("--clean-source"))).toBe(true);
+    expect(hasFlag(collect, "--brand")).toBe(false);
+    expect(hasFlag(collect, "--vendor")).toBe(false);
+    expect(hasFlag(collect, "--source-dir")).toBe(true);
+    expect(hasFlag(collect, "--adb-path")).toBe(true);
+    expect(hasFlag(collect, "--clean-source")).toBe(true);
   });
 
   it("framework process requires <oem>", () => {
@@ -187,9 +203,8 @@ describe("ard", () => {
   it("framework run has no positional argument and open control options", () => {
     const run = findCommand(cmd, ["framework", "run"])!;
     expect(run.registeredArguments.length).toBe(0);
-    const flags = getOptionFlags(run);
-    expect(flags.some(f => f.includes("--no-open"))).toBe(true);
-    expect(flags.some(f => f.includes("--name"))).toBe(true);
-    expect(flags.some(f => f.includes("--port"))).toBe(true);
+    expect(hasFlag(run, "--no-open")).toBe(true);
+    expect(hasFlag(run, "--name")).toBe(true);
+    expect(hasFlag(run, "--port")).toBe(true);
   });
 });
