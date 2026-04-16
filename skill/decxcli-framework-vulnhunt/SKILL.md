@@ -1,6 +1,6 @@
 ---
 name: decxcli-framework-vulnhunt
-description: Android framework vulnerability hunting skill built on DECX CLI + JADX. Use for framework JAR, system_server, Binder service, AIDL, vendor service, and OEM framework static hunting, exploitability triage, bilingual reporting, and handoff to decxcli-poc.
+description: Use when hunting Android framework vulnerabilities from a final integrated framework bundle, `system_server`, Binder services, AIDL implementations, vendor services, or OEM framework code. This skill stays on one processed framework bundle and does not proactively analyze split jars under `source/`.
 metadata:
   requires:
     bins: ["decx"]
@@ -14,8 +14,8 @@ Use this skill for framework and Binder-service vulnerability hunting.
 
 Scope:
 
-- In scope: framework collection/opening, Binder service enumeration, AIDL and Stub tracing, permission-gate review, framework exploitability triage, report drafting
-- Out of scope: app component recon, exported APK surface enumeration, PoC construction, runtime confirmation
+- In scope: final integrated framework bundle collection/opening, Binder service enumeration, AIDL and Stub tracing, permission-gate review, framework exploitability triage, report drafting
+- Out of scope: app component recon, exported APK surface enumeration, PoC construction, runtime confirmation, proactive analysis of split jars under `source/`
 - App APK hunting belongs to `decxcli-app-vulnhunt`
 - PoC and runtime validation belong to `decxcli-poc`
 
@@ -38,9 +38,15 @@ Command reference lives in `decxcli`.
 - Quote package names, class names, method signatures, interfaces, Binder names, and file paths
 - If a command is uncertain, check `--help` instead of guessing
 
+### Target Rules
+
+- Analyze exactly one framework code target per hunt: the final integrated framework bundle such as generated `framework_<oem>_<vendor>.jar` or a user-provided equivalent final bundle
+- Do not proactively open, trace, compare, or switch to split framework jars under `source/` as separate DECX targets
+- If the only available path points to `source/` or another split jar, stop and ask for the processed final bundle instead of starting analysis on that jar
+
 ### Routing Rules
 
-- Use this skill when the user explicitly mentions framework hunting, framework JARs, `system_server`, Binder services, AIDL interface implementations, vendor services, OEM framework code, or privileged manager/service families
+- Use this skill when the user explicitly mentions framework hunting, a final framework bundle, `system_server`, Binder services, AIDL interface implementations, vendor services, OEM framework code, or privileged manager/service families
 - Do not begin with `app-manifest`, exported components, or app deep links
 - If the user is clearly asking about an APK entry surface such as exported Activities, Providers, Receivers, app Services, or WebView hosts, switch to `decxcli-app-vulnhunt`
 
@@ -131,7 +137,7 @@ Framework VulnHunt Progress
 
 ### Phase 1 - Prepare Target
 
-Goal: open the correct framework target and confirm DECX is healthy.
+Goal: open the correct final framework bundle and confirm DECX is healthy.
 
 Preferred end-to-end collection path:
 
@@ -147,7 +153,7 @@ decx ard framework process <oem> --serial <serial>
 decx ard framework open -P <port> --serial <serial>
 ```
 
-If the user already provides a framework JAR, use:
+If the user already provides the final integrated framework bundle, use:
 
 ```bash
 decx ard framework open "<framework-jar-path>" -P <port>
@@ -160,7 +166,10 @@ Preparation rules:
 - Prefer `framework run` when the user wants the fastest route from device to an analyzable DECX session
 - Prefer `collect` -> `process` -> `open` when the user wants to preserve artifacts or inspect intermediate outputs
 - Reuse the generated `framework_<oem>_<vendor>.jar` session name when possible so later tracing stays stable
-- If no device is connected and no framework JAR is provided, stop and ask for one of those two inputs instead of guessing
+- Treat the processed final bundle such as `framework_<oem>_<vendor>.jar` as the only analysis target for this workflow
+- If the input path points to `source/` or another split framework jar, do not open it under this skill; ask for the processed final bundle instead
+- Do not proactively inspect `source/` jars to shortlist services, confirm suspicions, or compare implementations; keep all tracing inside the already-open final bundle session
+- If no device is connected and no final framework bundle is provided, stop and ask for one of those two inputs instead of guessing
 - `framework collect` and `framework process` are adb/local-artifact operations, not session-backed DECX reads, so do not add `-P <port>` to them
 - If the user wants interruption-safe analysis, create the working directory early and keep phase outputs there
 
@@ -188,7 +197,8 @@ Framework recon entry:
   - `decx code search-method "<methodName>" -P <port>` only if the Binder entrypoint name is still unknown
 - Build the shortlist around Binder service name, AIDL interface, Stub implementation, manager facade, and privileged sink families instead of app components
 - When the request names a concrete service family such as package, activity, telecom, notification, or OEM vendor service, use that family name as the first `--grep` filter before broadening scope
-- Treat the generated framework artifact as the primary codebase under review; live-device `system-services` and `perm-info` data are support evidence, not substitutes for code tracing
+- Treat the generated final framework bundle as the primary and only codebase under review for this workflow; live-device `system-services` and `perm-info` data are support evidence, not substitutes for code tracing
+- Do not open side sessions for `source/` jars during recon or later phases
 
 Framework-service recon notes:
 
