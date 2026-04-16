@@ -1,11 +1,13 @@
 ---
 name: poc-base
-description: Exploit 基类模板，所有攻击向量的公共父类
+description: Base exploit contract for all DECX PoC construction references.
 ---
 
-# Exploit 基类
+# Base PoC Contract
 
-所有攻击向量实现的公共父类，提供 Activity 和日志能力。
+All component references in `decxcli-poc` assume the same exploit contract. The exploit class should be small, self-contained, and shaped around one verified finding.
+
+## Base Class
 
 ```java
 package com.poc.targetapp;
@@ -29,26 +31,65 @@ public abstract class Exploit {
 }
 ```
 
-## 使用方式
+## Construction Rules
 
-每个具体 Exploit 继承此基类，实现 `execute()` 方法编写攻击逻辑。`context` 已由基类持有，可直接用于启动 Activity、发送广播、查询 ContentProvider 等操作。
+- One exploit class proves one finding
+- Keep helper code inside the same class unless a helper component must exist in the Manifest
+- Replace every placeholder package, class, action, URI, extra key, and Binder method with the real target values
+- Log a visible proof point instead of a theory statement
+- If an exploit needs two stages, model them explicitly as `capture -> trigger`
 
-在 `ExploitRegistry.java` 的 `EXPLOITS` 数组中注册即可自动生成触发按钮，无需修改 UI 代码。
+## Recommended Class Shape
 
-## 隐藏 API 调用
+```java
+public class ExampleExploit extends Exploit {
+    public ExampleExploit(Context context) {
+        super(context);
+    }
 
-模板已集成 [AndroidHiddenApiBypass](https://github.com/LSPosed/AndroidHiddenApiBypass) 库，直接使用：
+    @Override
+    public void execute() {
+        // 1. build trigger
+        // 2. execute trigger
+        // 3. log visible success signal
+    }
+}
+```
+
+## Success Signal Rules
+
+Good signals:
+
+- actual returned rows, tokens, or files
+- actual component launch path reached
+- actual Binder call accepted
+- actual granted URI reused
+
+Bad signals:
+
+- "exploit finished"
+- "target may be vulnerable"
+- "should escalate privileges"
+
+## Supporting Components
+
+Add helper components only when the exploit mode truly needs them:
+
+- helper `Activity`: task hijack, result capture, implicit-Intent interception
+- helper `BroadcastReceiver`: broadcast interception or leak capture
+- helper `Service`: overlay, long-lived listener, notification capture
+- helper HTML asset: WebView-driven exploit that does not need a real remote server
+
+If no helper component is required, do not add one.
+
+## Hidden API Note
+
+Use `AndroidHiddenApiBypass` only for framework-service or hidden-API cases.
 
 ```java
 import org.lsposed.hiddenapibypass.HiddenApiBypass;
 
-// 调用隐藏方法
-HiddenApiBypass.invoke(Class.forName("android.app.ActivityManager"), am, "someHiddenMethod", args);
-
-// 获取隐藏方法
-Method method = HiddenApiBypass.getDeclaredMethod(TargetClass.class, "methodName", paramTypes);
-method.invoke(instance, args);
-
-// 添加豁免
-HiddenApiBypass.addHiddenApiExemptions("Lcom/target;");
+HiddenApiBypass.addHiddenApiExemptions("");
 ```
+
+Do not make hidden-API setup part of ordinary app-component PoCs.

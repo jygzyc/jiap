@@ -1,199 +1,82 @@
 ---
 name: poc-framework-service
-description: 系统服务攻击 PoC — 覆盖 clearCallingIdentity 滥用、权限缺失、身份混淆、Intent 重定向、数据泄露、竞态条件 6 种漏洞类型
+description: Framework-service PoC reference covering clearCallingIdentity misuse, missing permission enforcement, identity confusion, intent redirect, data exposure, and race conditions.
 ---
 
-# 系统服务攻击 PoC
+# Framework Service PoC Reference
 
-系统服务运行于 system_server 或特权进程，拥有高权限。攻击面包括身份混淆、权限检查缺失、Intent 重定向等。
+Use this reference for Binder calls into `system_server` or another privileged framework process. Framework-service PoCs almost always fit `binder-caller` mode.
 
-> **注意**：`ServiceManager` 等均为隐藏 API，标准 SDK 不可编译。PoC 项目模板已集成 [AndroidHiddenApiBypass](https://github.com/LSPosed/AndroidHiddenApiBypass) 库，通过 `HiddenApiBypass.getDeclaredMethod()` / `HiddenApiBypass.invoke()` 调用隐藏 API，无需额外 stub JAR。
->
-> 所有 PoC 在 `execute()` 开头调用 `HiddenApiBypass.addHiddenApiExemptions("")` 以豁免全部隐藏 API 限制。
+## Hidden API Rule
 
-## 公共初始化
-
-每个 Framework Exploit 的 `execute()` 方法开头统一执行：
+Framework-service PoCs usually need hidden API access for `ServiceManager` and related Binder plumbing.
 
 ```java
 import org.lsposed.hiddenapibypass.HiddenApiBypass;
 
-// 在 execute() 开头调用
 HiddenApiBypass.addHiddenApiExemptions("");
 ```
 
-通过 `HiddenApiBypass.getDeclaredMethod()` 获取隐藏 API 方法，通过 `HiddenApiBypass.invoke()` 调用，通过 `HiddenApiBypass.getDeclaredConstructor()` + `newInstance()` 构造隐藏类实例。
+Use hidden API access only for framework paths. Do not mix it into ordinary app-component PoCs.
 
-## 漏洞类型索引
+## Construction Matrix
 
-| 漏洞 | 等级 | PoC 类名 |
-|------|------|---------|
-| clearCallingIdentity 滥用 | HIGH | `FrameworkClearIdentityExploit` |
-| 权限检查缺失 | HIGH | `FrameworkPermissionMissingExploit` |
-| 身份混淆 | HIGH | `FrameworkIdentityConfusionExploit` |
-| Intent 重定向 | HIGH | `FrameworkIntentRedirectExploit` |
-| 数据泄露 | MEDIUM | `FrameworkDataLeakExploit` |
-| 竞态条件 | HIGH | `FrameworkRaceConditionExploit` |
+| Vulnerability | Exploit mode | Typical support | Visible success |
+|---------------|--------------|-----------------|-----------------|
+| `clearCallingIdentity()` misuse | `binder-caller` | hidden API access | privileged work runs after attacker-triggered call |
+| missing permission enforcement | `binder-caller` | hidden API access | privileged Binder method succeeds without required permission |
+| identity confusion | `binder-caller` | hidden API access | attacker can act for another user or caller identity |
+| intent redirect | `binder-caller` | hidden API access | privileged service forwards attacker-controlled Intent |
+| data exposure | `binder-caller` | hidden API access | privileged data is returned |
+| race condition | `binder-caller` | hidden API access plus concurrency helper | repeated concurrent calls trigger inconsistent state |
 
-## FrameworkClearIdentityExploit
+## Pattern 1 - Single Binder Caller
 
-利用系统服务 clearCallingIdentity 范围过大，以 system 身份执行特权操作。
+Use for permission-missing, identity-confusion, intent-redirect, and data-leak cases.
 
 ```java
-public class FrameworkClearIdentityExploit extends Exploit {
-    @Override
-    public void execute() {
-        try {
-            HiddenApiBypass.addHiddenApiExemptions("");
-
-            // 获取系统服务 Binder 接口
-            Class<?> smClass = Class.forName("android.os.ServiceManager");
-            java.lang.reflect.Method getService = HiddenApiBypass.getDeclaredMethod(smClass, "getService", String.class);
-            IBinder binder = (IBinder) getService.invoke(null, "target_system_service");
-
-            // 方法在 clearCallingIdentity/restoreCallingIdentity 之间执行
-            // 此时代码以 system 身份运行，可访问任意数据
-            // ITargetService service = ITargetService.Stub.asInterface(binder);
-            // service.vulnerableMethod();
-
-            log("Framework clearCallingIdentity — requires system service access");
-            log("Typical scenario: call method that performs privileged file ops");
-        } catch (Exception e) {
-            log("Failed: " + e.getMessage());
-        }
+public final class FrameworkPermissionMissingExploit extends Exploit {
+    public FrameworkPermissionMissingExploit(Context context) {
+        super(context);
     }
-}
-```
 
-> 注意：系统服务攻击通常需要 root 或特定权限。PoC 重点是验证漏洞路径是否存在。
-
-## FrameworkPermissionMissingExploit
-
-调用系统服务未做权限检查的公开方法。
-
-```java
-public class FrameworkPermissionMissingExploit extends Exploit {
     @Override
     public void execute() {
         try {
             HiddenApiBypass.addHiddenApiExemptions("");
-
-            // 获取系统服务
             Class<?> smClass = Class.forName("android.os.ServiceManager");
-            java.lang.reflect.Method getService = HiddenApiBypass.getDeclaredMethod(smClass, "getService", String.class);
+            Method getService = HiddenApiBypass.getDeclaredMethod(smClass, "getService", String.class);
             IBinder binder = (IBinder) getService.invoke(null, "vulnerable_service");
-
-            // 直接调用未做 enforceCallingPermission 的方法
-            // 例如：读取其他用户数据、修改系统设置
-            // ITargetService service = ITargetService.Stub.asInterface(binder);
-            // String data = service.getProtectedData(userId);
-
-            log("Framework permission missing — verify method lacks enforceCallingPermission");
-            log("Call method without required permission and check if it succeeds");
+            log("Obtained Binder for vulnerable_service. Replace this placeholder with the verified privileged method call.");
         } catch (Exception e) {
-            log("Failed: " + e.getMessage());
+            log("Framework Binder setup failed: " + e.getMessage());
         }
     }
 }
 ```
 
-## FrameworkIdentityConfusionExploit
+Fill with:
 
-利用系统服务信任调用方传入的 userId 参数而非 Binder.getCallingUid()。
+- real framework service name
+- real interface wrapper or Stub conversion
+- one verified vulnerable method only
+
+Success signal:
+
+- actual returned privileged data
+- actual privileged state change
+- actual privileged component launch
+
+## Pattern 2 - Concurrency Driver
+
+Use for race-condition findings.
 
 ```java
-public class FrameworkIdentityConfusionExploit extends Exploit {
-    @Override
-    public void execute() {
-        try {
-            HiddenApiBypass.addHiddenApiExemptions("");
-
-            Class<?> smClass = Class.forName("android.os.ServiceManager");
-            java.lang.reflect.Method getService = HiddenApiBypass.getDeclaredMethod(smClass, "getService", String.class);
-            IBinder binder = (IBinder) getService.invoke(null, "vulnerable_service");
-
-            // 服务方法接受 userId 参数而非使用 getCallingUid()
-            // 攻击者传入其他用户的 userId 访问其数据
-            int targetUserId = 0; // 目标用户 ID
-            // ITargetService service = ITargetService.Stub.asInterface(binder);
-            // String data = service.getUserData(targetUserId);
-            // log("Accessed user " + targetUserId + " data: " + data);
-
-            log("Framework identity confusion — service trusts caller-passed userId");
-            log("Try passing different userId values to access other users' data");
-        } catch (Exception e) {
-            log("Failed: " + e.getMessage());
-        }
+public final class FrameworkRaceConditionExploit extends Exploit {
+    public FrameworkRaceConditionExploit(Context context) {
+        super(context);
     }
-}
-```
 
-## FrameworkIntentRedirectExploit
-
-利用系统服务转发未校验的 Intent，以 system 权限启动任意组件。
-
-```java
-public class FrameworkIntentRedirectExploit extends Exploit {
-    @Override
-    public void execute() {
-        try {
-            HiddenApiBypass.addHiddenApiExemptions("");
-
-            Class<?> smClass = Class.forName("android.os.ServiceManager");
-            java.lang.reflect.Method getService = HiddenApiBypass.getDeclaredMethod(smClass, "getService", String.class);
-            IBinder binder = (IBinder) getService.invoke(null, "vulnerable_service");
-
-            // 构造指向非导出特权组件的 Intent
-            Intent maliciousIntent = new Intent();
-            maliciousIntent.setClassName("com.target", "com.target.InternalPrivilegedActivity");
-
-            // 系统服务以 system 权限启动此 Intent
-            // ITargetService service = ITargetService.Stub.asInterface(binder);
-            // service.startActivity(maliciousIntent);
-
-            log("Framework intent redirect — service forwards Intent as system");
-            log("Target non-exported component that requires system permission");
-        } catch (Exception e) {
-            log("Failed: " + e.getMessage());
-        }
-    }
-}
-```
-
-## FrameworkDataLeakExploit
-
-调用系统服务返回敏感数据的方法，未校验调用方身份。
-
-```java
-public class FrameworkDataLeakExploit extends Exploit {
-    @Override
-    public void execute() {
-        try {
-            HiddenApiBypass.addHiddenApiExemptions("");
-
-            Class<?> smClass = Class.forName("android.os.ServiceManager");
-            java.lang.reflect.Method getService = HiddenApiBypass.getDeclaredMethod(smClass, "getService", String.class);
-            IBinder binder = (IBinder) getService.invoke(null, "vulnerable_service");
-
-            // 调用返回敏感信息的方法（设备信息、用户数据、系统配置）
-            // ITargetService service = ITargetService.Stub.asInterface(binder);
-            // List<String> data = service.getSensitiveInfo();
-
-            log("Framework data leak — service returns data without caller validation");
-            log("Query sensitive endpoints and check data accessibility");
-        } catch (Exception e) {
-            log("Failed: " + e.getMessage());
-        }
-    }
-}
-```
-
-## FrameworkRaceConditionExploit
-
-利用系统服务 check-then-act 操作的竞态窗口。
-
-```java
-public class FrameworkRaceConditionExploit extends Exploit {
     @Override
     public void execute() {
         int threadCount = 10;
@@ -201,35 +84,27 @@ public class FrameworkRaceConditionExploit extends Exploit {
         CountDownLatch latch = new CountDownLatch(threadCount);
 
         for (int i = 0; i < threadCount; i++) {
-            final int threadId = i;
             executor.submit(() -> {
                 try {
                     HiddenApiBypass.addHiddenApiExemptions("");
-
-                    Class<?> smClass = Class.forName("android.os.ServiceManager");
-                    java.lang.reflect.Method getService = HiddenApiBypass.getDeclaredMethod(smClass, "getService", String.class);
-                    IBinder binder = (IBinder) getService.invoke(null, "vulnerable_service");
-
-                    // 并发调用同一方法，利用 TOCTOU 竞态
-                    // 例如：检查权限后执行操作的窗口
-                    // ITargetService service = ITargetService.Stub.asInterface(binder);
-                    // service.raceConditionMethod(threadId);
-                    log("Thread " + threadId + " — sent request");
-                } catch (Exception e) {
-                    log("Thread " + threadId + " failed: " + e.getMessage());
+                    log("Send one concurrent Binder request here");
                 } finally {
                     latch.countDown();
                 }
             });
         }
-
-        try {
-            latch.await(10, TimeUnit.SECONDS);
-            log("Race condition test completed");
-        } catch (InterruptedException e) {
-            log("Test interrupted");
-        }
-        executor.shutdown();
     }
 }
 ```
+
+Use when:
+
+- the verified finding depends on a timing window
+
+Do not use the concurrency driver for ordinary single-call authorization bugs.
+
+## Construction Notes
+
+- Framework-service PoCs may still require special device state, root, or privileged test conditions
+- Keep the exploit focused on proving the verified path, not enumerating the whole service
+- If a required interface wrapper is not yet reconstructed, do not overclaim `build-ready`

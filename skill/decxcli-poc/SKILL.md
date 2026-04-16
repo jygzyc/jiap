@@ -1,133 +1,353 @@
 ---
 name: decxcli-poc
-description: Android 漏洞 PoC 应用构造。生成可编译安装的 PoC Android 应用，在真实设备或模拟器上验证漏洞利用。当用户提到 PoC、proof of concept、漏洞验证、exploit、利用构造、复现漏洞、poc 验证时使用。
-metadata: {}
+description: Android exploit PoC construction skill. Turns a DECX-supported finding into a buildable Android PoC app, with optional compile and adb deployment when explicitly requested.
+metadata:
+  requires:
+    bins: ["node", "decx", "unzip"]
 ---
 
-# DECX CLI — 漏洞 PoC 应用构造
+# DECX CLI - Android Exploit PoC Construction
 
-将漏洞发现转化为可编译通过的 PoC Android 应用。核心产出是**可编译的 PoC 项目代码**，adb 部署验证为可选项。
+## Overview
 
-**输入来源**：接收 skill `decxcli-vulnhunt` 输出的漏洞分析报告，根据报告构造 PoC。
+Use this skill to turn a `decxcli-vulnhunt` finding into a buildable Android PoC project.
 
-命令参考见通用 skill `decxcli`。
+Scope:
 
-## 核心原则
+- In scope: finding normalization, static re-verification, exploit-mode selection, PoC project setup, exploit-class implementation, Manifest updates, optional compile/deploy
+- Out of scope: vulnerability discovery, final risk rating, and unsupported exploit claims
+- Vulnerability hunting belongs to `decxcli-vulnhunt`
 
-- **PoC 必须是一个可编译的 Android 应用项目。** 编译通过是最低标准。
-- **同一项目 session 中只创建一个 PoC 应用**，多个漏洞问题通过各自的 Exploit 组件实现。
-- **`allowBackup` 设为 false，`applicationId` 使用 `com.poc.*` 命名空间。**
-- **涉及隐藏 API / 框架函数调用时，使用 [AndroidHiddenApiBypass](https://github.com/LSPosed/AndroidHiddenApiBypass) 库。** 项目模板已集成该依赖，通过 `HiddenApiBypass.getDeclaredMethod()` / `HiddenApiBypass.invoke()` 调用隐藏 API，无需反射 stub JAR。
+Command reference lives in `decxcli`.
 
-## 从报告到 PoC
+## Non-Negotiable Rules
 
-```
-报告的"问题一" → 一个 Exploit 类
-报告的"问题二" → 另一个 Exploit 类
-... → 全部注册到同一个 PoC 应用的 EXPLOITS 数组
-```
+### State Rules
 
-构造步骤：
+| State | Meaning | Allowed |
+|------|---------|---------|
+| `finding-normalized` | required fields extracted from the report | Yes |
+| `target-verified` | component and path re-verified in DECX | Yes |
+| `construction-selected` | exploit mode and support pieces chosen | Yes |
+| `code-ready` | PoC project and exploit code prepared | Yes |
+| `build-ready` | code appears compile-ready but was not built | Yes |
+| `compiled` | `assembleDebug` succeeded | Yes |
+| `deployed` | APK installed on a device | Yes |
+| `runtime-validated` | exploit effect observed on device/emulator | Yes |
 
-1. **读取报告**，从"攻击路径 → 目标组件"获取包名、类名、Action/URI、IPC 接口
-2. **验证报告准确性**，**必须使用 subagent 执行**（防止大量源码数据污染主上下文）：
-   - 为报告中的**每个问题创建独立的 subagent**，各 subagent 并发执行
-   - 每个 subagent 的 prompt 包含：端口号、该问题的完整描述（组件名、调用链、声称的 Source/Sink）
-   - subagent 内部执行以下验证并**仅返回结构化结论**（禁止返回原始源码）：
-     - **目标组件是否存在且导出**：`decx ard exported-components -P <port>` 确认组件在列表中
-     - **调用链中的方法是否存在**：对调用链涉及的每个方法执行 `decx code method-source "<sig>" -P <port>` 确认方法签名匹配且源码行为与报告描述一致
-     - **Source/Sink 是否确实存在**：在方法源码中确认报告声称的 Source（如 `getIntent().get*Extra()`）和 Sink（如 `startActivity()`）是否真实存在
-     - **权限校验是否被遗漏**：检查组件及调用链沿途是否有报告未提及的安全校验（如签名校验、UID 白名单），可能导致漏洞不可利用
+Default ceiling:
 
-   subagent 输出格式（每项一条）：
-   ```
-   - [PASS/FAIL] 组件 X 导出状态：...
-   - [PASS/FAIL] 方法签名 Y：...
-   - [PASS/FAIL] Source Z 存在性：...
-   - [PASS/FAIL] Sink W 存在性：...
-   - [PASS/FAIL] 遗漏校验检查：...
-   ```
+- If the user did not ask for compile: stop at `build-ready`
+- If the user did not ask for deployment/runtime confirmation: do not claim `deployed` or `runtime-validated`
 
-   主 agent 汇总所有 subagent 结论。如果验证发现报告描述与实际代码不符，**告知用户具体差异**，由用户决定是否继续构造 PoC 或先修正报告。
+### Context Rules
 
-   > **前置条件**：验证步骤需要目标 APK 的 decx session 处于运行状态。如果 session 未运行，提示用户先通过 `decx process open "<apk-path>" -P <port>` 打开。
+- Keep only one active finding in context at a time
+- Do not paste the full vuln report into the main thread if only one finding is being implemented
+- Load only the one reference file that matches the active component type
+- Keep only structured verification notes, not raw source dumps
+- References are construction guides, not proof that the final class is compile-safe; generated code must still be self-consistent
 
-3. **确定组件类型**（Activity / Broadcast / Provider / Service / Intent / WebView / Framework），加载对应的 reference
-4. **首次创建项目**：执行 `node scripts/setup-poc.mjs <target-app>`，自动解压模板并完成包名替换（`com.poc.targetapp` → `com.poc.<target-app>`，含目录名）
-5. **编写 Exploit**：在 `app/src/main/java/com/poc/<target-app>/exploit/` 下创建 Exploit 类，从 reference 中选择匹配的漏洞模式模板，将报告中的攻击步骤填入 `execute()` 方法，替换包名/类名常量
-6. **注册到 ExploitRegistry**：在 `ExploitRegistry.java` 的 `EXPLOITS` 数组中添加新 Exploit 类
+### Project Rules
 
-## 项目模板
+- Create only one PoC app per target app session
+- Add one exploit class per finding
+- Register every exploit in `ExploitRegistry`
+- `applicationId` must stay in the `com.poc.*` namespace
+- Keep `allowBackup="false"`
+- Add only the permissions, services, activities, and receivers required for the active exploit
+- Use `AndroidHiddenApiBypass` only when hidden API access is actually required
+- Prefer self-contained PoCs over remote infrastructure when both demonstrate the same effect
 
-项目模板为 `assets/poc-template.zip`，是一个完整可编译的 Gradle Android 项目。
+### Verification Rules
 
-**首次创建项目**：执行 `node scripts/setup-poc.mjs <target-app>`，自动完成解压、包名替换和目录重命名。
-
-```
-poc-<target-app>/
-├── settings.gradle              # 项目设置
-├── gradle.properties            # JVM 参数
-├── gradle/libs.versions.toml    # 依赖版本管理
-├── gradle/wrapper/              # Gradle Wrapper
-├── gradlew / gradlew.bat        # 构建脚本
-└── app/
-    ├── build.gradle             # app 模块配置（AGP 7.4.2, JDK 11+）
-    └── src/main/
-        ├── AndroidManifest.xml  # Manifest 模板（按攻击向量添加权限和组件声明）
-        ├── res/values/styles.xml
-        ├── res/layout/activity_poc.xml
-        └── java/com/poc/targetapp/
-            ├── Exploit.java          # Exploit 基类（提供 Activity 和 log 方法）
-            ├── ExploitRegistry.java  # Exploit 注册表（新增 Exploit 在此注册）
-            └── PoCActivity.java      # 主界面（自动为每个 Exploit 生成触发按钮）
-```
-
-模板已集成 `AndroidHiddenApiBypass` 和 `AppCompat` 依赖。
-
-## 按组件加载 Reference
-
-| 组件 | Reference 文件 | 覆盖漏洞数 |
-|------|---------------|-----------|
-| Activity | `references/poc-app-activity.md` | 9 种 |
-| Broadcast | `references/poc-app-broadcast.md` | 4 种 |
-| ContentProvider | `references/poc-app-provider.md` | 6 种 |
-| Service | `references/poc-app-service.md` | 5 种 |
-| Intent | `references/poc-app-intent.md` | 5 种 |
-| WebView | `references/poc-app-webview.md` | 6 种 |
-| 系统服务 | `references/poc-framework-service.md` | 6 种 |
-
-所有 Exploit 继承自 `references/poc-base.md` 中的基类。
-
-## 构建与部署
-
-> **重要：以下步骤仅在用户明确要求编译或部署时才执行。** 代码编写阶段不要主动运行任何环境检测或编译命令。
-
-### 环境检测
-
-当用户要求编译时，先运行环境检测脚本：
+- Do not code directly from a stale or weak report
+- Re-verify the active finding in DECX before building the PoC
+- Every `decx code` and `decx ard` command must include `-P <port>`
+- If the DECX session is not open, tell the user to run:
 
 ```bash
-node scripts/check-env.mjs
+decx process open "<apk-path>" -P <port>
 ```
 
-脚本会检测 ANDROID_HOME、build-tools、platforms、JDK 版本、adb 并输出结果。如果检测未通过（退出码非 0），**停止编译**，将脚本输出完整展示给用户，由用户自行解决环境问题。
+- If re-verification contradicts the report, stop and report the mismatch before coding further
 
-### 编译
+## Required Input
 
-环境检测通过后执行编译，使用超时保护防止 Gradle daemon 卡死：
+Before coding, normalize the active finding into this minimum packet:
+
+```json
+{
+  "targetApp": "short target name for project directory",
+  "packageName": "victim package",
+  "componentType": "Activity|Service|Provider|Receiver|Intent|WebView|Framework",
+  "componentClass": "victim entry class or interface",
+  "vulnType": "specific finding type",
+  "entryPoint": "externally reachable method or callback",
+  "source": "attacker-controlled input",
+  "sink": "security-relevant action",
+  "callChain": ["minimal method path"],
+  "bypassConditions": ["exact conditions that make exploitation possible"],
+  "impactEvidence": "visible effect the PoC should demonstrate",
+  "port": 8080
+}
+```
+
+Construction packet:
+
+```json
+{
+  "exploitMode": "direct-trigger|interception|returned-handle|hosted-web-content|binder-caller|ui-assisted",
+  "supportComponents": ["optional helper activity/service/receiver"],
+  "manifestNeeds": ["only what the exploit actually needs"],
+  "successSignal": "what the PoC should visibly prove"
+}
+```
+
+If one of these fields is missing, fill it first from the report or from DECX.
+
+PoC input gate:
+
+- Preferred source: `statically-supported` findings from `decxcli-vulnhunt`
+- `candidate` findings should not become full PoCs unless the user explicitly asks for exploratory probing
+- `rejected` findings should not be implemented
+
+## Workflow
+
+Track progress with:
+
+```text
+PoC Progress
+- [ ] Phase 1: Normalize one finding
+- [ ] Phase 2: Re-verify target path in DECX
+- [ ] Phase 3: Select exploit mode
+- [ ] Phase 4: Create or reuse PoC project
+- [ ] Phase 5: Load one component reference
+- [ ] Phase 6: Implement exploit class
+- [ ] Phase 7: Register exploit and supporting components
+- [ ] Phase 8: Optional compile
+- [ ] Phase 9: Optional deploy and runtime check
+```
+
+### Phase 1 - Normalize One Finding
+
+Goal: reduce the upstream report to one buildable exploit target.
+
+Extract only:
+
+- victim package and class
+- component type
+- exact exploit trigger
+- required extras, actions, URIs, Binder methods, or HTML payload shape
+- exact bypass conditions
+- visible success signal
+
+Do not carry unrelated findings into the active context.
+
+### Phase 2 - Re-Verify in DECX
+
+Goal: make sure the PoC is built against the real path, not just the report narrative.
+
+Minimum checks:
+
+1. Confirm the component or Binder surface exists
+2. Confirm the claimed entry method still matches the report
+3. Confirm the source is attacker-controlled
+4. Confirm the sink is still reachable
+5. Confirm there is no missed non-bypassable guard
+
+Suggested commands:
+
+```bash
+decx ard exported-components -P <port>
+decx ard app-manifest -P <port>
+decx code method-source "<full-method-signature>" -P <port>
+decx code class-source "<package.Class>" -P <port>
+```
+
+Structured verification output:
+
+```text
+- [PASS/FAIL] Surface exists: ...
+- [PASS/FAIL] Entry method matches: ...
+- [PASS/FAIL] Source is attacker-controlled: ...
+- [PASS/FAIL] Sink is reachable: ...
+- [PASS/FAIL] No missed non-bypassable guard: ...
+```
+
+### Phase 3 - Select Exploit Mode
+
+Choose one exploit mode before writing code.
+
+| Mode | Use for | Typical support |
+|------|---------|-----------------|
+| `direct-trigger` | exported Activity, Service, Receiver, Provider paths | usually none |
+| `interception` | implicit Intent hijack, grant interception, broadcast leak | helper receiver/activity/service |
+| `returned-handle` | `PendingIntent`, granted `content://` URI, Binder handle reuse | capture step plus trigger step |
+| `hosted-web-content` | WebView bridge, URL bypass, scan-result-driven load | attacker page or local HTML asset |
+| `binder-caller` | exported AIDL/Messenger/Framework Binder methods | recreated interface or hidden API access |
+| `ui-assisted` | task hijack, clickjacking, lifecycle misuse | helper activity/service and visible UI signal |
+
+Selection rules:
+
+- Prefer the shortest exploit mode that demonstrates the claimed impact
+- If two-stage exploitation is required, model it explicitly as `capture -> trigger`
+- Do not fake a handle acquisition step that the finding never proved
+- Do not fake a remote server when a local asset or visible on-device effect is enough
+- If the only realistic validation requires manual setup, keep the code ready and document the manual step instead of over-automating it
+
+### Phase 4 - Create or Reuse the PoC Project
+
+First project creation:
+
+```bash
+node skill/decxcli-poc/scripts/setup-poc.mjs <target-app>
+```
+
+Expected output:
+
+```text
+poc-<target-app>/
+```
+
+Project structure:
+
+- `app/src/main/java/com/poc/<target-app>/Exploit.java`
+- `app/src/main/java/com/poc/<target-app>/ExploitRegistry.java`
+- `app/src/main/java/com/poc/<target-app>/PoCActivity.java`
+
+Reuse rule:
+
+- Reuse the same `poc-<target-app>` project for later findings against the same target
+- Add a new exploit class instead of creating a new app
+
+### Phase 5 - Load One Reference
+
+Load only the one reference file matching the active target:
+
+| Component | Reference |
+|----------|-----------|
+| Activity | `references/poc-app-activity.md` |
+| Broadcast / Receiver | `references/poc-app-broadcast.md` |
+| Provider | `references/poc-app-provider.md` |
+| Service | `references/poc-app-service.md` |
+| Intent / grant / mutable handle flows | `references/poc-app-intent.md` |
+| WebView | `references/poc-app-webview.md` |
+| Framework service | `references/poc-framework-service.md` |
+| Base exploit contract | `references/poc-base.md` |
+
+Modern surfaces that must not be skipped:
+
+- mutable `PendingIntent` exposures from notifications, widgets, IPC results, or provider returns
+- `ClipData` and URI-grant forwarding
+- WebView scan or QR result loaders, `intent://`, custom schemes, message-channel bridges, and file chooser callbacks
+- Provider `call()`, `applyBatch()`, `bulkInsert()`, and FileProvider grant chains
+- framework Binder paths that require hidden API access
+
+### Phase 6 - Implement the Exploit Class
+
+Create the exploit under:
+
+```text
+app/src/main/java/com/poc/<target-app>/exploit/
+```
+
+Implementation rules:
+
+- Class name must make the target and vuln type obvious
+- Replace every placeholder package, class, action, URI, and extra key with the real target values
+- Keep helper logic inside the class unless an existing shared helper already exists in the project
+- Reflect the chosen exploit mode in the code shape
+- Log a real visible success signal, not a theoretical statement
+- For `returned-handle`, separate handle acquisition from handle reuse
+- For `hosted-web-content`, prefer a minimal local HTML asset unless the finding specifically depends on a remote origin
+- For framework cases, gate hidden-API code to the exact service or method needed
+
+Good success logs:
+
+- `"Launched com.target.InternalAdminActivity through ForwardActivity"`
+- `"Read 12 rows from content://.../users"`
+- `"PendingIntent send() succeeded with attacker-filled target"`
+
+Bad success logs:
+
+- `"Exploit executed"`
+- `"Maybe vulnerable"`
+- `"Should lead to privilege escalation"`
+
+### Phase 7 - Register and Wire Supporting Pieces
+
+Always do both:
+
+1. Add the exploit class to `ExploitRegistry`
+2. Add any required Manifest declarations for helper components
+
+Common support additions:
+
+- receiver for implicit Intent interception
+- activity for task hijack or activity-result capture
+- service for overlay or notification observation
+- permissions required to trigger the PoC flow
+
+Do not add support components that are unrelated to the active exploit.
+
+### Phase 8 - Optional Compile
+
+Only run build steps if the user explicitly asks for compilation.
+
+Environment check:
+
+```bash
+node skill/decxcli-poc/scripts/check-env.mjs
+```
+
+If the environment check fails, stop and report the output.
+
+Build command:
 
 ```bash
 cd poc-<target-app> && timeout 300 ./gradlew assembleDebug --no-daemon
 ```
 
-如果编译超时或失败，分析错误日志修复代码后重试。
+If build fails:
 
-### 部署（可选）
+- fix the PoC code
+- retry
+- report the remaining blocker if it still does not compile
 
-仅在用户明确要求部署且 `adb devices` 能检测到设备时执行：
+### Phase 9 - Optional Deploy and Runtime Check
+
+Only deploy if the user explicitly asks and a device or emulator is available.
+
+Typical commands:
 
 ```bash
+adb devices
 adb install app/build/outputs/apk/debug/app-debug.apk
 adb logcat -s PoC:I AndroidRuntime:E
-adb uninstall com.poc.<target_app>
+adb uninstall com.poc.<target-app>
 ```
+
+Runtime validation must name the exact observed effect, for example:
+
+- non-exported activity opened
+- protected provider rows returned
+- privileged service method accepted the call
+- victim WebView loaded attacker-controlled content and exposed bridge behavior
+
+## Final Output Contract
+
+Close with a compact result block containing:
+
+- `state`
+- `projectPath`
+- `activeFinding`
+- `exploitMode`
+- `exploitClass`
+- `filesChanged`
+- `manifestChanges`
+- `buildStatus`
+- `runtimeStatus`
+- `remainingManualSteps`
+
+If the PoC stopped before compile or runtime validation, state that explicitly.

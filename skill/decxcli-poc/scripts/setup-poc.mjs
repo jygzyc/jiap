@@ -1,165 +1,201 @@
 #!/usr/bin/env node
 
 /**
- * PoC 项目初始化脚本
+ * PoC project bootstrap script.
  *
- * 用法: node setup-poc.mjs <target-app>
+ * Usage: node setup-poc.mjs <target-app>
  *
- * 从 poc-template.zip 解压并替换包名，生成 poc-<target-app>/ 项目。
- * 替换规则: com.poc.targetapp → com.poc.<target-app>（含目录名）
+ * Unzips the PoC template and replaces the placeholder package:
+ *   com.poc.targetapp -> com.poc.<target-app>
  */
 
-import { execSync } from "node:child_process";
-import { readFileSync, writeFileSync, readdirSync, statSync } from "node:fs";
-import { join, dirname, basename } from "node:path";
-import { fileURLToPath } from "node:url";
+import { execSync } from 'node:child_process';
+import {
+  readFileSync,
+  writeFileSync,
+  readdirSync,
+  statSync,
+  renameSync,
+} from 'node:fs';
+import { join, dirname, basename, extname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const PLACEHOLDER = "com.poc.targetapp";
+const PLACEHOLDER_PACKAGE = 'com.poc.targetapp';
+const PLACEHOLDER_PROJECT = 'poc-targetapp';
+const TEXT_EXTENSIONS = new Set([
+  '.java',
+  '.kt',
+  '.xml',
+  '.gradle',
+  '.properties',
+  '.toml',
+  '.md',
+  '.txt',
+  '.pro',
+]);
 
 function usage() {
-  console.error("用法: node setup-poc.mjs <target-app>");
-  console.error("");
-  console.error("示例:");
-  console.error("  node setup-poc.mjs myapp      → 生成 poc-myapp/, 包名 com.poc.myapp");
-  console.error("  node setup-poc.mjs wechat     → 生成 poc-wechat/, 包名 com.poc.wechat");
+  console.error('Usage: node setup-poc.mjs <target-app>');
+  console.error('');
+  console.error('Examples:');
+  console.error('  node setup-poc.mjs myapp   -> creates poc-myapp/, package com.poc.myapp');
+  console.error('  node setup-poc.mjs wechat  -> creates poc-wechat/, package com.poc.wechat');
   process.exit(1);
 }
 
 function validateAppName(name) {
   if (!name || !/^[a-z][a-z0-9]*$/.test(name)) {
-    console.error(`错误: app 名称 "${name}" 不合法，仅允许小写字母开头，后跟小写字母或数字`);
+    console.error(
+      `Error: invalid app name "${name}". Use lowercase letters or digits, starting with a letter.`
+    );
     process.exit(1);
   }
 }
 
 function unzip(src, dest) {
-  execSync(`unzip -qo "${src}" -d "${dest}"`, { stdio: "inherit" });
+  execSync(`unzip -qo "${src}" -d "${dest}"`, { stdio: 'inherit' });
 }
 
-function replaceInFile(filePath, from, to) {
-  let content = readFileSync(filePath, "utf-8");
-  if (content.includes(from)) {
-    content = content.replaceAll(from, to);
-    writeFileSync(filePath, content, "utf-8");
-    return true;
+function isTextFile(filePath) {
+  return TEXT_EXTENSIONS.has(extname(filePath));
+}
+
+function replaceInFile(filePath, replacements) {
+  if (!isTextFile(filePath)) {
+    return false;
   }
-  return false;
-}
 
-function renameDirIfMatch(dirPath, segment, newSegment) {
-  // dirPath 的最后一段如果是 segment，则重命名为 newSegment
-  if (basename(dirPath) === segment) {
-    const parent = dirname(dirPath);
-    const newPath = join(parent, newSegment);
-    execSync(`mv "${dirPath}" "${newPath}"`);
-    return newPath;
+  let content = readFileSync(filePath, 'utf-8');
+  let changed = false;
+
+  for (const [from, to] of replacements) {
+    if (content.includes(from)) {
+      content = content.replaceAll(from, to);
+      changed = true;
+    }
   }
-  return null;
+
+  if (changed) {
+    writeFileSync(filePath, content, 'utf-8');
+  }
+
+  return changed;
 }
 
-function walkReplace(baseDir, from, to) {
+function walkAndReplace(baseDir, replacements) {
   const entries = readdirSync(baseDir, { withFileTypes: true });
-  // 先处理文件，再处理目录（目录重命名必须在内容替换之后）
-  const files = [];
-  const dirs = [];
+  let changedFiles = 0;
 
   for (const entry of entries) {
     const fullPath = join(baseDir, entry.name);
     if (entry.isDirectory()) {
-      dirs.push(fullPath);
-    } else {
-      files.push(fullPath);
+      changedFiles += walkAndReplace(fullPath, replacements);
+    } else if (replaceInFile(fullPath, replacements)) {
+      changedFiles++;
     }
   }
 
-  // 替换文件内容
-  let fileCount = 0;
-  for (const filePath of files) {
-    if (replaceInFile(filePath, from, to)) {
-      fileCount++;
+  if (basename(baseDir) === 'targetapp') {
+    const newPath = join(dirname(baseDir), replacements.targetSegment);
+    renameSync(baseDir, newPath);
+  }
+
+  return changedFiles;
+}
+
+function collectRemainingMatches(baseDir, terms) {
+  const matches = [];
+  const entries = readdirSync(baseDir, { withFileTypes: true });
+
+  for (const entry of entries) {
+    const fullPath = join(baseDir, entry.name);
+    if (entry.isDirectory()) {
+      matches.push(...collectRemainingMatches(fullPath, terms));
+      continue;
+    }
+
+    if (!isTextFile(fullPath)) {
+      continue;
+    }
+
+    const content = readFileSync(fullPath, 'utf-8');
+    if (terms.some((term) => content.includes(term))) {
+      matches.push(fullPath);
     }
   }
 
-  // 递归处理子目录
-  for (const dirPath of dirs) {
-    fileCount += walkReplace(dirPath, from, to);
-  }
-
-  // 重命名目录（从最深层往上，所以先递归再重命名）
-  if (basename(baseDir) === "targetapp") {
-    const parent = dirname(baseDir);
-    const newPath = join(parent, to.split(".").pop()); // 最后一段
-    execSync(`mv "${baseDir}" "${newPath}"`);
-  }
-
-  return fileCount;
+  return matches;
 }
 
 function main() {
   const appName = process.argv[2];
-  if (!appName) usage();
+  if (!appName) {
+    usage();
+  }
+
   validateAppName(appName);
 
-  const newPkg = `com.poc.${appName}`;
+  const newPackage = `com.poc.${appName}`;
   const projectDir = join(process.cwd(), `poc-${appName}`);
-  const templateZip = join(__dirname, "..", "assets", "poc-template.zip");
+  const templateZip = join(__dirname, '..', 'assets', 'poc-template.zip');
+  const replacements = new Map([
+    [PLACEHOLDER_PACKAGE, newPackage],
+    [PLACEHOLDER_PROJECT, `poc-${appName}`],
+  ]);
+  replacements.targetSegment = appName;
 
-  // 检查模板是否存在
   try {
     statSync(templateZip);
   } catch {
-    console.error(`错误: 模板文件不存在: ${templateZip}`);
+    console.error(`Error: template not found: ${templateZip}`);
     process.exit(1);
   }
 
-  // 检查目标目录是否已存在
   try {
     statSync(projectDir);
-    console.error(`错误: 目录已存在: ${projectDir}`);
-    console.error("如需重建，请先删除该目录");
+    console.error(`Error: destination already exists: ${projectDir}`);
+    console.error('Remove it first if you want to recreate the project.');
     process.exit(1);
   } catch {
-    // 不存在，继续
+    // destination does not exist
   }
 
-  console.log(`初始化 PoC 项目...`);
-  console.log(`  目标应用: ${appName}`);
-  console.log(`  包名: ${PLACEHOLDER} → ${newPkg}`);
-  console.log(`  输出目录: ${projectDir}`);
-  console.log("");
+  console.log('Initializing PoC project...');
+  console.log(`  Target app: ${appName}`);
+  console.log(`  Package: ${PLACEHOLDER_PACKAGE} -> ${newPackage}`);
+  console.log(`  Output dir: ${projectDir}`);
+  console.log('');
 
-  // 1. 解压模板
-  console.log("  [1/3] 解压模板...");
+  console.log('  [1/3] Unzipping template...');
   unzip(templateZip, projectDir);
 
-  // 2. 替换文件内容 + 重命名目录
-  console.log("  [2/3] 替换包名（文件内容 + 目录结构）...");
-  const srcDir = join(projectDir, "app", "src", "main", "java");
-  const fileCount = walkReplace(srcDir, PLACEHOLDER, newPkg);
+  console.log('  [2/3] Replacing placeholders...');
+  const changedFiles = walkAndReplace(projectDir, replacements);
 
-  // 替换 build.gradle 中的包名（不在 java 目录下，单独处理）
-  const buildGradle = join(projectDir, "app", "build.gradle");
-  replaceInFile(buildGradle, PLACEHOLDER, newPkg);
+  console.log('  [3/3] Verifying...');
+  const remaining = collectRemainingMatches(projectDir, [
+    PLACEHOLDER_PACKAGE,
+    PLACEHOLDER_PROJECT,
+  ]);
 
-  // 3. 验证
-  console.log("  [3/3] 验证...");
-  const remaining = execSync(
-    `grep -r "${PLACEHOLDER}" "${projectDir}" --include="*.java" --include="*.gradle" --include="*.xml" --include="*.properties" -l 2>/dev/null || true`
-  ).toString().trim();
-  if (remaining) {
-    console.warn(`  ⚠ 仍有未替换的占位符:`);
-    console.warn(remaining);
+  console.log('');
+  console.log(`Created PoC project: ${projectDir}`);
+  console.log(`Updated ${changedFiles} file(s)`);
+
+  if (remaining.length > 0) {
+    console.warn('');
+    console.warn('Warning: unresolved placeholders remain in:');
+    for (const file of remaining) {
+      console.warn(`  - ${file}`);
+    }
   }
 
-  console.log("");
-  console.log(`✓ PoC 项目已创建: ${projectDir}`);
-  console.log(`  替换了 ${fileCount} 个 Java 文件中的包名`);
-  console.log("");
-  console.log(`下一步:`);
+  console.log('');
+  console.log('Next steps:');
   console.log(`  cd ${projectDir}`);
-  console.log(`  ./gradlew assembleDebug`);
+  console.log('  ./gradlew assembleDebug');
 }
 
 main();
