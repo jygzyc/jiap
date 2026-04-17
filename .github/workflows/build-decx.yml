@@ -56,7 +56,8 @@ jobs:
         tag_name: ${{ github.ref_name }}
         name: ${{ github.ref_name }}
         files: |
-          decx/build/dist/*.jar
+          decx/build/dist/jadx_decx_plugin-${{ steps.version.outputs.version }}.jar
+          decx/build/dist/decx-server-${{ steps.version.outputs.version }}.jar
         body_path: RELEASE.md
         draft: false
         prerelease: false
@@ -126,10 +127,18 @@ jobs:
       env:
         DECX_VERSION: ${{ steps.version.outputs.version }}
 
+    - name: Verify prerelease artifacts
+      if: steps.changes.outputs.has_changes == 'true'
+      run: |
+        ls -la decx/build/dist/
+        test -f "decx/build/dist/jadx_decx_plugin-${{ steps.version.outputs.version }}.jar"
+        test -f "decx/build/dist/decx-server-${{ steps.version.outputs.version }}.jar"
+
     - name: Prepare prerelease files
       if: steps.changes.outputs.has_changes == 'true'
       run: |
-        cp decx/build/dist/*.jar ./
+        cp "decx/build/dist/jadx_decx_plugin-${{ steps.version.outputs.version }}.jar" ./
+        cp "decx/build/dist/decx-server-${{ steps.version.outputs.version }}.jar" ./
         ls -la *.jar
 
     - name: Delete old prereleases
@@ -146,7 +155,7 @@ jobs:
       uses: softprops/action-gh-release@v2
       with:
         tag_name: "prerelease-${{ steps.version.outputs.version }}"
-        name: "Prerelease ${{ steps.version.outputs.version }}"
+        name: "v${{ steps.version.outputs.version }}"
         files: |
           *.jar
         draft: false

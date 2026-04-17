@@ -52,7 +52,7 @@ class DecxPlugin : JadxPlugin {
     override fun getPluginInfo(): JadxPluginInfo? {
         return JadxPluginInfoBuilder.pluginId(PLUGIN_ID)
             .name(PLUGIN_NAME)
-            .description("Java Intelligence Analysis Platform - Bridges JADX with AI assistants via CLI and MCP")
+            .description("Decompiler + X - Bridges JADX with AI assistants via CLI and MCP, Powerful support with skills")
             .homepage("https://github.com/jygzyc/decx")
             .requiredJadxVersion("1.5.2, r2472")
             .build()

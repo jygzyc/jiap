@@ -1,0 +1,32 @@
+{
+  "target": "",
+  "artifactPath": "",
+  "sessionName": "",
+  "port": 0,
+  "phase": "coverage",
+  "inventorySummary": {
+    "totalTargets": 0,
+    "byType": {},
+    "fullyAccountedFor": false
+  },
+  "targetRowTemplate": {
+    "targetId": "",
+    "targetType": "",
+    "component": "",
+    "entryPoint": "",
+    "entryPermission": "",
+    "analysisDepth": "inventory|first-pass|deep-trace",
+    "status": "candidate|statically-supported|rejected",
+    "reason": "",
+    "nextAction": "",
+    "needsCrossComponentTrace": false,
+    "evidenceRefs": [],
+    "metadata": {}
+  },
+  "targets": [],
+  "staticallySupportedTargets": [],
+  "candidateTargets": [],
+  "rejectedTargets": [],
+  "summary": "",
+  "notes": []
+}

@@ -6,10 +6,15 @@
   "phase": "recon",
   "appInfo": {},
   "permissions": [],
+  "permissionResolutions": [],
   "components": [],
   "aidlInterfaces": [],
   "deepLinkEntries": [],
   "scanEntrypoints": [],
+  "pendingIntentPaths": [],
+  "uriGrantPaths": [],
+  "webEntryPoints": [],
+  "targetInventory": [],
   "summary": "",
   "notes": []
 }

@@ -11,6 +11,20 @@
 
 ---
 
+## 攻击面覆盖概览
+
+| 指标 | 值 |
+|------|-----|
+| 总攻击面数量 | `0` |
+| `statically-supported` | `0` |
+| `candidate` | `0` |
+| `rejected` | `0` |
+| 覆盖完成 | `true / false` |
+
+> 这里必须汇总 `coverage.json` 的统计结果，并明确说明是否所有外部可达面都已入表。
+
+---
+
 ## 问题一：[Risk] 漏洞标题
 
 ### 1. 漏洞分析
@@ -101,6 +115,16 @@ private void deleteFile(ContentValues values, String filepath) {
 ### 5. 修复建议
 
 > 提供可执行的修复方案。
+
+---
+
+## 残余待证伪攻击面
+
+> 列出最终仍为 `candidate` 的目标。它们不是已确认漏洞，也不能被写成“已排除”。
+
+| 目标 ID | 类型 | 当前状态 | 仍缺失的证据 |
+|---------|------|----------|--------------|
+| `activity-forward-01` | `Activity` | `candidate` | 缺少从外部输入到内部 sink 的完整跨组件调用链 |
 
 ---
 

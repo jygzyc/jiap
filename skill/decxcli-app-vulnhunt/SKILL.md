@@ -8,97 +8,94 @@ metadata:
 
 # DECX CLI - Android App Vulnerability Hunting
 
-## Overview
-
-Use this skill for app-layer vulnerability hunting against APK targets.
+Use this skill for APK app-layer vulnerability hunting.
 
 Scope:
 
-- In scope: exported component enumeration, deep-link review, WebView and IPC tracing, static exploitability triage, risk-rating guidance, report drafting
+- In scope: exported component review, deep links, WebView, IPC, exploitability triage, risk rating, report drafting
 - Out of scope: framework/service hunting, PoC construction, runtime confirmation
-- Framework/service hunting belongs to `decxcli-framework-vulnhunt`
+- Framework work belongs to `decxcli-framework-vulnhunt`
 - PoC and runtime validation belong to `decxcli-poc`
 
-Conclusion ceiling:
+Ceiling:
 
 - Highest allowed state: `statically-supported`
-- Never claim `poc-validated`, `runtime-validated`, `verified exploitable`, or equivalent
+- Never claim `poc-validated`, `runtime-validated`, or equivalent
 
-Command reference lives in `decxcli`.
+## Hard Rules
 
-## Non-Negotiable Rules
+### Commands
 
-### Command Rules
-
-- Every session-backed `decx code` command and every session-backed `decx ard` command must include `-P <port>`
-- adb-backed `decx ard` commands such as `system-services`, `perm-info`, and `framework collect` / `framework process` do not use `-P <port>`
-- Method signatures must use the full format: `"package.Class.method(paramType):returnType"`
+- Every session-backed `decx code` and `decx ard` command must include `-P <port>`
+- adb-backed commands such as `system-services`, `perm-info`, and `framework collect/process` do not use `-P <port>`
+- Method signatures must use full form: `"package.Class.method(paramType):returnType"`
 - Never use `...` in signatures
-- Quote package names, class names, method signatures, and file paths
-- If a command is uncertain, check `--help` instead of guessing
+- Quote package names, classes, methods, and file paths
+- If uncertain, check `--help`
 
-### Routing Rules
+### Routing
 
-- Use this skill only when the target is an APK/app session and the attack surface starts from Activities, Services, Providers, Receivers, deep links, WebViews, scan flows, or app Binder surfaces
-- If the request is about `system_server`, framework JARs, vendor services, Binder service implementations, AIDL service families, or OEM framework logic, switch to `decxcli-framework-vulnhunt`
-- Do not begin framework hunts with `app-manifest`, exported components, or app deep links
+- Use this skill only for APK/app sessions whose surface starts from Activities, Services, Providers, Receivers, deep links, WebViews, scan flows, or app Binder surfaces
+- If the request is about `system_server`, framework jars, vendor services, Binder service implementations, AIDL service families, or OEM framework logic, switch to `decxcli-framework-vulnhunt`
 
-### Context Rules
+### Context
 
-- Every subagent must watch context usage
 - Hand off at 60% context usage
-- Main agent keeps only structured summaries, not raw source dumps
-- Outside final reporting, do not paste large command outputs or large code blocks
+- Keep structured summaries, not raw source dumps
+- Outside final reporting, do not paste large outputs
 
-### Persistence Rules
+### Persistence
 
-- Intermediate analysis results may be persisted to local files so work can survive interruption, context handoff, or session restarts
-- Prefer JSON for parsed recon results, shortlisted targets, findings, and resume metadata
-- Keep persisted artifacts structured and compact; do not save raw source dumps unless the user explicitly asks
-- Before repeating recon after an interruption, check whether a recent persisted artifact can be loaded and continued
-
-Recommended working directory:
+Recommended work dir:
 
 ```text
 .decx-analysis/<target-name>/
 ```
 
-Recommended phase artifacts:
+Recommended artifacts:
 
 - `recon.json`
-- `shortlist.json`
+- `coverage.json`
 - `findings.json`
 - `report.md`
 - `resume.json`
 - `poc-handoff.json`
 
-Template files to fill and save:
+Templates:
 
 - `assets/recon-template.json`
-- `assets/shortlist-template.json`
+- `assets/coverage-template.json`
 - `assets/findings-template.json`
 - `assets/resume-template.json`
 - `assets/poc-handoff-template.json`
 
-### Output States
+### States
 
 | State | Meaning | Allowed |
 |------|---------|---------|
-| `candidate` | suspicious path found, still missing evidence | Yes |
-| `statically-supported` | static evidence supports reachability, control, bypassability, and visible impact | Yes |
-| `rejected` | unreachable, uncontrollable, blocked, or not impactful | Yes |
+| `candidate` | suspicious path, evidence incomplete | Yes |
+| `statically-supported` | static evidence proves reachability, control, bypassability, and visible impact | Yes |
+| `rejected` | explicit blocking evidence or no real impact | Yes |
 | `poc-validated` | PoC-confirmed | No |
 | `runtime-validated` | runtime-confirmed | No |
 
-Downgrade rules:
+State rules:
 
-- If reachability, controllability, bypass conditions, or visible impact is unclear: downgrade to `candidate`
-- If a non-bypassable guard exists or impact is not real: mark `rejected`
-- If impact cannot be mapped to `references/risk-rating.md`: do not report it
+- Unclear reachability, controllability, bypass conditions, or impact: `candidate`
+- Explicit non-bypassable guard, unreachable sink, non-controllable source, or no real impact: `rejected`
+- Impact not mappable to `references/risk-rating.md`: do not report
 
-### Evidence Rules
+### Coverage
 
-Every reported finding must explicitly answer:
+- Never silently drop an externally reachable surface
+- Every exported component, deep-link handler, dynamic receiver, externally triggerable WebView/native bridge path, AIDL/Binder entry, URI-grant chain, `PendingIntent` chain, and scan-driven entrypoint must appear in `coverage.json`
+- `rejected` requires explicit evidence-backed blocking reason
+- "Not selected", "too many targets", or "unlikely" are never valid rejection reasons
+- If evidence is incomplete, keep the target as `candidate` and record the exact missing proof
+
+### Evidence
+
+Every reported finding must answer:
 
 1. `reachable`
 2. `controllable`
@@ -106,43 +103,29 @@ Every reported finding must explicitly answer:
 4. `impactEvidence`
 5. `ratingRationale`
 
-Do not write vague phrases like:
-
-- "may be bypassable"
-- "could lead to privilege escalation"
-- "might leak sensitive data"
-
-Write the exact condition instead:
-
-- "Bypassable if the permission is `normal`/`dangerous`, attacker-defined, or not provably signature-bound"
-- "Visible impact: attacker can read account rows through the exported provider"
-- "HIGH because this exposes app-sandbox data to an untrusted local app"
-
 ## Workflow
-
-Track progress with:
 
 ```text
 App VulnHunt Progress
 - [ ] Phase 1: Prepare target and confirm session
-- [ ] Phase 2: Enumerate app attack surface
-- [ ] Phase 3: Trace per-target flows
-- [ ] Phase 4: Trace required cross-component chains
-- [ ] Phase 5: Filter by exploitability
+- [ ] Phase 2: Build full attack-surface inventory
+- [ ] Phase 3: Write first-pass coverage verdicts for every target
+- [ ] Phase 4: Deep trace every non-rejected target
+- [ ] Phase 5: Finalize exploitability and residual risk set
 - [ ] Phase 6: Generate final report
 - [ ] Handoff: Pass minimal finding set to decxcli-poc
 ```
 
-### Phase 1 - Prepare Target
+### Phase 1 - Prepare
 
-Goal: open the APK target and confirm DECX is healthy.
+Goal: open the APK and confirm DECX is healthy.
 
 ```bash
 decx process open "<apk-path>" -P <port>
 decx process status -P <port>
 ```
 
-Do not close the session automatically. Tell the user they can close it with:
+Do not close the session automatically. If needed, tell the user:
 
 ```bash
 decx process close "<name>"
@@ -150,7 +133,7 @@ decx process close "<name>"
 
 ### Phase 2 - Recon
 
-Goal: enumerate externally reachable app surfaces and return a minimal structured shortlist.
+Goal: produce a complete external-surface inventory in `recon.json`.
 
 Execution model:
 
@@ -168,63 +151,72 @@ decx ard get-aidl -P <port>
 decx ard strings -P <port>
 ```
 
-Recon rules:
+Recon requirements:
 
-1. Collect the full app permission inventory first:
+1. Collect the full permission inventory:
    - declared `<permission>`
    - `<uses-permission>`
-   - component-level `android:permission`, `readPermission`, `writePermission`
+   - component `android:permission`, `readPermission`, `writePermission`
    - receiver send/receive permissions
    - provider read/write permissions and grant flags
-2. Resolve each collected permission and record its `protectionLevel`, owner, and where it is used
-3. Compare every externally reachable component and IPC path against that full permission inventory before filtering
-4. Treat `signature` and `signatureOrSystem` as protected by default, but keep analyzing when the app forwards, proxies, re-grants, reuses victim identity, exposes a weaker alternate path, or when the permission ownership/binding is uncertain
-5. Group targets by Activity, Service, Provider, Receiver, WebView, AIDL/Binder, Deep Link, and scan-driven entrypoint
-6. Initialize every retained target as `candidate`
+2. Resolve each permission and record `protectionLevel`, owner, and usage
+3. Compare every reachable component or IPC path against that inventory
+4. Treat `signature` and `signatureOrSystem` as protected by default, but keep tracing when the app forwards, proxies, re-grants, reuses victim identity, exposes a weaker alternate path, or ownership is uncertain
+5. Group targets by Activity, Service, Provider, Receiver, WebView, AIDL/Binder, Deep Link, scan-driven entrypoint, `PendingIntent`, and URI-grant chain
+6. Assign every surface a stable `targetId`
+7. Initialize every target as `candidate`
 
-Modern surfaces that must be considered:
+Must-consider surfaces:
 
 - Deep Links and App Links
-- mutable `PendingIntent` flows
+- mutable `PendingIntent`
 - `ClipData` and URI grants
 - WebView `intent://`, custom schemes, `postMessage`, message ports, file chooser callbacks, QR/scan result handlers, browser-to-native bridges
-- `ActivityResultLauncher` and legacy `onActivityResult()` flows
+- `ActivityResultLauncher` and legacy `onActivityResult()`
 - Provider `call()`, `applyBatch()`, `bulkInsert()`, `openTypedAssetFile()`, FileProvider grants
 
-Permission triage:
-
-| protectionLevel | Triage |
-|----------------|--------|
-| `normal` | unprotected |
-| `dangerous` | weak protection |
-| `signature` / `signatureOrSystem` | protected by default; keep analyzing if there is forwarding, proxying, re-granting, victim-identity reuse, or uncertain ownership |
-| unknown / defined in another app | uncertain until bypass conditions are explicit |
-
-Permission analysis rules:
-
-- Do not reason only from exported status; always compare the component or IPC path against the full permission inventory first
-- For each retained target, record:
-  - entry permission
-  - downstream permissions checked later in code
-  - whether the same capability is reachable through a weaker alternate path
-- If a `signature` or `signatureOrSystem` gate exists, check whether:
-  - the app later forwards attacker-controlled data into a protected internal path
-  - a trusted caller can be induced to execute the path on the attacker's behalf
-  - URI grants, `PendingIntent`, result returns, or Binder handles re-grant access after the initial gate
-  - a second exported component reaches the same sink with weaker protection
-- If those conditions are absent and the signature-bound gate is non-bypassable, reject the third-party attack path
-
-Recon output:
+Output rules:
 
 - JSON only
 - No raw command output
-- Only `needsAnalysis: true` targets move to Phase 3
-- If interruption-safe analysis is needed, persist the parsed recon result to `recon.json` before moving to Phase 3
-- Fill `recon.json` from `assets/recon-template.json`
+- Persist `recon.json` before Phase 3
+- `recon.json` is inventory, not a filter result
 
-### Phase 3 - Per-Target Analysis
+### Phase 3 - First-Pass Coverage
 
-Goal: upgrade each retained target to `statically-supported` or downgrade it to `rejected`.
+Goal: write one evidence-backed coverage row for every `targetId`.
+
+Required row fields:
+
+- `targetId`
+- `targetType`
+- `entryPoint`
+- `entryPermission`
+- `analysisDepth`
+- `status`
+- `reason`
+- `nextAction`
+- `needsCrossComponentTrace`
+- `evidenceRefs`
+
+First-pass rules:
+
+- `rejected` only if blocking evidence is explicit:
+  - non-bypassable signature, UID, or cryptographic guard
+  - source is not attacker-controlled
+  - sink is unreachable from the external entry
+  - no visible impact exists
+- `candidate` if:
+  - the path is suspicious but incomplete
+  - the chain crosses trust boundaries
+  - the path depends on `PendingIntent`, URI grants, results, Binder handles, or WebView/browser handoff
+- `statically-supported` only if the full static chain is already complete
+
+Coverage rules:
+
+- Persist every target to `coverage.json`
+- `coverage.json.targets` must follow one stable schema
+- `coverage.json` must exhaustively cover `recon.json.targetInventory`
 
 Overview mapping:
 
@@ -234,15 +226,28 @@ Overview mapping:
 | Service | `references/app-service.md` | `onBind`, `onStartCommand`, `handleMessage` |
 | Provider | `references/app-provider.md` | `query`, `insert`, `update`, `delete`, `openFile`, `call`, `applyBatch`, `bulkInsert` |
 | Receiver | `references/app-broadcast.md` | `onReceive` |
-| Intent flow | `references/app-intent.md` | explicit/implicit forwarding, parcel, grant, result-return paths |
+| Intent flow | `references/app-intent.md` | forwarding, parcel, grant, result-return paths |
 | WebView host | `references/app-webview.md` | host init, URL loaders, bridge registration, result handlers |
 
-Subagent split:
+Subagents:
 
-- Component scout: reads the overview file plus target source and chooses likely vuln patterns and entry methods
-- Chain subagent: analyzes one method at a time
+- Component scout: choose likely vuln patterns and entry methods
+- Chain subagent: analyze one method at a time
+- Coverage steward: verify inventory-to-coverage completeness before Phase 4
 
-Chain command:
+Coverage steward contract:
+
+- Input: `recon.json.targetInventory`, `coverage.json.targets`
+- Checks:
+  - every `targetId` appears exactly once
+  - every row has `status`, `reason`, `analysisDepth`, `nextAction`, and `evidenceRefs`
+  - every `rejected` row names the blocking condition
+  - every `candidate` row names the missing proof
+- Output:
+  - `inventorySummary.fullyAccountedFor = true` only if all checks pass
+  - refreshed `candidateTargets`, `rejectedTargets`, and `staticallySupportedTargets`
+
+Tracing command:
 
 ```bash
 decx code method-source "<currentMethod>" -P <port>
@@ -250,11 +255,11 @@ decx code method-source "<currentMethod>" -P <port>
 
 Method labels:
 
-- `SOURCE`: attacker-controlled input enters here
-- `SINK`: sensitive action happens here
-- `SAFE`: non-bypassable guard exists here
-- `PASS_THROUGH`: keep tracing
-- `DEAD_END`: no further value
+- `SOURCE`
+- `SINK`
+- `SAFE`
+- `PASS_THROUGH`
+- `DEAD_END`
 
 Common sources:
 
@@ -277,20 +282,14 @@ Common sinks:
 - `CookieManager.setCookie()`
 - `execSQL()`
 
-Common non-bypassable guards:
+Common hard guards:
 
 - exact package-signature or UID allowlist
-- integrity or HMAC verification tied to unforgeable material
+- integrity or HMAC tied to unforgeable material
 - strict typed parsing plus explicit class allowlist
 - `checkSignatures`, `enforceCallingPermission`, `checkCallingPermission`
 
-Upgrade rules:
-
-- Source and sink present but chain incomplete: keep `candidate`
-- Source, sink, chain, bypass conditions, and visible impact all established: upgrade to `statically-supported`
-- Non-bypassable guard, unreachable entry, or no real impact: `rejected`
-
-Trace only tainted-data-relevant calls. Skip logging, pure UI, and obvious utility dead ends.
+Trace only tainted-data-relevant calls. Skip logging, pure UI, and obvious dead ends.
 
 Minimum finding fields:
 
@@ -308,30 +307,39 @@ Minimum finding fields:
 - `impactEvidence`
 - `ratingRationale`
 
-### Phase 4 - Cross-Component Analysis
+### Phase 4 - Deep Trace
 
-Continue only when needed:
+Goal: fully trace every non-`rejected` target that still lacks a complete chain.
 
-- chain crosses component boundaries
-- `PendingIntent`, URI grants, activity results, or scan results cross trust boundaries
+Mandatory deep-trace conditions:
+
+- cross-component chain
+- `PendingIntent`, URI grants, results, or scan flows cross trust boundaries
+- WebView or browser content turns into native actions
+- Binder or Messenger unlocks the real sink
+- first-pass verdict is `candidate`
 
 Rules:
 
-- Reuse `nextMethods` from the previous phase
-- Inherit the existing `chain`
-- Keep the same minimal finding schema
+- Reuse `nextMethods`
+- Inherit the current `chain`
+- Keep the same finding schema
+- Update `coverage.json` after each deep trace
+- Do not stop because there are many targets
+- Continue until every non-`rejected` target is either:
+  - `statically-supported`
+  - `candidate` with explicit missing proof
+  - `rejected` with explicit blocking evidence
 
-Persistence guidance:
+Persistence:
 
-- Persist the retained shortlist before deep tracing if Phase 2 took meaningful effort
-- Fill `shortlist.json` from `assets/shortlist-template.json`
-- Persist findings incrementally in `findings.json` after each target family or confirmed finding
-- Fill `findings.json` from `assets/findings-template.json`
-- When resuming, load `recon.json`, `shortlist.json`, `findings.json`, and `resume.json` first, then continue from `lastCompletedPhase` instead of repeating completed work
+- Persist `coverage.json` before and during deep tracing
+- Persist `findings.json` incrementally
+- On resume, load `recon.json`, `coverage.json`, `findings.json`, and `resume.json` first
 
 ### Phase 5 - Exploitability Filter
 
-This phase is static exploitability triage, not exploitation proof.
+This phase is still static triage, not exploitation proof.
 
 Quick rejection checks:
 
@@ -341,7 +349,7 @@ Quick rejection checks:
 | exact signature enforcement | `checkSignatures`, signature compare |
 | hard package / UID allowlist | immutable trusted allowlist |
 | root / system-only path | privileged-only API or environment |
-| non-bypassable guard on source-to-sink path | integrity, cryptographic, or strict type guard |
+| non-bypassable guard | integrity, cryptographic, or strict type guard |
 
 Three-factor gate:
 
@@ -349,20 +357,24 @@ Three-factor gate:
 2. Controllable
 3. Impactful
 
-Uncertainty rules:
-
-- If a permission is defined outside the current app and DECX cannot prove its level, do not assume protection
-- If a component is protected by `signature` or `signatureOrSystem`, do not stop there; verify whether forwarding, proxy execution, grants, or alternate weaker paths still make the sink reachable
-- Keep the finding at `candidate` unless the exact bypass condition is stated
-
 Decision rules:
 
-- All three factors plus bypass conditions plus impact evidence present: `statically-supported`
-- Any factor missing: `rejected`
+- Reachable + controllable + impactful + explicit bypass conditions + impact evidence: `statically-supported`
+- Explicit blocking reason: `rejected`
+- Suspicious but incomplete: `candidate`
+
+Residual-risk rules:
+
+- If a target remains suspicious after full tracing, keep it as `candidate`
+- The final residual set must be visible in both `coverage.json` and the report
+- The report must distinguish:
+  - proven blocked
+  - statically supported vulnerabilities
+  - residual `candidate` targets
 
 ### Phase 6 - Report
 
-Goal: generate the final Markdown report using only `statically-supported` findings.
+Goal: generate the final Markdown report using only `statically-supported` findings, while still surfacing residual `candidate` targets in the coverage summary section.
 
 Execution model:
 
@@ -373,7 +385,7 @@ Reporting steps:
 
 1. Read `assets/report-template.md`
 2. Read `references/risk-rating.md`
-3. Pick language mode:
+3. Pick language:
    - `zh` -> `assets/report-template-zh.md`
    - `en` -> `assets/report-template-en.md`
    - `both` -> Chinese first, then English
@@ -385,26 +397,18 @@ Mandatory report content:
 - `Bypass Conditions / Uncertainties`
 - `Visible Impact`
 - `Rating Rationale`
+- attack-surface coverage summary
+- unresolved residual `candidate` targets
 
-Language rules:
-
-- If user requests Chinese: `zh`
-- If user requests English: `en`
-- If user requests bilingual output: `both`
-- Otherwise follow the user's current language
-
-Report wording rules:
+Report rules:
 
 - Use wording like "Static analysis supports this vulnerability chain"
 - Never write "verified", "fully exploited", or "confirmed exploitable in practice"
 - If impact is conditional, state the condition directly
-
-Format rules:
-
-- Follow `assets/report-template.md`
+- Follow the template strictly
 - Do not add extra sections, reorder sections, insert JSON, or include rejected findings
 
-## Handoff Protocol
+## Handoff
 
 At 60% context usage, hand off immediately:
 
@@ -420,29 +424,29 @@ At 60% context usage, hand off immediately:
 }
 ```
 
-If file-backed continuation is enabled, also persist the same handoff state to `resume.json` using `assets/resume-template.json`.
+If file-backed continuation is enabled, persist the same state to `resume.json`.
 
-Phase-specific context:
+Phase context:
 
 - Phase 2: parsed component list and remaining recon commands
-- Phase 3: `vulnTypesDone`, `vulnTypesPending`, current `chain`, finished findings
+- Phase 3: `coverageDone`, `coveragePending`, current target family, proven rejection reasons
 - Phase 4: cross-component chain progress
 - Phase 6: completed and pending report sections
 
-Resume procedure:
+Resume:
 
 1. Load `resume.json`
-2. Verify `target`, `artifactPath`, `sessionName`, and `port` still match the current analysis target
-3. Load the referenced intermediate artifacts such as `recon.json`, `shortlist.json`, and `findings.json`
+2. Verify `target`, `artifactPath`, `sessionName`, and `port`
+3. Load `recon.json`, `coverage.json`, and `findings.json`
 4. Reconfirm the DECX session with `decx process status -P <port>`
-5. Continue from `lastCompletedPhase` and `nextAction` instead of re-running completed phases
+5. Continue from `lastCompletedPhase` and `nextAction`
 
 ## Handoff To `decxcli-poc`
 
 Pass only the minimal static finding.
 
 - Fill `poc-handoff.json` from `assets/poc-handoff-template.json`
-- Keep only one finding per handoff file unless the user explicitly asks for a batch handoff
+- Keep one finding per handoff file unless the user explicitly asks for a batch handoff
 
 Never pass:
 
@@ -452,8 +456,6 @@ Never pass:
 - findings below `statically-supported`
 
 ## References
-
-Use the overview files as the entry layer:
 
 - `references/app-activity.md`
 - `references/app-intent.md`
