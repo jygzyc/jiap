@@ -13,10 +13,9 @@ describe("self command metadata", () => {
   });
 
   it("falls back to package.json metadata when npm env is missing", () => {
-    expect(getCliPackageMetadata({} as NodeJS.ProcessEnv)).toEqual({
-      name: "@jygzyc/decx-cli",
-      version: "2.5.0",
-    });
+    const { name, version } = getCliPackageMetadata({} as NodeJS.ProcessEnv);
+    expect(name).toBe("@jygzyc/decx-cli");
+    expect(version).toMatch(/^\d+\.\d+\.\d+/);
   });
 
   it("builds npm install args from the package name", () => {
@@ -32,19 +31,19 @@ describe("self command metadata", () => {
     const result = await executeSelfInstall(false, {
       installDecxServerFn: async () => ({
         ok: true,
-        version: "2.6.0",
+        version: "0.0.0",
         path: "/tmp/decx-server.jar",
-        message: "Installed decx-server v2.6.0 to /tmp/decx-server.jar",
+        message: "Installed decx-server v0.0.0 to /tmp/decx-server.jar",
       }),
       manager: { updateServerVersion },
     });
 
-    expect(updateServerVersion).toHaveBeenCalledWith("2.6.0");
+    expect(updateServerVersion).toHaveBeenCalledWith("0.0.0");
     expect(result).toEqual({
       ok: true,
-      version: "2.6.0",
+      version: "0.0.0",
       path: "/tmp/decx-server.jar",
-      message: "Installed decx-server v2.6.0 to /tmp/decx-server.jar",
+      message: "Installed decx-server v0.0.0 to /tmp/decx-server.jar",
     });
   });
 });
