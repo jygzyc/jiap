@@ -1,95 +1,86 @@
 ---
 name: poc-base
-description: Base exploit contract for all DECX PoC construction references.
+description: Shared contract for DECX PoC construction references.
 ---
 
 # Base PoC Contract
 
-All component references in `decxcli-poc` assume the same exploit contract. The exploit class should be small, self-contained, and shaped around one verified finding.
+## Current Template
 
-## Base Class
+All `decxcli-poc` references assume the same split template:
+
+- Android side: `ExploitEntry`, `ExploitRegistry`, `PoCActivity`
+- Web side: `server/public/index.html`, `server/public/payload.html`, `server/public/scenario.js`, `server/server.mjs`
+
+The Android template is intentionally small:
+
+- one launcher activity
+- one browsable route shape: `poc-<target>://run/trigger?exploit=<id>`
+- one exploit registry with dynamic buttons
+
+The server template is intentionally minimal:
+
+- `index.html`: build one deep link or one `intent://` URL
+- `payload.html`: add one script block for the active WebView payload
+- `scenario.js`: render the generated links and ADB commands
+
+The normal workflow is:
+
+1. add one hyperlink variant in `index.html` if the trigger changes
+2. add or replace one script block in `payload.html` if the payload changes
+
+## Registration Shape
+
+Use the current template, not an imaginary base class:
 
 ```java
-package com.poc.targetapp;
+static {
+    register("example-id", "Example Exploit", () -> runExample());
+}
 
-import android.content.Context;
-import android.util.Log;
-
-public abstract class Exploit {
-
-    protected Context context;
-
-    public Exploit(Context context) {
-        this.context = context;
-    }
-
-    public abstract void execute();
-
-    protected void log(String msg) {
-        Log.i("PoC", msg);
-    }
+private static void runExample() {
+    Log.i("PoC", "Replace with the verified exploit path");
 }
 ```
 
-## Construction Rules
+Snippet convention:
 
-- One exploit class proves one finding
-- Keep helper code inside the same class unless a helper component must exist in the Manifest
-- Replace every placeholder package, class, action, URI, extra key, and Binder method with the real target values
-- Log a visible proof point instead of a theory statement
-- If an exploit needs two stages, model them explicitly as `capture -> trigger`
+- examples show the exploit body shape, not a drop-in full file
+- `appContext` is a placeholder for the actual `Context` you wire into the current PoC project
+- replace imports, helper fields, and registration placement to match the active target project
 
-## Recommended Class Shape
+## Common Rules
 
-```java
-public class ExampleExploit extends Exploit {
-    public ExampleExploit(Context context) {
-        super(context);
-    }
+- one exploit id proves one finding
+- keep helper code close to the exploit unless a real Manifest component is required
+- replace every placeholder package, action, URI, extra key, Binder method, and host value
+- log visible proof, not theory
+- model two-stage exploits explicitly as `capture -> trigger`
+- prefer local `server/` assets over remote infrastructure unless origin really matters
+- use `AndroidHiddenApiBypass` only for framework Binder paths that truly need it
 
-    @Override
-    public void execute() {
-        // 1. build trigger
-        // 2. execute trigger
-        // 3. log visible success signal
-    }
-}
-```
+## Success Signals
 
-## Success Signal Rules
+Good:
 
-Good signals:
+- returned rows, files, tokens, or Binder results
+- actual target component launch
+- actual grant or `PendingIntent` reuse
+- actual privileged state change
 
-- actual returned rows, tokens, or files
-- actual component launch path reached
-- actual Binder call accepted
-- actual granted URI reused
+Bad:
 
-Bad signals:
+- `Exploit executed`
+- `Target may be vulnerable`
+- `Should lead to escalation`
 
-- "exploit finished"
-- "target may be vulnerable"
-- "should escalate privileges"
+## Support Components
 
-## Supporting Components
+Add helpers only when the verified path requires them:
 
-Add helper components only when the exploit mode truly needs them:
+- helper `Activity`: task hijack, result capture, UI-assisted steps
+- helper `BroadcastReceiver`: interception or broadcast leak capture
+- helper `Service`: long-lived listener, overlay, notification observation
+- server asset: browser-driven link, WebView payload, JS bridge, or result capture
 
-- helper `Activity`: task hijack, result capture, implicit-Intent interception
-- helper `BroadcastReceiver`: broadcast interception or leak capture
-- helper `Service`: overlay, long-lived listener, notification capture
-- helper HTML asset: WebView-driven exploit that does not need a real remote server
-
-If no helper component is required, do not add one.
-
-## Hidden API Note
-
-Use `AndroidHiddenApiBypass` only for framework-service or hidden-API cases.
-
-```java
-import org.lsposed.hiddenapibypass.HiddenApiBypass;
-
-HiddenApiBypass.addHiddenApiExemptions("");
-```
-
-Do not make hidden-API setup part of ordinary app-component PoCs.
+If the finding does not need a helper, do not add one.

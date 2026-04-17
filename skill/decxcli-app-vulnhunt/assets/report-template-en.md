@@ -11,6 +11,20 @@
 
 ---
 
+## Attack-Surface Coverage Summary
+
+| Metric | Value |
+|------|-------|
+| Total Surfaces | `0` |
+| `statically-supported` | `0` |
+| `candidate` | `0` |
+| `rejected` | `0` |
+| Coverage Complete | `true / false` |
+
+> Summarize the totals from `coverage.json` and state explicitly whether every externally reachable surface was accounted for.
+
+---
+
 ## Issue 1: [Risk] Vulnerability Title
 
 ### 1. Vulnerability Analysis
@@ -101,6 +115,16 @@ private void deleteFile(ContentValues values, String filepath) {
 ### 5. Remediation
 
 > Provide concrete fixes.
+
+---
+
+## Residual Candidate Surfaces
+
+> List every target that remains `candidate` at the end. These are not confirmed vulnerabilities, but they are also not proven safe.
+
+| Target ID | Type | Current State | Missing Proof |
+|-----------|------|---------------|---------------|
+| `activity-forward-01` | `Activity` | `candidate` | Missing the full cross-component chain from external input to internal sink |
 
 ---
 

@@ -9,7 +9,7 @@ import * as path from "path";
 import { fileURLToPath } from "url";
 import { Formatter } from "../utils/formatter.js";
 import { Manager } from "../core/config.js";
-import { checkForServerUpdate, installDecxServer } from "../server/installer.js";
+import { checkForServerUpdate, installDecxServer, type InstallDecxServerResult } from "../server/installer.js";
 import { DecxError, ServerError, withErrorHandler } from "../utils/errors.js";
 
 interface CliPackageMetadata {
@@ -38,6 +38,32 @@ export function buildCliUpdateArgs(packageName: string, tag: string = "latest"):
   return ["install", "-g", `${packageName}@${tag}`];
 }
 
+type ServerVersionManager = Pick<Manager, "updateServerVersion">;
+
+export async function executeSelfInstall(
+  prerelease: boolean,
+  deps: {
+    installDecxServerFn?: (prerelease?: boolean) => Promise<InstallDecxServerResult>;
+    manager?: ServerVersionManager;
+  } = {}
+): Promise<{ ok: true; version: string; path: string; message: string }> {
+  const installDecxServerFn = deps.installDecxServerFn ?? installDecxServer;
+  const manager = deps.manager ?? Manager.get();
+  const result = await installDecxServerFn(prerelease);
+
+  if (!result.ok) {
+    throw new ServerError(result.message);
+  }
+
+  manager.updateServerVersion(result.version);
+  return {
+    ok: true,
+    version: result.version,
+    path: result.path,
+    message: result.message,
+  };
+}
+
 export function makeSelfCommand(): Command {
   const cmd = new Command("self");
   cmd.description("Self-management commands (update, install, etc.)");
@@ -48,12 +74,7 @@ export function makeSelfCommand(): Command {
     .option("-p, --prerelease", "Install prerelease version")
     .action(withErrorHandler(async (opts) => {
       const fmt = new Formatter();
-      const [ok, msg, version] = await installDecxServer(opts.prerelease);
-      if (ok) {
-        fmt.output({ ok: true, version, path: msg });
-      } else {
-        throw new ServerError(msg);
-      }
+      fmt.output(await executeSelfInstall(opts.prerelease));
     }));
 
   cmd
@@ -72,12 +93,12 @@ export function makeSelfCommand(): Command {
       const updateInfo = await checkForServerUpdate(currentVersion, opts.prerelease);
       if (updateInfo.available) {
         console.error(`  New version available: v${updateInfo.latestVersion}`);
-        const [ok, msg, version] = await installDecxServer(opts.prerelease);
-        if (ok && version) {
-          mgr.updateServerVersion(version);
-          console.error(`  ${msg}`);
+        const result = await installDecxServer(opts.prerelease);
+        if (result.ok) {
+          mgr.updateServerVersion(result.version);
+          console.error(`  ${result.message}`);
         } else {
-          throw new DecxError(msg, "UPDATE_ERROR");
+          throw new DecxError(result.message, "UPDATE_ERROR");
         }
       } else {
         console.error("  Server already up to date");

@@ -1,84 +1,52 @@
 ---
 name: decxcli-poc
-description: Android exploit PoC construction skill. Turns a DECX-supported finding into a buildable Android PoC app, with optional compile and adb deployment when explicitly requested.
+description: Android exploit PoC construction skill. Turns one DECX-supported finding into one buildable PoC app, with optional compile and adb deployment when explicitly requested.
 metadata:
   requires:
-    bins: ["node", "decx", "unzip"]
+    bins: ["node", "decx"]
 ---
 
-# DECX CLI - Android Exploit PoC Construction
+# DECX CLI - Android Exploit PoC
 
-## Overview
+## Goal
 
-Use this skill to turn a `decxcli-app-vulnhunt` or `decxcli-framework-vulnhunt` finding into a buildable Android PoC project.
+Turn one `decxcli-app-vulnhunt` or `decxcli-framework-vulnhunt` finding into one buildable `poc-<target>` project.
 
-Scope:
+Current project shape:
 
-- In scope: finding normalization, static re-verification, exploit-mode selection, PoC project setup, exploit-class implementation, Manifest updates, optional compile/deploy
-- Out of scope: vulnerability discovery, final risk rating, and unsupported exploit claims
-- Vulnerability hunting belongs to `decxcli-app-vulnhunt` and `decxcli-framework-vulnhunt`
-
-Command reference lives in `decxcli`.
-
-## Non-Negotiable Rules
-
-### State Rules
-
-| State | Meaning | Allowed |
-|------|---------|---------|
-| `finding-normalized` | required fields extracted from the report | Yes |
-| `target-verified` | component and path re-verified in DECX | Yes |
-| `construction-selected` | exploit mode and support pieces chosen | Yes |
-| `code-ready` | PoC project and exploit code prepared | Yes |
-| `build-ready` | code appears compile-ready but was not built | Yes |
-| `compiled` | `assembleDebug` succeeded | Yes |
-| `deployed` | APK installed on a device | Yes |
-| `runtime-validated` | exploit effect observed on device/emulator | Yes |
+- Android side: minimal app template with `ExploitEntry`, `ExploitRegistry`, and `PoCActivity`
+- Web side: local `server/` with `index.html`, `scenario.js`, and `server.mjs`
+- Bootstrap path: copy templates, replace placeholders, rename package path segments
 
 Default ceiling:
 
-- If the user did not ask for compile: stop at `build-ready`
-- If the user did not ask for deployment/runtime confirmation: do not claim `deployed` or `runtime-validated`
+- stop at `build-ready` unless the user explicitly asks for compile
+- do not claim `deployed` or `runtime-validated` unless deployment or runtime proof actually happened
 
-### Context Rules
+## Hard Rules
 
-- Keep only one active finding in context at a time
-- Do not paste the full vuln report into the main thread if only one finding is being implemented
-- Load only the one reference file that matches the active component type
-- Keep only structured verification notes, not raw source dumps
-- References are construction guides, not proof that the final class is compile-safe; generated code must still be self-consistent
-
-### Project Rules
-
-- Create only one PoC app per target app session
-- Add one exploit class per finding
-- Register every exploit in `ExploitRegistry`
-- `applicationId` must stay in the `com.poc.*` namespace
-- Keep `allowBackup="false"`
-- Add only the permissions, services, activities, and receivers required for the active exploit
-- Use `AndroidHiddenApiBypass` only when hidden API access is actually required
-- Prefer self-contained PoCs over remote infrastructure when both demonstrate the same effect
-
-### Verification Rules
-
-- Do not code directly from a stale or weak report
-- Re-verify the active finding in DECX before building the PoC
-- Every `decx code` and `decx ard` command must include `-P <port>`
+- Keep exactly one active finding in context.
+- Re-verify the finding in DECX before coding.
+- Every `decx code` and `decx ard` command must include `-P <port>`.
 - If the DECX session is not open, tell the user to run:
 
 ```bash
 decx process open "<apk-path>" -P <port>
 ```
 
-- If re-verification contradicts the report, stop and report the mismatch before coding further
+- Reuse one `poc-<target>` project per target; add one exploit id per finding.
+- Add only the Manifest entries, helper components, permissions, and server assets required for the active exploit.
+- Keep `applicationId` under `com.poc.*` and keep `allowBackup="false"`.
+- Use hidden-API access only for framework Binder paths that actually need it.
+- If re-verification contradicts the report, stop and report the mismatch.
 
 ## Required Input
 
-Before coding, normalize the active finding into this minimum packet:
+Normalize the active finding into this packet before coding:
 
 ```json
 {
-  "targetApp": "short target name for project directory",
+  "targetApp": "short target name",
   "packageName": "victim package",
   "componentType": "Activity|Service|Provider|Receiver|Intent|WebView|Framework",
   "componentClass": "victim entry class or interface",
@@ -86,31 +54,31 @@ Before coding, normalize the active finding into this minimum packet:
   "entryPoint": "externally reachable method or callback",
   "source": "attacker-controlled input",
   "sink": "security-relevant action",
-  "callChain": ["minimal method path"],
+  "callChain": ["minimal verified method path"],
   "bypassConditions": ["exact conditions that make exploitation possible"],
-  "impactEvidence": "visible effect the PoC should demonstrate",
+  "impactEvidence": "visible effect the PoC should prove",
   "port": 8080
 }
 ```
 
-Construction packet:
+Select construction details up front:
 
 ```json
 {
   "exploitMode": "direct-trigger|interception|returned-handle|hosted-web-content|binder-caller|ui-assisted",
+  "validationStory": "button-only|deeplink|intent-url|scenario-page|background-helper|manual-network",
   "supportComponents": ["optional helper activity/service/receiver"],
-  "manifestNeeds": ["only what the exploit actually needs"],
+  "serverNeeds": ["optional trigger links, hosted HTML, bridge logic, result capture"],
+  "manifestNeeds": ["only what the exploit needs"],
   "successSignal": "what the PoC should visibly prove"
 }
 ```
 
-If one of these fields is missing, fill it first from the report or from DECX.
+Input gate:
 
-PoC input gate:
-
-- Preferred source: `statically-supported` findings from `decxcli-app-vulnhunt` or `decxcli-framework-vulnhunt`
-- `candidate` findings should not become full PoCs unless the user explicitly asks for exploratory probing
-- `rejected` findings should not be implemented
+- Preferred source: `statically-supported`
+- `candidate` findings require explicit exploratory intent from the user
+- `rejected` findings should not become PoCs
 
 ## Workflow
 
@@ -118,43 +86,36 @@ Track progress with:
 
 ```text
 PoC Progress
-- [ ] Phase 1: Normalize one finding
-- [ ] Phase 2: Re-verify target path in DECX
-- [ ] Phase 3: Select exploit mode
-- [ ] Phase 4: Create or reuse PoC project
-- [ ] Phase 5: Load one component reference
-- [ ] Phase 6: Implement exploit class
-- [ ] Phase 7: Register exploit and supporting components
-- [ ] Phase 8: Optional compile
-- [ ] Phase 9: Optional deploy and runtime check
+- [ ] Normalize one finding
+- [ ] Re-verify target path in DECX
+- [ ] Select exploit mode and validation story
+- [ ] Create or reuse PoC project
+- [ ] Load one matching reference
+- [ ] Implement exploit
+- [ ] Register exploit and wire support
+- [ ] Optional compile
+- [ ] Optional deploy and runtime check
 ```
 
-### Phase 1 - Normalize One Finding
+### 1. Normalize One Finding
 
-Goal: reduce the upstream report to one buildable exploit target.
-
-Extract only:
+Keep only:
 
 - victim package and class
 - component type
-- exact exploit trigger
-- required extras, actions, URIs, Binder methods, or HTML payload shape
+- exact trigger shape: action, extras, URI, Binder method, deep link, or HTML payload
 - exact bypass conditions
 - visible success signal
 
-Do not carry unrelated findings into the active context.
-
-### Phase 2 - Re-Verify in DECX
-
-Goal: make sure the PoC is built against the real path, not just the report narrative.
+### 2. Re-Verify In DECX
 
 Minimum checks:
 
-1. Confirm the component or Binder surface exists
-2. Confirm the claimed entry method still matches the report
-3. Confirm the source is attacker-controlled
-4. Confirm the sink is still reachable
-5. Confirm there is no missed non-bypassable guard
+1. surface exists
+2. entry point still matches
+3. source is attacker-controlled
+4. sink is still reachable
+5. no missed non-bypassable guard exists
 
 Suggested commands:
 
@@ -165,88 +126,81 @@ decx code method-source "<full-method-signature>" -P <port>
 decx code class-source "<package.Class>" -P <port>
 ```
 
-Structured verification output:
+Write the result as:
 
 ```text
 - [PASS/FAIL] Surface exists: ...
-- [PASS/FAIL] Entry method matches: ...
+- [PASS/FAIL] Entry point matches: ...
 - [PASS/FAIL] Source is attacker-controlled: ...
 - [PASS/FAIL] Sink is reachable: ...
 - [PASS/FAIL] No missed non-bypassable guard: ...
 ```
 
-### Phase 3 - Select Exploit Mode
+### 3. Select The Construction Shape
 
-Choose one exploit mode before writing code.
+Exploit modes:
 
-| Mode | Use for | Typical support |
-|------|---------|-----------------|
-| `direct-trigger` | exported Activity, Service, Receiver, Provider paths | usually none |
-| `interception` | implicit Intent hijack, grant interception, broadcast leak | helper receiver/activity/service |
-| `returned-handle` | `PendingIntent`, granted `content://` URI, Binder handle reuse | capture step plus trigger step |
-| `hosted-web-content` | WebView bridge, URL bypass, scan-result-driven load | attacker page or local HTML asset |
-| `binder-caller` | exported AIDL/Messenger/Framework Binder methods | recreated interface or hidden API access |
-| `ui-assisted` | task hijack, clickjacking, lifecycle misuse | helper activity/service and visible UI signal |
+- `direct-trigger`: exported Activity, Service, Receiver, Provider paths
+- `interception`: implicit Intent hijack, ordered broadcast, result or grant capture
+- `returned-handle`: mutable `PendingIntent`, granted `content://`, Binder or handle reuse
+- `hosted-web-content`: WebView, browser handoff, attacker page, JS bridge
+- `binder-caller`: AIDL, Messenger, framework Binder method calls
+- `ui-assisted`: task hijack, clickjacking, lifecycle or visible choreography
+
+Validation stories:
+
+- `button-only`: local app button is enough
+- `deeplink`: browsable URI is the natural trigger
+- `intent-url`: browser-clickable `intent://` or custom-scheme trigger
+- `scenario-page`: browser page drives the whole chain
+- `background-helper`: helper component must stay active outside the foreground activity
+- `manual-network`: SSL/MITM or remote-origin setup is required
 
 Selection rules:
 
-- Prefer the shortest exploit mode that demonstrates the claimed impact
-- If two-stage exploitation is required, model it explicitly as `capture -> trigger`
-- Do not fake a handle acquisition step that the finding never proved
-- Do not fake a remote server when a local asset or visible on-device effect is enough
-- If the only realistic validation requires manual setup, keep the code ready and document the manual step instead of over-automating it
+- choose the shortest path that proves the verified impact
+- model two-stage exploits explicitly as `capture -> trigger`
+- do not invent handle acquisition, remote servers, or helper components the finding did not prove
+- prefer the local `server/` payload over remote infrastructure when both prove the same thing
 
-### Phase 4 - Create or Reuse the PoC Project
+### 4. Create Or Reuse The Project
 
-First project creation:
+Bootstrap:
 
 ```bash
 node skill/decxcli-poc/scripts/setup-poc.mjs <target-app>
 ```
 
-Expected output:
+The script:
 
-```text
-poc-<target-app>/
-```
-
-Project structure:
-
-- `app/src/main/java/com/poc/<target-app>/Exploit.java`
-- `app/src/main/java/com/poc/<target-app>/ExploitRegistry.java`
-- `app/src/main/java/com/poc/<target-app>/PoCActivity.java`
+- copies `assets/poc-template-app/` to `poc-<target>/app/`
+- copies `assets/poc-template-server/` to `poc-<target>/server/`
+- replaces placeholder package and project names
+- renames placeholder package path segments from `targetapp` to the real target name
 
 Reuse rule:
 
-- Reuse the same `poc-<target-app>` project for later findings against the same target
-- Add a new exploit class instead of creating a new app
+- reuse the same `poc-<target>` project for later findings against the same target
+- add a new exploit id instead of creating a new app
 
-### Phase 5 - Load One Reference
+### 5. Load One Matching Reference
 
-Load only the one reference file matching the active target:
+Load only one primary reference:
 
-| Component | Reference |
-|----------|-----------|
+| Surface | Reference |
+|---|---|
 | Activity | `references/poc-app-activity.md` |
 | Broadcast / Receiver | `references/poc-app-broadcast.md` |
 | Provider | `references/poc-app-provider.md` |
 | Service | `references/poc-app-service.md` |
-| Intent / grant / mutable handle flows | `references/poc-app-intent.md` |
+| Intent / grant / handle | `references/poc-app-intent.md` |
 | WebView | `references/poc-app-webview.md` |
-| Framework service | `references/poc-framework-service.md` |
-| Base exploit contract | `references/poc-base.md` |
+| Framework Binder / service | `references/poc-framework-service.md` |
+| Shared contract | `references/poc-base.md` |
 
-Modern surfaces that must not be skipped:
+### 6. Implement The Exploit
 
-- mutable `PendingIntent` exposures from notifications, widgets, IPC results, or provider returns
-- `ClipData` and URI-grant forwarding
-- WebView scan or QR result loaders, `intent://`, custom schemes, message-channel bridges, and file chooser callbacks
-- Provider `call()`, `applyBatch()`, `bulkInsert()`, and FileProvider grant chains
-- framework Binder paths that require hidden API access
-
-### Phase 6 - Implement the Exploit Class
-
-Create the exploit under:
+Place exploit code under:
 
 ```text
 app/src/main/java/com/poc/<target-app>/exploit/
@@ -254,46 +208,34 @@ app/src/main/java/com/poc/<target-app>/exploit/
 
 Implementation rules:
 
-- Class name must make the target and vuln type obvious
-- Replace every placeholder package, class, action, URI, and extra key with the real target values
-- Keep helper logic inside the class unless an existing shared helper already exists in the project
-- Reflect the chosen exploit mode in the code shape
-- Log a real visible success signal, not a theoretical statement
-- For `returned-handle`, separate handle acquisition from handle reuse
-- For `hosted-web-content`, prefer a minimal local HTML asset unless the finding specifically depends on a remote origin
-- For framework cases, gate hidden-API code to the exact service or method needed
+- class name must reflect target plus vuln type
+- replace every placeholder package, action, URI, extra key, and method name with verified target values
+- keep helper logic local unless a Manifest component is actually required
+- log a real proof signal, not a theory statement
+- if the story is `deeplink`, `intent-url`, or `scenario-page`, keep `PoCActivity` route handling and `server/public/` artifacts aligned
+- if the story is `scenario-page`, fill only the sections the chain needs:
+  - Trigger Links
+  - Hosted Payload
+  - JS Bridge Calls
+  - Result Recording
 
-Good success logs:
+### 7. Register And Wire Support
 
-- `"Launched com.target.InternalAdminActivity through ForwardActivity"`
-- `"Read 12 rows from content://.../users"`
-- `"PendingIntent send() succeeded with attacker-filled target"`
+Always:
 
-Bad success logs:
+1. register the exploit in `ExploitRegistry`
+2. add only the exact Manifest or helper changes the exploit needs
 
-- `"Exploit executed"`
-- `"Maybe vulnerable"`
-- `"Should lead to privilege escalation"`
+Common support pieces:
 
-### Phase 7 - Register and Wire Supporting Pieces
+- helper receiver for interception
+- helper activity for task hijack or result capture
+- helper service for overlays or long-lived capture
+- minimal `server/public/` updates for browser-driven flows
 
-Always do both:
+### 8. Optional Compile
 
-1. Add the exploit class to `ExploitRegistry`
-2. Add any required Manifest declarations for helper components
-
-Common support additions:
-
-- receiver for implicit Intent interception
-- activity for task hijack or activity-result capture
-- service for overlay or notification observation
-- permissions required to trigger the PoC flow
-
-Do not add support components that are unrelated to the active exploit.
-
-### Phase 8 - Optional Compile
-
-Only run build steps if the user explicitly asks for compilation.
+Only if the user explicitly asks.
 
 Environment check:
 
@@ -301,23 +243,21 @@ Environment check:
 node skill/decxcli-poc/scripts/check-env.mjs
 ```
 
-If the environment check fails, stop and report the output.
-
-Build command:
+Build:
 
 ```bash
-cd poc-<target-app> && timeout 300 ./gradlew assembleDebug --no-daemon
+cd poc-<target-app>/app && timeout 300 ./gradlew assembleDebug --no-daemon
 ```
 
-If build fails:
+If the build fails:
 
 - fix the PoC code
-- retry
-- report the remaining blocker if it still does not compile
+- retry once the blocker is understood
+- report the remaining blocker if it still fails
 
-### Phase 9 - Optional Deploy and Runtime Check
+### 9. Optional Deploy And Runtime Check
 
-Only deploy if the user explicitly asks and a device or emulator is available.
+Only if the user explicitly asks and a device or emulator is available.
 
 Typical commands:
 
@@ -328,24 +268,27 @@ adb logcat -s PoC:I AndroidRuntime:E
 adb uninstall com.poc.<target-app>
 ```
 
-Runtime validation must name the exact observed effect, for example:
+Runtime proof must name the exact observed effect, for example:
 
 - non-exported activity opened
 - protected provider rows returned
-- privileged service method accepted the call
-- victim WebView loaded attacker-controlled content and exposed bridge behavior
+- privileged Binder method accepted the call
+- victim WebView loaded attacker content and exposed bridge behavior
+- browser-clicked trigger launched the PoC helper and reached the verified target path
 
 ## Final Output Contract
 
-Close with a compact result block containing:
+Close with:
 
 - `state`
 - `projectPath`
 - `activeFinding`
 - `exploitMode`
+- `validationStory`
 - `exploitClass`
 - `filesChanged`
 - `manifestChanges`
+- `deliveryArtifacts`
 - `buildStatus`
 - `runtimeStatus`
 - `remainingManualSteps`

@@ -8,6 +8,7 @@ import { existsSync, mkdirSync, renameSync, unlinkSync } from "fs";
 import { downloadWithProgress } from "../utils/progress.js";
 
 const DECX_SERVER_HOME: string | undefined = process.env.DECX_SERVER_HOME;
+const DEFAULT_FETCH = fetch;
 
 /**
  * Compare two semver strings (e.g. "2.2.1" vs "2.3.0").
@@ -27,6 +28,28 @@ function compareSemver(a: string, b: string): number {
 const INSTALL_DIR = path.join(os.homedir(), ".decx", "bin");
 const INSTALL_PATH = path.join(INSTALL_DIR, "decx-server.jar");
 
+export interface ReleaseAsset {
+  name: string;
+  browser_download_url: string;
+}
+
+interface ReleaseSummary {
+  tag_name: string;
+  assets: ReleaseAsset[];
+}
+
+export type InstallDecxServerResult =
+  | { ok: true; message: string; version: string; path: string }
+  | { ok: false; message: string };
+
+interface InstallDecxServerOptions {
+  fetchImpl?: typeof fetch;
+  downloadWithProgressImpl?: typeof downloadWithProgress;
+  installDir?: string;
+  installPath?: string;
+  logger?: Pick<Console, "error">;
+}
+
 /**
  * Find decx-server.jar from known locations.
  * Priority: DECX_SERVER_HOME env > ~/.decx/bin/decx-server.jar
@@ -41,6 +64,38 @@ export function findDecxServerJar(): string | null {
   if (existsSync(INSTALL_PATH)) return INSTALL_PATH;
 
   return null;
+}
+
+export function selectDecxServerAsset(assets: ReleaseAsset[]): ReleaseAsset | undefined {
+  return assets.find((asset) => asset.name.includes("decx-server") && asset.name.endsWith(".jar"));
+}
+
+function normalizeVersion(tag: string): string {
+  return tag.replace(/^v/, "");
+}
+
+function replaceInstalledJar(tmpPath: string, installPath: string): void {
+  const backupPath = `${installPath}.bak`;
+  const hadExisting = existsSync(installPath);
+
+  if (hadExisting) {
+    renameSync(installPath, backupPath);
+  }
+
+  try {
+    renameSync(tmpPath, installPath);
+    if (hadExisting && existsSync(backupPath)) {
+      unlinkSync(backupPath);
+    }
+  } catch (error) {
+    if (existsSync(tmpPath)) {
+      unlinkSync(tmpPath);
+    }
+    if (hadExisting && existsSync(backupPath)) {
+      renameSync(backupPath, installPath);
+    }
+    throw error;
+  }
 }
 
 /**
@@ -81,63 +136,77 @@ export async function checkForServerUpdate(
  * Returns [success, message, version?].
  */
 export async function installDecxServer(
-  prerelease: boolean = false
-): Promise<[boolean, string, string?]> {
+  prerelease: boolean = false,
+  options: InstallDecxServerOptions = {}
+): Promise<InstallDecxServerResult> {
+  const {
+    fetchImpl = DEFAULT_FETCH,
+    downloadWithProgressImpl = downloadWithProgress,
+    installDir = INSTALL_DIR,
+    installPath = INSTALL_PATH,
+    logger = console,
+  } = options;
+
   try {
-    console.error(`  Fetching latest ${prerelease ? "prerelease" : "release"} info from GitHub...`);
+    logger.error(`  Fetching latest ${prerelease ? "prerelease" : "release"} info from GitHub...`);
 
     const endpoint = prerelease
       ? "https://api.github.com/repos/jygzyc/decx/releases?per_page=10"
       : "https://api.github.com/repos/jygzyc/decx/releases/latest";
 
-    const res = await fetch(endpoint, {
+    const res = await fetchImpl(endpoint, {
       headers: { "Accept": "application/vnd.github+json" },
     });
     if (!res.ok) {
-      return [false, `GitHub API error: HTTP ${res.status}`];
+      return { ok: false, message: `GitHub API error: HTTP ${res.status}` };
     }
 
-    let release: { tag_name: string; assets: Array<{ name: string; browser_download_url: string }> };
+    let release: ReleaseSummary;
 
     if (prerelease) {
-      const releases = await res.json() as Array<{ tag_name: string; prerelease: boolean; assets: Array<{ name: string; browser_download_url: string }> }>;
+      const releases = await res.json() as Array<ReleaseSummary & { prerelease: boolean }>;
       const pre = releases.find((r) => r.prerelease);
       if (!pre) {
-        return [false, "No prerelease found"];
+        return { ok: false, message: "No prerelease found" };
       }
       release = pre;
     } else {
-      release = await res.json() as { tag_name: string; assets: Array<{ name: string; browser_download_url: string }> };
+      release = await res.json() as ReleaseSummary;
     }
 
-    const asset = release.assets.find((a) => a.name.includes("decx-server"));
+    const asset = selectDecxServerAsset(release.assets);
 
     if (!asset) {
-      return [false, `No decx-server asset found in release ${release.tag_name}`];
+      return { ok: false, message: `No decx-server jar asset found in release ${release.tag_name}` };
     }
 
-    mkdirSync(INSTALL_DIR, { recursive: true });
+    mkdirSync(installDir, { recursive: true });
 
-    const downloadRes = await fetch(asset.browser_download_url, { redirect: "follow" });
+    const downloadRes = await fetchImpl(asset.browser_download_url, { redirect: "follow" });
     if (!downloadRes.ok || !downloadRes.body) {
-      return [false, `Download failed: HTTP ${downloadRes.status}`];
+      return { ok: false, message: `Download failed: HTTP ${downloadRes.status}` };
     }
 
-    const tmpPath = `${INSTALL_PATH}.tmp`;
+    const tmpPath = `${installPath}.tmp`;
     const totalSize = Number(downloadRes.headers.get("content-length") || 0);
-    await downloadWithProgress(downloadRes.body, tmpPath, totalSize, {
+    await downloadWithProgressImpl(downloadRes.body, tmpPath, totalSize, {
       label: asset.name,
     });
 
     try {
-      renameSync(tmpPath, INSTALL_PATH);
+      replaceInstalledJar(tmpPath, installPath);
     } catch {
-      unlinkSync(tmpPath);
-      return [false, "Failed to save downloaded file"];
+      return { ok: false, message: "Failed to save downloaded file" };
     }
 
-    return [true, `Installed decx-server v${release.tag_name} to ${INSTALL_PATH}`, release.tag_name];
+    const version = normalizeVersion(release.tag_name);
+    return {
+      ok: true,
+      message: `Installed decx-server ${release.tag_name} to ${installPath}`,
+      version,
+      path: installPath,
+    };
   } catch (err) {
-    return [false, `Installation failed: ${err}`];
+    return { ok: false, message: `Installation failed: ${err}` };
   }
 }
