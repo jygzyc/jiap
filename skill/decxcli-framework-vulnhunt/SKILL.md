@@ -155,7 +155,7 @@ Recon output:
 
 ### Phase 3 - Per-Service Analysis
 
-Goal: upgrade each retained framework target to `statically-supported` or downgrade it to `rejected`.
+Goal: upgrade each retained framework target to `statically-supported` or downgrade it to `rejected`, while keeping the current source component, likely issue type, chain progress, and next follow-up targets explicit.
 
 Core loop:
 
@@ -210,7 +210,8 @@ Phase output:
 
 - Persist the retained shortlist in `shortlist.json` if recon took meaningful effort
 - Persist findings incrementally in `findings.json`
-- Minimum finding fields: `vulnType`, `risk`, `status`, `serviceName`, `interface`, `entryPoint`, `source`, `sink`, `callChain`, `reachable`, `controllable`, `guardsChecked`, `bypassConditions`, `impactEvidence`, `ratingRationale`
+- Keep `shortlist.json` or `findings.json` `traceSummary` current with the source component, narrowed issue types, analyzed chains, and next candidate targets
+- Minimum finding fields: `vulnType`, `risk`, `status`, `serviceName`, `interface`, `entryPoint`, `source`, `sink`, `callChain`, `traceSummary`, `reachable`, `controllable`, `guardsChecked`, `bypassConditions`, `impactEvidence`, `ratingRationale`
 
 ### Phase 4 - Cross-Service Analysis
 
@@ -228,7 +229,7 @@ Rules:
 
 ### Phase 5 - Exploitability Filter
 
-This phase is static exploitability triage, not exploitation proof.
+This phase is exploitability triage based on the traced chain, not exploitation proof.
 
 Quick rejection checks:
 
@@ -282,7 +283,7 @@ Mandatory report content:
 
 Report rules:
 
-- Use wording like "Static analysis supports this vulnerability chain"
+- Describe the traced chain directly; do not foreground the analysis method unless you need to explain uncertainty
 - Never write "verified", "fully exploited", or "confirmed exploitable in practice"
 - If impact is conditional, state the condition directly
 - Follow the selected report template exactly; do not add extra sections, reorder sections, insert JSON, or include rejected findings
@@ -296,6 +297,12 @@ At 60% context usage, hand off immediately:
   "handoff": true,
   "phase": "<current phase>",
   "component": "<current service or null during recon>",
+  "traceSummary": {
+    "sourceComponent": "<current Binder service, manager facade, or Stub>",
+    "possibleIssueTypes": ["<current likely issue types>"],
+    "analyzedAttackChains": ["<chains already traced>"],
+    "nextCandidateTargets": ["<next services or helper chains to analyze>"]
+  },
   "port": 31234,
   "done": "<completed work>",
   "next": "<entry instruction for the next subagent>",
@@ -315,7 +322,7 @@ Resume procedure:
 
 ## Handoff To `decxcli-poc`
 
-Pass only the minimal static finding.
+Pass only the minimal finding packet plus the current trace focus.
 
 - Fill `poc-handoff.json` from `assets/poc-handoff-template.json`
 - Keep only one finding per handoff file unless the user explicitly asks for a batch handoff

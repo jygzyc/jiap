@@ -25,6 +25,13 @@ export interface OpenAnalysisTargetOptions {
   passthroughArgs?: string[];
 }
 
+export function normalizeJadxPassthroughArgs(args: string[] = []): string[] {
+  if (args.includes("--show-bad-code")) {
+    return args;
+  }
+  return [...args, "--show-bad-code"];
+}
+
 export async function openAnalysisTarget(
   filePath: string,
   opts: OpenAnalysisTargetOptions = {},
@@ -85,7 +92,14 @@ export async function openAnalysisTarget(
     }
   }
 
-  const javaArgs = ["-jar", jarPath, resolvedFile, "--port", String(port), ...(opts.passthroughArgs ?? [])];
+  const javaArgs = [
+    "-jar",
+    jarPath,
+    resolvedFile,
+    "--port",
+    String(port),
+    ...normalizeJadxPassthroughArgs(opts.passthroughArgs ?? []),
+  ];
   const logDir = path.join(os.homedir(), ".decx", "logs");
   mkdirSync(logDir, { recursive: true });
   const logPath = path.join(logDir, `${fileName}.log`);

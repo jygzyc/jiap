@@ -48,7 +48,7 @@ decx self update [-p]           # Update decx-server.jar and the currently insta
 | `--force` | Force start even if session exists |
 | `-n, --name <name>` | Custom session name |
 
-All standard [jadx-cli options](https://github.com/skylot/jadx) are passed through directly. Common ones: `--deobf`, `--no-res`, `--show-bad-code`, `-j`/`--threads-count`, `--no-imports`, `--no-debug-info`, `--escape-unicode`, `--log-level`.
+All standard [jadx-cli options](https://github.com/skylot/jadx) are passed through directly. `decx process open` enables `--show-bad-code` by default, and common passthrough options also include `--deobf`, `--no-res`, `-j`/`--threads-count`, `--no-imports`, `--no-debug-info`, `--escape-unicode`, `--log-level`.
 
 ### ard
 

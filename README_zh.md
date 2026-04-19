@@ -178,7 +178,7 @@ npm install -g @jygzyc/decx-cli
 
 **进程管理：**
 - `decx process check` - 检查 DECX 服务器状态
-- `decx process open <file>` - 打开并分析文件（APK、DEX、JAR 等）
+- `decx process open <file>` - 打开并分析文件（APK、DEX、JAR 等）；默认启用 `--show-bad-code`
 - `decx process close [name]` - 按会话名停止 DECX 服务器
 - `decx process list` - 列出运行中的进程
 

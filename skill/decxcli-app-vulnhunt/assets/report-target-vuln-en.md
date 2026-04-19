@@ -4,11 +4,14 @@
 
 ### Background
 
-> Briefly describe the flaw, the supported exploit path, and the failed trust boundary.
+> Briefly describe the flaw, the currently traced exploit path, and the failed trust boundary.
 
 ### Full Call Chain
 
-> Provide the full function-signature chain from entrypoint to sink.
+> Provide the full function-signature chain from the victim component entrypoint to sink.
+> Start from the target app's exported component or Binder-exposed method.
+> Do not start with attacker actions such as `AttackerApp.*`, `bindService`, `startActivity`, `sendBroadcast`, or `ContentResolver.*`.
+> Put those steps only in `Attack Path`.
 
 ```text
 com.target.EntryActivity.onCreate(android.os.Bundle):void  (entry)
@@ -17,6 +20,15 @@ com.target.EntryActivity.onCreate(android.os.Bundle):void  (entry)
     -> com.target.InternalActivity.onCreate(android.os.Bundle):void
       -> handleIntent(intent)
         -> vulnerableOperation(data)
+```
+
+For bound-service / AIDL issues, use this shape instead:
+
+```text
+com.target.VulnService.onBind(android.content.Intent):android.os.IBinder  (entry)
+  -> return mBinder
+    -> com.target.IService$Stub.deleteFile(java.lang.String):void
+      -> com.target.FileHelper.delete(java.lang.String):void
 ```
 
 ### Code Analysis
@@ -71,6 +83,7 @@ private void deleteFile(ContentValues values, String filepath) {
 ### Exploitation Steps
 
 > Describe only the steps that a third-party attacker app can realistically perform.
+> `AttackerApp.bindService(...)` belongs here, not in `Full Call Chain`.
 
 1. `bindService` to `com.target.VulnService`
 2. Obtain the `IService` AIDL interface

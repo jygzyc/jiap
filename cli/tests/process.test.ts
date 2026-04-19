@@ -6,7 +6,7 @@
  */
 
 import { Command } from "commander";
-import { makeProcessCommand } from "../src/commands/process.js";
+import { makeProcessCommand, normalizeJadxPassthroughArgs } from "../src/commands/process.js";
 
 function createProgram(): Command {
   const program = new Command();
@@ -109,4 +109,24 @@ describe("process command structure", () => {
     });
   });
 
+});
+
+// ============================================================================
+// Jadx passthrough defaults
+// ============================================================================
+
+describe("normalizeJadxPassthroughArgs", () => {
+  it("adds --show-bad-code by default", () => {
+    expect(normalizeJadxPassthroughArgs(["--deobf"])).toEqual([
+      "--deobf",
+      "--show-bad-code",
+    ]);
+  });
+
+  it("does not duplicate --show-bad-code when already provided", () => {
+    expect(normalizeJadxPassthroughArgs(["--deobf", "--show-bad-code"])).toEqual([
+      "--deobf",
+      "--show-bad-code",
+    ]);
+  });
 });

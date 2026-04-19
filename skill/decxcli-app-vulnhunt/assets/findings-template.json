@@ -4,6 +4,12 @@
   "sessionName": "",
   "port": 0,
   "phase": "findings",
+  "traceSummary": {
+    "sourceComponent": "",
+    "possibleIssueTypes": [],
+    "analyzedAttackChains": [],
+    "nextCandidateTargets": []
+  },
   "coverageSummary": {
     "totalTargets": 0,
     "staticallySupported": 0,

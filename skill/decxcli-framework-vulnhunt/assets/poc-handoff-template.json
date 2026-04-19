@@ -12,6 +12,12 @@
   "status": "statically-supported",
   "risk": "",
   "entryPoint": "",
+  "traceSummary": {
+    "sourceComponent": "",
+    "possibleIssueTypes": [],
+    "analyzedAttackChains": [],
+    "nextCandidateTargets": []
+  },
   "source": "",
   "sink": "",
   "callChain": [],
@@ -20,6 +26,5 @@
   "impactEvidence": "",
   "ratingRationale": "",
   "exploitPrerequisites": [],
-  "nextAction": "decxcli-poc",
   "notes": []
 }

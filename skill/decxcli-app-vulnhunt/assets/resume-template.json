@@ -7,6 +7,12 @@
   "lastCompletedPhase": "",
   "currentTarget": "",
   "activeTargetId": "",
+  "traceSummary": {
+    "sourceComponent": "",
+    "possibleIssueTypes": [],
+    "analyzedAttackChains": [],
+    "nextCandidateTargets": []
+  },
   "pendingTargetIds": [],
   "coverageStats": {
     "totalTargets": 0,

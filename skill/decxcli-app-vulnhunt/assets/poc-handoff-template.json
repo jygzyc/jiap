@@ -9,14 +9,21 @@
   "status": "statically-supported",
   "risk": "",
   "entryPoint": "",
+  "traceSummary": {
+    "sourceComponent": "",
+    "possibleIssueTypes": [],
+    "analyzedAttackChains": [],
+    "nextCandidateTargets": []
+  },
   "source": "",
   "sink": "",
   "callChain": [],
+  "missingGuard": "",
+  "attackerSteps": [],
   "guardsChecked": [],
   "bypassConditions": [],
   "impactEvidence": "",
   "ratingRationale": "",
   "exploitPrerequisites": [],
-  "nextAction": "decxcli-poc",
   "notes": []
 }

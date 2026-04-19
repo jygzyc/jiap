@@ -184,7 +184,7 @@ Output rules:
 
 ### Phase 3 - First-Pass Coverage
 
-Goal: write one evidence-backed coverage row for every `targetId`.
+Goal: write one evidence-backed coverage row for every `targetId`, centered on the traced source component, likely issue type, chain progress, and next follow-up targets.
 
 Required row fields:
 
@@ -192,12 +192,16 @@ Required row fields:
 - `targetType`
 - `entryPoint`
 - `entryPermission`
+- `sourceComponent`
+- `possibleIssueTypes`
 - `analysisDepth`
 - `status`
 - `reason`
 - `nextAction`
 - `needsCrossComponentTrace`
 - `evidenceRefs`
+- `analyzedAttackChains`
+- `nextCandidateTargets`
 
 First-pass rules:
 
@@ -240,12 +244,12 @@ Coverage steward contract:
 - Input: `recon.json.targetInventory`, `coverage.json.targets`
 - Checks:
   - every `targetId` appears exactly once
-  - every row has `status`, `reason`, `analysisDepth`, `nextAction`, and `evidenceRefs`
+  - every row has `sourceComponent`, `possibleIssueTypes`, `status`, `reason`, `analysisDepth`, `nextAction`, and `evidenceRefs`
   - every `rejected` row names the blocking condition
   - every `candidate` row names the missing proof
 - Output:
   - `inventorySummary.fullyAccountedFor = true` only if all checks pass
-  - refreshed `candidateTargets`, `rejectedTargets`, and `staticallySupportedTargets`
+  - refreshed `traceSummary` and `inventorySummary`
 
 Tracing command:
 
@@ -300,6 +304,7 @@ Minimum finding fields:
 - `source`
 - `sink`
 - `callChain`
+- `traceSummary`
 - `reachable`
 - `controllable`
 - `guardsChecked`
@@ -339,7 +344,7 @@ Persistence:
 
 ### Phase 5 - Exploitability Filter
 
-This phase is still static triage, not exploitation proof.
+This phase is exploitability triage based on the traced chain, not exploitation proof.
 
 Quick rejection checks:
 
@@ -389,7 +394,7 @@ Reporting steps:
    - `zh` -> `assets/report-template-zh.md`
    - `en` -> `assets/report-template-en.md`
    - `both` -> Chinese first, then English
-4. Re-fetch only key source, sink, and missing-guard locations with `decx code method-source "<method>" -P <port>`
+4. Re-fetch only key component-entry, Binder-bridge, source, sink, and missing-guard locations with `decx code method-source "<method>" -P <port>`
 5. Fill the selected template strictly
 
 Mandatory report content:
@@ -402,11 +407,22 @@ Mandatory report content:
 
 Report rules:
 
-- Use wording like "Static analysis supports this vulnerability chain"
+- Describe the traced chain directly; do not foreground the analysis method unless you need to explain uncertainty
 - Never write "verified", "fully exploited", or "confirmed exploitable in practice"
 - If impact is conditional, state the condition directly
 - Follow the template strictly
 - Do not add extra sections, reorder sections, insert JSON, or include rejected findings
+- In `Full Call Chain`, start from the victim app's externally reachable component entrypoint or Binder-exposed method, not from attacker actions
+- Never start `Full Call Chain` with `AttackerApp.*`, `bindService`, `startActivity`, `sendBroadcast`, `ContentResolver.*`, adb steps, or PoC driver actions
+- Put third-party trigger steps only under `Attack Path -> Exploitation Steps`
+- For bound-service and AIDL cases, prefer `VictimService.onBind(Intent):IBinder -> I*.Stub.method(...) -> guarded or vulnerable internal method`
+- Every `Full Call Chain` node must be backed by fetched code evidence; if the exact bridge from entrypoint to sink is not proven, keep the target as `candidate` instead of inventing a step
+- Every report issue must show the code location of the missing guard, not just describe the condition in prose
+- Before finalizing each issue, run this self-check:
+  - first call-chain node is in the victim package and is an externally reachable entrypoint
+  - attacker actions appear only in `Attack Path`
+  - Binder/AIDL reports show both the component entrypoint and the exposed Stub method when both are part of the reachable chain
+  - the missing guard location appears in `Code Analysis`
 
 ## Handoff
 
@@ -417,6 +433,12 @@ At 60% context usage, hand off immediately:
   "handoff": true,
   "phase": "<current phase>",
   "component": "<current component or null during recon>",
+  "traceSummary": {
+    "sourceComponent": "<current victim entry component or Binder bridge>",
+    "possibleIssueTypes": ["<current likely issue types>"],
+    "analyzedAttackChains": ["<chains already traced>"],
+    "nextCandidateTargets": ["<next targets to analyze>"]
+  },
   "port": 31234,
   "done": "<completed work>",
   "next": "<entry instruction for the next subagent>",
@@ -428,9 +450,9 @@ If file-backed continuation is enabled, persist the same state to `resume.json`.
 
 Phase context:
 
-- Phase 2: parsed component list and remaining recon commands
-- Phase 3: `coverageDone`, `coveragePending`, current target family, proven rejection reasons
-- Phase 4: cross-component chain progress
+- Phase 2: parsed component list, current source component family, and remaining recon commands
+- Phase 3: `coverageDone`, `coveragePending`, current source component, likely issue types, and proven rejection reasons
+- Phase 4: cross-component chain progress and next candidate targets
 - Phase 6: completed and pending report sections
 
 Resume:
@@ -443,7 +465,7 @@ Resume:
 
 ## Handoff To `decxcli-poc`
 
-Pass only the minimal static finding.
+Pass only the minimal finding packet plus the current trace focus.
 
 - Fill `poc-handoff.json` from `assets/poc-handoff-template.json`
 - Keep one finding per handoff file unless the user explicitly asks for a batch handoff

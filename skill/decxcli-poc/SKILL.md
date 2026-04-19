@@ -52,6 +52,12 @@ Normalize the active finding into this packet before coding:
   "componentClass": "victim entry class or interface",
   "vulnType": "specific finding type",
   "entryPoint": "externally reachable method or callback",
+  "traceSummary": {
+    "sourceComponent": "tracked victim entry component or service interface",
+    "possibleIssueTypes": ["current issue-type hypotheses or narrowed class"],
+    "analyzedAttackChains": ["already traced victim-side chain summaries"],
+    "nextCandidateTargets": ["follow-up targets that are not part of this active PoC"]
+  },
   "source": "attacker-controlled input",
   "sink": "security-relevant action",
   "callChain": ["minimal verified method path"],
@@ -104,6 +110,7 @@ Keep only:
 - victim package and class
 - component type
 - exact trigger shape: action, extras, URI, Binder method, deep link, or HTML payload
+- current `traceSummary` so the active source component and already analyzed chain do not get lost during handoff
 - exact bypass conditions
 - visible success signal
 

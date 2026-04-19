@@ -17,7 +17,7 @@
 
 #### Background
 
-> Briefly describe the flaw, the supported exploit path, and the security boundary that fails.
+> Briefly describe the flaw, the currently traced exploit path, and the security boundary that fails.
 
 #### Full Call Chain
 

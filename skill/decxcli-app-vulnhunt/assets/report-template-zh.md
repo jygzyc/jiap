@@ -22,6 +22,7 @@
 | 覆盖完成 | `true / false` |
 
 > 这里必须汇总 `coverage.json` 的统计结果，并明确说明是否所有外部可达面都已入表。
+> 同时补一句当前追踪焦点：源头组件、问题类型判断、已走通的攻击链，以及下一批待分析目标。
 
 ---
 
@@ -31,11 +32,14 @@
 
 #### 背景
 
-> 简述问题、静态支持的利用路径，以及失效的安全边界。
+> 简述问题、当前已追到的利用路径，以及失效的安全边界。
 
 #### 完整调用链
 
-> 给出从入口到漏洞点的完整函数签名调用链。
+> 给出从受害方组件入口到漏洞点的完整函数签名调用链。
+> 起点必须是目标应用的导出组件入口或 Binder 暴露方法。
+> 不要从 `AttackerApp.*`、`bindService`、`startActivity`、`sendBroadcast`、`ContentResolver.*` 等攻击者动作开始。
+> 这些步骤只能写在“攻击路径”中。
 
 ```text
 com.target.EntryActivity.onCreate(android.os.Bundle):void  （入口）
@@ -44,6 +48,15 @@ com.target.EntryActivity.onCreate(android.os.Bundle):void  （入口）
     -> com.target.InternalActivity.onCreate(android.os.Bundle):void
       -> handleIntent(intent)
         -> vulnerableOperation(data)
+```
+
+对于 bound service / AIDL 类问题，优先使用下面这种结构：
+
+```text
+com.target.VulnService.onBind(android.content.Intent):android.os.IBinder  （入口）
+  -> return mBinder
+    -> com.target.IService$Stub.deleteFile(java.lang.String):void
+      -> com.target.FileHelper.delete(java.lang.String):void
 ```
 
 #### 代码分析
@@ -98,6 +111,7 @@ private void deleteFile(ContentValues values, String filepath) {
 #### 利用步骤
 
 > 仅描述第三方攻击者应用现实可执行的步骤。
+> `AttackerApp.bindService(...)` 这类动作只能写在这里，不能写进“完整调用链”。
 
 1. `bindService` 绑定 `com.target.VulnService`
 2. 获取 `IService` AIDL 接口

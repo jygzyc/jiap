@@ -5,6 +5,12 @@
   "port": 0,
   "serial": "",
   "phase": "findings",
+  "traceSummary": {
+    "sourceComponent": "",
+    "possibleIssueTypes": [],
+    "analyzedAttackChains": [],
+    "nextCandidateTargets": []
+  },
   "findings": [],
   "rejectedFindings": [],
   "pendingFindings": [],

@@ -6,6 +6,12 @@
   "serial": "",
   "lastCompletedPhase": "",
   "currentTarget": "",
+  "traceSummary": {
+    "sourceComponent": "",
+    "possibleIssueTypes": [],
+    "analyzedAttackChains": [],
+    "nextCandidateTargets": []
+  },
   "artifacts": {
     "recon": "recon.json",
     "shortlist": "shortlist.json",

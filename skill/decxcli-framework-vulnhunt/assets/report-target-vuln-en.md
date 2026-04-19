@@ -4,7 +4,7 @@
 
 ### Background
 
-> Briefly describe the flaw, the supported exploit path, and the failed trust boundary.
+> Briefly describe the flaw, the currently traced exploit path, and the failed trust boundary.
 
 ### Full Call Chain
 

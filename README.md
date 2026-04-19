@@ -178,7 +178,7 @@ npm install -g @jygzyc/decx-cli
 
 **Process Management:**
 - `decx process check` - Check DECX server status
-- `decx process open <file>` - Open and analyze a file (APK, DEX, JAR, etc.)
+- `decx process open <file>` - Open and analyze a file (APK, DEX, JAR, etc.); defaults to `--show-bad-code`
 - `decx process close [name]` - Stop DECX server by session name
 - `decx process list` - List running processes
 

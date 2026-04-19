@@ -5,6 +5,12 @@
   "port": 0,
   "serial": "",
   "phase": "shortlist",
+  "traceSummary": {
+    "sourceComponent": "",
+    "possibleIssueTypes": [],
+    "analyzedAttackChains": [],
+    "nextCandidateTargets": []
+  },
   "targets": [],
   "deferredTargets": [],
   "rejectedTargets": [],

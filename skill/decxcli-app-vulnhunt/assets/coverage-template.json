@@ -4,6 +4,12 @@
   "sessionName": "",
   "port": 0,
   "phase": "coverage",
+  "traceSummary": {
+    "sourceComponent": "",
+    "possibleIssueTypes": [],
+    "analyzedAttackChains": [],
+    "nextCandidateTargets": []
+  },
   "inventorySummary": {
     "totalTargets": 0,
     "byType": {},
@@ -15,18 +21,18 @@
     "component": "",
     "entryPoint": "",
     "entryPermission": "",
+    "sourceComponent": "",
+    "possibleIssueTypes": [],
     "analysisDepth": "inventory|first-pass|deep-trace",
     "status": "candidate|statically-supported|rejected",
     "reason": "",
     "nextAction": "",
     "needsCrossComponentTrace": false,
     "evidenceRefs": [],
-    "metadata": {}
+    "analyzedAttackChains": [],
+    "nextCandidateTargets": []
   },
   "targets": [],
-  "staticallySupportedTargets": [],
-  "candidateTargets": [],
-  "rejectedTargets": [],
   "summary": "",
   "notes": []
 }
