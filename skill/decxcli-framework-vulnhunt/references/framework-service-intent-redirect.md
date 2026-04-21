@@ -28,9 +28,13 @@ Visible impact must be concrete, such as:
 
 ```text
 1. decx ard system-service-impl "<Interface>" -P <port>
-2. Inspect Binder methods that receive Intent, Bundle, Notification, or PendingIntent inputs
-3. Trace those inputs into startActivity, sendBroadcast, startService, or PendingIntent.send
-4. Confirm the path runs under a privileged identity and lacks strict target validation
+2. decx code class-context "<ServiceImpl>" -P <port>
+   -> identify Binder methods that accept Intent, Bundle, Notification, or PendingIntent
+3. decx code method-context "<binderMethod>" -P <port>
+   -> callees show all downstream launch points (startActivity, sendBroadcast, startService, PendingIntent.send)
+4. Inspect Binder methods that receive Intent, Bundle, Notification, or PendingIntent inputs
+5. Trace those inputs into startActivity, sendBroadcast, startService, or PendingIntent.send
+6. Confirm the path runs under a privileged identity and lacks strict target validation
 ```
 
 ## Key Code Patterns

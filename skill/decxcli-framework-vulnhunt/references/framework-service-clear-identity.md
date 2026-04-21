@@ -30,8 +30,10 @@ Visible impact must be concrete, such as:
 1. decx ard system-service-impl "<Interface>" -P <port>
 2. decx code class-source "<ServiceImpl>" -P <port>
 3. Trace clearCallingIdentity() and restoreCallingIdentity()
-4. Inspect the code between them
-5. Confirm whether sensitive work occurs there without prior strong authorization
+4. decx code method-cfg "<methodWithClearedIdentity>" -P <port>
+   -> visualize the cleared block to identify all bypass paths
+5. Inspect the code between them
+6. Confirm whether sensitive work occurs there without prior strong authorization
 ```
 
 ## Key Code Patterns

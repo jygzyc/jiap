@@ -32,14 +32,17 @@ If exploitation can only crash the service, do not report it.
 ```text
 1. decx ard exported-components -P <port>
    -> locate exported services
-2. decx code class-source "<ServiceClass>" -P <port>
+2. decx code class-context "<ServiceClass>" -P <port>
+   -> identify entry methods
+3. decx code class-source "<ServiceClass>" -P <port>
    -> inspect onStartCommand / onHandleIntent
-3. Trace extras into:
-   -> switch/if action dispatchers
-   -> file operations
-   -> startActivity / startService / sendBroadcast
-   -> Runtime.exec / ProcessBuilder
-4. Confirm the final action is both attacker-controlled and security-relevant
+4. decx code search-class "<ServiceClass>" "exec|Runtime|ProcessBuilder|startActivity|sendBroadcast" --max-results 20 -P <port>
+   -> locate all dangerous sink calls in one shot
+5. decx code method-context "<entryMethod>" -P <port>
+   -> callees reveal all downstream dangerous sinks
+6. decx code method-cfg "<dispatcherMethod>" -P <port>
+   -> verify action dispatcher validates all actions before reaching sinks
+7. Confirm the final action is both attacker-controlled and security-relevant
 ```
 
 ## Key Code Patterns

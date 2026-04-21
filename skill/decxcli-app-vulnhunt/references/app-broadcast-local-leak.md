@@ -28,9 +28,11 @@ Visible impact must be concrete, such as:
 
 ```text
 1. decx code xref-method "android.content.Context.sendBroadcast(android.content.Intent):void" -P <port>
-2. Inspect the payload placed into the broadcast Intent
-3. Confirm there is no package restriction or strong receiver permission
-4. Confirm the payload is actually sensitive
+2. For each call site, decx code method-context "<sendingMethod>" -P <port>
+   -> callees show what data flows into the broadcast Intent
+3. Inspect the payload placed into the broadcast Intent
+4. Confirm there is no package restriction or strong receiver permission
+5. Confirm the payload is actually sensitive
 ```
 
 ## Key Code Patterns

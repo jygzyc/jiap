@@ -28,10 +28,14 @@ Visible impact must be concrete, such as:
 
 ```text
 1. decx ard exported-components -P <port>
-2. decx code class-source "<ProviderClass>" -P <port>
-3. Inspect query(), rawQuery(), execSQL(), and SQLiteQueryBuilder usage
-4. Confirm untrusted input reaches SQL structure rather than only bound parameters
-5. Confirm the resulting data exposure or modification is meaningful
+2. decx code class-context "<ProviderClass>" -P <port>
+   -> quick overview of query methods
+3. decx code class-source "<ProviderClass>" -P <port>
+4. Inspect query(), rawQuery(), execSQL(), and SQLiteQueryBuilder usage
+5. decx code method-cfg "<queryMethod>" -P <port>
+   -> verify parameterization on all code paths
+6. Confirm untrusted input reaches SQL structure rather than only bound parameters
+7. Confirm the resulting data exposure or modification is meaningful
 ```
 
 ## Key Code Patterns

@@ -30,11 +30,13 @@ Visible impact must be concrete, such as:
 ```text
 1. Trace grantUriPermission, Intent.addFlags/setFlags, and ClipData usage
 2. Identify FLAG_GRANT_READ / WRITE / PERSISTABLE / PREFIX paths
-3. Confirm the receiving flow is attacker-reachable:
+3. For each grant site, decx code method-context "<grantingMethod>" -P <port>
+   -> callees show URI origins and whether content is sensitive
+4. Confirm the receiving flow is attacker-reachable:
    -> implicit Intent
    -> setResult()
    -> exported component
-4. Confirm the URI grants meaningful read or write access
+5. Confirm the URI grants meaningful read or write access
 ```
 
 ## Key Code Patterns

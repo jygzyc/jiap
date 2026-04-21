@@ -29,11 +29,14 @@ Visible impact must be concrete, such as:
 
 ```text
 1. decx ard exported-components -P <port>
-2. decx code class-source "<ProviderClass>" -P <port>
-3. Inspect openFile / openAssetFile / openTypedAssetFile
-4. Trace URI segments into File construction and mode selection
-5. Confirm canonical-root enforcement is missing or bypassable
-6. Confirm the reachable file set has real security value
+2. decx code class-context "<ProviderClass>" -P <port>
+   -> quick overview of CRUD methods
+3. decx code class-source "<ProviderClass>" -P <port>
+4. Inspect openFile / openAssetFile / openTypedAssetFile
+5. Trace URI segments into File construction and mode selection
+6. decx code method-cfg "<openFileMethod>" -P <port>
+   -> verify all code paths enforce canonical validation
+7. Confirm the reachable file set has real security value
 ```
 
 ## Key Code Patterns

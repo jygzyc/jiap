@@ -31,10 +31,11 @@ Visible impact must be concrete, such as:
 1. decx code search-global "WebView" --max-results 50 -P <port>
 2. decx code class-context "<WebViewHost>" -P <port>
    -> identify @JavascriptInterface methods and message handlers
-3. decx code class-source "<WebViewHost>" -P <port>
-4. Locate addJavascriptInterface, `postWebMessage`, `WebMessagePort`, or `addWebMessageListener`
-4. Inspect each exposed bridge or message handler for sensitive reads or actions
-5. Confirm attacker-controlled content can reach the WebView
+3. decx code search-class "<WebViewHost>" "@JavascriptInterface|addJavascriptInterface|postWebMessage|WebMessagePort|addWebMessageListener" --max-results 20 -P <port>
+   -> locate all bridge registration and exposed methods in one shot
+4. decx code class-source "<WebViewHost>" -P <port>
+5. Inspect each exposed bridge or message handler for sensitive reads or actions
+6. Confirm attacker-controlled content can reach the WebView
 ```
 
 ## Key Code Patterns
