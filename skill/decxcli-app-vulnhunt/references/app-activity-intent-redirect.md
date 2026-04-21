@@ -32,14 +32,18 @@ If the redirected target performs no security-relevant action, reject the findin
 ```text
 1. decx ard exported-components -P <port>
    -> locate exported activities
-2. decx code class-source "<ActivityClass>" -P <port>
+2. decx code class-context "<ActivityClass>" -P <port>
+   -> identify entry methods
+3. decx code class-source "<ActivityClass>" -P <port>
    -> inspect onCreate / onNewIntent
-3. decx code search-method "getParcelableExtra" -P <port>
-4. Trace the nested Intent into:
+4. decx code search-method "getParcelableExtra" -P <port>
+5. decx code method-context "<forwardingMethod>" -P <port>
+   -> callees show all downstream targets (startActivity, startService, sendBroadcast)
+6. Trace the nested Intent into:
    -> startActivity
    -> startService
    -> sendBroadcast
-5. Confirm whether the downstream target is actually sensitive and reachable through this redirect
+7. Confirm whether the downstream target is actually sensitive and reachable through this redirect
 ```
 
 ## Key Code Patterns
