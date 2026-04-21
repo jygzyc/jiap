@@ -1,5 +1,6 @@
 import { Command } from "commander";
 import { resolveClient } from "../core/client-helper.js";
+import type { ClassFilterOptions, ExportedComponentOptions } from "../core/client.js";
 import { AdbClient, filterSystemServices } from "../android/adb.js";
 import { Formatter } from "../utils/formatter.js";
 import { withErrorHandler } from "../utils/errors.js";
@@ -25,6 +26,38 @@ function addFrameworkCommonOptions(cmd: Command): Command {
     .option("--source-dir <dir>", "Framework source directory")
     .option("--out-dir <dir>", "Framework output directory")
     .option("--clean-source", "Remove source/ after the command finishes successfully");
+}
+
+function collectOption(value: string, previous: string[]): string[] {
+  previous.push(value);
+  return previous;
+}
+
+function addPackageFilterOptions(cmd: Command): Command {
+  return cmd
+    .option("--first <n>", "Return only the first N candidates after package filtering")
+    .option("--include-package <name>", "Only include items in this package", collectOption, [])
+    .option("--exclude-package <name>", "Exclude items in this package", collectOption, [])
+    .option("--no-regex", "Treat filter values as literal text");
+}
+
+function parseClassFilterOptions(opts: Record<string, unknown>): ClassFilterOptions {
+  return {
+    filter: {
+      ...(opts.first ? { first: parseInt(String(opts.first), 10) } : {}),
+      includes: Array.isArray(opts.includePackage) ? opts.includePackage.map(String) : [],
+      excludes: Array.isArray(opts.excludePackage) ? opts.excludePackage.map(String) : [],
+      ...(opts.regex === false ? { regex: false } : {}),
+    },
+  };
+}
+
+function parseExportedComponentOptions(opts: Record<string, unknown>): ExportedComponentOptions {
+  return {
+    includes: Array.isArray(opts.type) ? opts.type.map(String) : [],
+    excludes: Array.isArray(opts.excludeType) ? opts.excludeType.map(String) : [],
+    ...(opts.regex === false ? { regex: false } : {}),
+  };
 }
 
 export function makeArdCommand(): Command {
@@ -70,11 +103,14 @@ export function makeArdCommand(): Command {
   cmd
     .command("exported-components")
     .description("List exported components")
+    .option("--type <type>", "Only include component type: activity, service, receiver, or provider", collectOption, [])
+    .option("--exclude-type <type>", "Exclude component type: activity, service, receiver, or provider", collectOption, [])
+    .option("--no-regex", "Treat component type filters as literal text")
     .option("--page <n>", "Page number", String)
     .action(async (opts) => {
       const { fmt, client } = resolveClient(opts);
       const page = opts.page ? parseInt(opts.page) : 1;
-      fmt.output(await client.getExportedComponents(page));
+      fmt.output(await client.getExportedComponents(parseExportedComponentOptions(opts), page));
     });
 
   cmd
@@ -87,14 +123,16 @@ export function makeArdCommand(): Command {
       fmt.output(await client.getDeepLinks(page));
     });
 
-  cmd
-    .command("app-receivers")
-    .description("List dynamic broadcast receivers")
-    .option("--page <n>", "Page number", String)
+  addPackageFilterOptions(
+    cmd
+      .command("app-receivers")
+      .description("List dynamic broadcast receivers")
+      .option("--page <n>", "Page number", String)
+  )
     .action(async (opts) => {
       const { fmt, client } = resolveClient(opts);
       const page = opts.page ? parseInt(opts.page) : 1;
-      const receivers = await client.getDynamicReceivers(page);
+      const receivers = await client.getDynamicReceivers(parseClassFilterOptions(opts), page);
       fmt.output(receivers);
     });
 
@@ -180,14 +218,16 @@ export function makeArdCommand(): Command {
       fmt.output(await client.getStrings(page));
     });
 
-  cmd
-    .command("get-aidl")
-    .description("Get all AIDL interfaces")
-    .option("--page <n>", "Page number", String)
+  addPackageFilterOptions(
+    cmd
+      .command("get-aidl")
+      .description("Get AIDL interfaces")
+      .option("--page <n>", "Page number", String)
+  )
     .action(async (opts) => {
       const { fmt, client } = resolveClient(opts);
       const page = opts.page ? parseInt(opts.page) : 1;
-      fmt.output(await client.getAidlInterfaces(page));
+      fmt.output(await client.getAidlInterfaces(parseClassFilterOptions(opts), page));
     });
 
   const framework = cmd.command("framework").description("Collect and process Android framework files");

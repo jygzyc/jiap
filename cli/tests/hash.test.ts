@@ -6,11 +6,12 @@ import { hashFile } from "../src/utils/hash.js";
 import { existsSync, writeFileSync, unlinkSync, mkdirSync, rmSync } from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
+import { testPath } from "./test-paths.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURES_DIR = path.join(__dirname, "fixtures");
 const SIEVE_APK = path.join(FIXTURES_DIR, "sieve.apk");
-const TMP_DIR = path.join(__dirname, "__hash_tmp__");
+const TMP_DIR = testPath("tmp", "hash");
 
 describe("hashFile", () => {
   beforeAll(() => {

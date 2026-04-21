@@ -48,8 +48,9 @@ describe("DecxClient", () => {
     it("has all expected methods", () => {
       const methods = [
         "healthCheck", "isHealthy",
-        "getAllClasses", "getClassInfo", "getClassSource", "getMethodSource",
+        "getAllClasses", "searchGlobalKey", "getClassContext", "getClassSource",
         "searchClassKey", "searchMethod",
+        "getMethodSource", "getMethodContext", "getMethodCfg",
         "getMethodXref", "getFieldXref", "getClassXref",
         "getImplement", "getSubClasses",
         "getAppManifest", "getMainActivity", "getApplication",
@@ -57,6 +58,7 @@ describe("DecxClient", () => {
         "getSystemServiceImpl",
         "getDynamicReceivers",
         "getAllResources", "getResourceFile", "getStrings",
+        "getAidlInterfaces",
       ];
       for (const m of methods) {
         expect(typeof (client as any)[m]).toBe("function");

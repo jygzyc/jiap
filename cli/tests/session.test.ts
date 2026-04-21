@@ -13,11 +13,9 @@ import {
 } from "../src/core/session.js";
 import { existsSync, readdirSync, rmSync, readFileSync } from "fs";
 import * as path from "path";
-import * as os from "os";
-import { fileURLToPath } from "url";
+import { DECX_TEST_DECX_HOME } from "./test-paths.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const SESSIONS_DIR = path.join(os.homedir(), ".decx", "sessions");
+const SESSIONS_DIR = path.join(DECX_TEST_DECX_HOME, "sessions");
 
 const TEST_PREFIX = "test_";
 

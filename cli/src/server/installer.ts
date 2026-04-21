@@ -3,9 +3,9 @@
  */
 
 import * as path from "path";
-import * as os from "os";
 import { existsSync, mkdirSync, renameSync, unlinkSync } from "fs";
 import { downloadWithProgress } from "../utils/progress.js";
+import { decxPath } from "../core/paths.js";
 
 const DECX_SERVER_HOME: string | undefined = process.env.DECX_SERVER_HOME;
 const DEFAULT_FETCH = fetch;
@@ -25,7 +25,7 @@ function compareSemver(a: string, b: string): number {
   return 0;
 }
 
-const INSTALL_DIR = path.join(os.homedir(), ".decx", "bin");
+const INSTALL_DIR = decxPath("bin");
 const INSTALL_PATH = path.join(INSTALL_DIR, "decx-server.jar");
 
 export interface ReleaseAsset {

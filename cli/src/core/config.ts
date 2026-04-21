@@ -4,13 +4,13 @@
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync, renameSync } from "fs";
 import * as path from "path";
-import * as os from "os";
 import { randomBytes } from "crypto";
 import type { Config } from "./types.js";
 import * as session from "./session.js";
+import { decxHome, decxPath, userHome } from "./paths.js";
 
-const HOME = os.homedir();
-const CONFIG_DIR = path.join(HOME, ".decx");
+const HOME = userHome();
+const CONFIG_DIR = decxHome();
 const CONFIG_FILE = path.join(CONFIG_DIR, "config.json");
 
 export * from "./session.js";
@@ -22,9 +22,9 @@ export function expandPath(p: string): string {
 
 function defaultConfig(): Config {
   return {
-    serverJar: { path: null, version: "1.0.0", installDir: "~/.decx/bin" },
+    serverJar: { path: null, version: "1.0.0", installDir: decxPath("bin") },
     server: { defaultPort: 25419, timeout: 30 },
-    output: { defaultDir: "~/.decx/output", decompileDir: "~/.decx/decompiled" },
+    output: { defaultDir: decxPath("output"), decompileDir: decxPath("decompiled") },
   };
 }
 

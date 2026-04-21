@@ -1,14 +1,19 @@
 import { jest } from "@jest/globals";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs";
-import { tmpdir } from "os";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "fs";
 import * as path from "path";
 import {
+  findDecxServerJar,
   installDecxServer,
   selectDecxServerAsset,
   type ReleaseAsset,
 } from "../src/server/installer.js";
+import { DECX_TEST_SERVER_JAR, resetTestDir } from "./test-paths.js";
 
 describe("installer", () => {
+  it("uses the test decx-server jar installed from the DECX dist output", () => {
+    expect(findDecxServerJar()).toBe(DECX_TEST_SERVER_JAR);
+  });
+
   it("selects the jar asset instead of similarly named non-jar assets", () => {
     const assets: ReleaseAsset[] = [
       { name: "decx-server.sha256", browser_download_url: "https://example.invalid/sha" },
@@ -19,7 +24,7 @@ describe("installer", () => {
   });
 
   it("overwrites an existing installed jar and returns normalized version/path metadata", async () => {
-    const installDir = mkdtempSync(path.join(tmpdir(), "decx-installer-"));
+    const installDir = resetTestDir("install", "installer");
     const installPath = path.join(installDir, "decx-server.jar");
     const logger = { error: jest.fn() };
 

@@ -118,9 +118,11 @@ decx ard perm-info "<permission>" --serial <serial>
 Use `code` first when the question is about implementation details:
 
 ```bash
-decx code class-info "<class>" -P <port>
+decx code class-context "<class>" -P <port>
 decx code class-source "<class>" -P <port>
 decx code method-source "<signature>" -P <port>
+decx code method-context "<signature>" -P <port>
+decx code method-cfg "<signature>" -P <port>
 decx code xref-method "<signature>" -P <port>
 decx code xref-class "<class>" -P <port>
 decx code xref-field "<field>" -P <port>
@@ -132,7 +134,7 @@ decx code subclass "<class>" -P <port>
 
 Default navigation order:
 
-1. `class-info`
+1. `class-context`
 2. `class-source` or `method-source`
 3. `xref-*`
 4. `implement` or `subclass`
@@ -152,7 +154,8 @@ Prefer:
 Search commands:
 
 ```bash
-decx code search-class "<keyword>" -P <port>
+decx code search-global "<keyword>" --max-results <n> -P <port>
+decx code search-class "<class>" "<keyword>" --max-results <n> -P <port>
 decx code search-method "<name>" -P <port>
 ```
 
@@ -181,18 +184,21 @@ Do not fan out into bulk repeated searches if `class-source` + `xref-*` can answ
 
 | Command | Purpose |
 |--------|---------|
-| `decx code all-classes -P <port>` | List classes |
-| `decx code class-info "<class>" -P <port>` | Show class metadata |
+| `decx code all-classes -P <port>` | List classes (`--first`, `--include-package`, `--exclude-package`, `--no-regex`) |
+| `decx code class-context "<class>" -P <port>` | Show class metadata (fields and methods) |
 | `decx code class-source "<class>" -P <port>` | Show class source |
 | `decx code class-source "<class>" --smali -P <port>` | Show class smali |
 | `decx code method-source "<signature>" -P <port>` | Show method source |
 | `decx code method-source "<signature>" --smali -P <port>` | Show method smali |
+| `decx code method-context "<signature>" -P <port>` | Show method signature, callers, and callees |
+| `decx code method-cfg "<signature>" -P <port>` | Show method control flow graph as DOT source |
 | `decx code xref-method "<signature>" -P <port>` | Show method callers |
 | `decx code xref-class "<class>" -P <port>` | Show class references |
 | `decx code xref-field "<field>" -P <port>` | Show field reads and writes |
 | `decx code implement "<interface>" -P <port>` | List interface implementations |
 | `decx code subclass "<class>" -P <port>` | List subclasses |
-| `decx code search-class "<keyword>" -P <port>` | Search class content |
+| `decx code search-global "<keyword>" --max-results <n> -P <port>` | Search all class bodies (`--first`, `--include-package`, `--exclude-package`, `--no-regex`, `--case-sensitive`) |
+| `decx code search-class "<class>" "<keyword>" --max-results <n> -P <port>` | Grep one class (`--no-regex`, `--case-sensitive`) |
 | `decx code search-method "<name>" -P <port>` | Search method names |
 
 ### `ard`
@@ -202,10 +208,10 @@ Do not fan out into bulk repeated searches if `class-source` + `xref-*` can answ
 | `decx ard app-manifest -P <port>` | Read `AndroidManifest.xml` |
 | `decx ard main-activity -P <port>` | Show main activity |
 | `decx ard app-application -P <port>` | Show application class |
-| `decx ard exported-components -P <port>` | List exported components |
+| `decx ard exported-components -P <port>` | List exported components (`--type`, `--exclude-type`, `--no-regex`) |
 | `decx ard app-deeplinks -P <port>` | List deep links |
-| `decx ard app-receivers -P <port>` | List dynamic receivers |
-| `decx ard get-aidl -P <port>` | List AIDL interfaces |
+| `decx ard app-receivers -P <port>` | List dynamic receivers (`--first`, `--include-package`, `--exclude-package`, `--no-regex`) |
+| `decx ard get-aidl -P <port>` | List AIDL interfaces (`--first`, `--include-package`, `--exclude-package`, `--no-regex`) |
 | `decx ard system-service-impl "<interface>" -P <port>` | Resolve framework service implementation |
 | `decx ard system-services --serial <serial> [--grep <keyword>]` | List live Binder/system services as structured JSON |
 | `decx ard perm-info "<permission>" --serial <serial>` | Resolve one permission into a structured JSON object |
@@ -254,7 +260,7 @@ Example:
 Field identifier:
 
 ```text
-"package.Class.fieldName"
+"package.Class.fieldName :type"
 ```
 
 Resource path:

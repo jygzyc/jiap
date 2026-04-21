@@ -1,5 +1,6 @@
 import { jest } from "@jest/globals";
 import { buildCliUpdateArgs, executeSelfInstall, getCliPackageMetadata } from "../src/commands/self.js";
+import { testPath } from "./test-paths.js";
 
 describe("self command metadata", () => {
   it("prefers npm env metadata when available", () => {
@@ -28,12 +29,13 @@ describe("self command metadata", () => {
 
   it("updates stored server version and returns a real install path on self install", async () => {
     const updateServerVersion = jest.fn();
+    const jarPath = testPath("install", "self", "decx-server.jar");
     const result = await executeSelfInstall(false, {
       installDecxServerFn: async () => ({
         ok: true,
         version: "0.0.0",
-        path: "/tmp/decx-server.jar",
-        message: "Installed decx-server v0.0.0 to /tmp/decx-server.jar",
+        path: jarPath,
+        message: `Installed decx-server v0.0.0 to ${jarPath}`,
       }),
       manager: { updateServerVersion },
     });
@@ -42,8 +44,8 @@ describe("self command metadata", () => {
     expect(result).toEqual({
       ok: true,
       version: "0.0.0",
-      path: "/tmp/decx-server.jar",
-      message: "Installed decx-server v0.0.0 to /tmp/decx-server.jar",
+      path: jarPath,
+      message: `Installed decx-server v0.0.0 to ${jarPath}`,
     });
   });
 });

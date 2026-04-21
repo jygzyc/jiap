@@ -1,270 +1,198 @@
 package jadx.plugins.decx.service
 
 import jadx.api.JadxDecompiler
+import jadx.plugins.decx.api.DecxKind
+import jadx.plugins.decx.api.DecxFilter
+import jadx.plugins.decx.model.DecxError
 import jadx.plugins.decx.model.DecxServiceInterface
 import jadx.plugins.decx.api.DecxApiResult
+import jadx.plugins.decx.utils.AnalysisResultUtils
 import jadx.plugins.decx.utils.CodeUtils
-import java.util.stream.Collectors
+import jadx.plugins.decx.utils.ItemKind
+import java.util.regex.PatternSyntaxException
 
 class CommonService(override val decompiler: JadxDecompiler) : DecxServiceInterface {
 
-    private fun processUsage(searchNode: jadx.api.JavaNode, xrefNodes: MutableList<jadx.api.JavaNode>): HashMap<String, Any> {
-        val usageHashMap = hashMapOf<String, Any>()
-        xrefNodes.groupBy(jadx.api.JavaNode::getTopParentClass).forEach classLoop@{ (topUseClass, nodesInClass) ->
-            val codeInfo = topUseClass.codeInfo
-            val usePositions = topUseClass.getUsePlacesFor(codeInfo, searchNode)
-            if (usePositions.isEmpty()) {
-                return@classLoop
-            }
-            val code = codeInfo.codeStr
-            usePositions.forEach positionLoop@{ pos ->
-                val line = CodeUtils.getLineForPos(code, pos)
-                if (line.trim().startsWith("import ")) {
-                    return@positionLoop
-                }
-                val correspondingNode = nodesInClass.firstOrNull() ?: nodesInClass.first()
-                val codeLineNumber = CodeUtils.getLineNumberForPos(code, pos)
-                usageHashMap["${correspondingNode.fullName.hashCode()}$codeLineNumber"] = hashMapOf(
-                    "fullName" to correspondingNode.fullName,
-                    "className" to topUseClass.fullName,
-                    "codeLineNumber" to codeLineNumber,
-                    "codeLine" to line.trim()
+    /** Returns the complete class inventory for the opened artifact. */
+    fun handleGetClasses(filter: DecxFilter): DecxApiResult {
+        val query = filter.toQuery()
+        return try {
+            val compiled = filter.compile()
+                ?: return DecxApiResult.fail(AnalysisResultUtils.error(DecxKind.ALL_CLASSES, query, DecxError.INVALID_PARAMETER, "invalid filter regex"))
+            val classes = decompiler.classesWithInners
+                .map { it.fullName }
+                .filter { className -> compiled.matches(className) }
+                .let { classNames -> filter.limit(classNames) }
+            val items = classes.map { cls ->
+                AnalysisResultUtils.item(
+                    id = cls,
+                    kind = ItemKind.SYMBOL,
+                    title = "Class: ${cls.substringAfterLast('.')}",
+                    content = cls
                 )
             }
-        }
-        return usageHashMap
-    }
-
-    fun handleGetAllClasses(): DecxApiResult {
-        try {
-            val classes = decompiler.classesWithInners.map { it.fullName }
-            val result = hashMapOf(
-                "type" to "list",
-                "count" to classes.size,
-                "classes-list" to classes
-            )
-            return DecxApiResult(success = true, data = result)
+            DecxApiResult.ok(AnalysisResultUtils.success(DecxKind.ALL_CLASSES, query, items))
         } catch (e: Exception) {
-            return DecxApiResult(success = false, data = hashMapOf("error" to "handleGetAllClasses: ${e.message}"))
+            DecxApiResult.fail(AnalysisResultUtils.error(DecxKind.ALL_CLASSES, query, DecxError.SERVER_INTERNAL_ERROR, e.message ?: "unknown"))
         }
     }
 
-    fun handleGetClassInfo(cls: String): DecxApiResult {
-        try {
-            val clazz = decompiler.searchJavaClassOrItsParentByOrigFullName(cls)
-            if (clazz != null) {
-                val result = hashMapOf(
-                    "type" to "list",
-                    "name" to clazz.fullName,
-                    "methods-list" to clazz.methods.map { it.toString() },
-                    "fields-list" to clazz.fields.map { it.toString() }
-                )
-                return DecxApiResult(success = true, data = result)
-            } else {
-                return DecxApiResult(success = false, data = hashMapOf("error" to "handleGetClassInfo: $cls not found"))
-            }
-        } catch (e: Exception) {
-            return DecxApiResult(success = false, data = hashMapOf("error" to "handleGetClassInfo: ${e.message}"))
-        }
-    }
-
-    fun handleGetClassSource(cls: String, smali: Boolean): DecxApiResult {
-        try {
-            val clazz = decompiler.classesWithInners?.find {
-                it.fullName == cls
-            } ?: return DecxApiResult(
-                success = false,
-                data = hashMapOf("error" to "getClassSource: $cls not found")
-            )
-            clazz.decompile()
-            val code = if (smali) clazz.smali else clazz.code
-            val result: HashMap<String, Any> = hashMapOf(
-                "type" to "code",
-                "name" to clazz.fullName,
-                "code" to code
-            )
-            return DecxApiResult(success = true, data = result)
-        } catch (e: Exception) {
-            return DecxApiResult(success = false, data = hashMapOf("error" to "getClassSource: ${e.message}"))
-        }
-    }
-
-    fun handleSearchClassKey(key: String): DecxApiResult {
-        try {
+    /** Searches decompiled class bodies across the artifact. */
+    fun handleSearchGlobalKey(key: String, filter: DecxFilter): DecxApiResult {
+        val query = mapOf("target" to key) + filter.toQuery()
+        return try {
             if (key.isBlank()) {
-                return DecxApiResult(
-                    success = false,
-                    data = hashMapOf("error" to "handleSearchClassKey: key cannot be empty")
-                )
+                return DecxApiResult.fail(AnalysisResultUtils.error(DecxKind.SEARCH_GLOBAL, query, DecxError.EMPTY_SEARCH_KEY))
             }
+            val matcher = buildMatcher(key, filter.caseSensitive, filter.regex)
+                ?: return DecxApiResult.fail(AnalysisResultUtils.error(DecxKind.SEARCH_GLOBAL, query, DecxError.INVALID_PARAMETER, "invalid regex: $key"))
+            val filters = filter.compile()
+                ?: return DecxApiResult.fail(AnalysisResultUtils.error(DecxKind.SEARCH_GLOBAL, query, DecxError.INVALID_PARAMETER, "invalid filter regex"))
+            val classes = decompiler.classesWithInners
+                .filter { clazz -> filters.matches(clazz.fullName) }
+                .let { classNames -> filter.limit(classNames) }
+            val items = classes.mapNotNull { clazz ->
+                try {
+                    clazz.decompile()
+                    val code = clazz.code ?: ""
+                    if (matcher.matches(clazz.fullName) || matcher.matches(code)) {
+                        AnalysisResultUtils.item(
+                            id = clazz.fullName,
+                            kind = ItemKind.SYMBOL,
+                            title = "Class match: ${clazz.fullName.substringAfterLast('.')}",
+                            content = clazz.fullName
+                        )
+                    } else {
+                        null
+                    }
+                } catch (_: Exception) {
+                    null
+                }
+            }.take(filter.maxResults ?: 0)
+            DecxApiResult.ok(AnalysisResultUtils.success(DecxKind.SEARCH_GLOBAL, query, items))
+        } catch (e: Exception) {
+            DecxApiResult.fail(AnalysisResultUtils.error(DecxKind.SEARCH_GLOBAL, query, DecxError.SERVER_INTERNAL_ERROR, e.message ?: "unknown"))
+        }
+    }
 
-            val lowerKeyword = key.lowercase()
-            val classes = decompiler.classesWithInners?.parallelStream()
-                ?.filter { clazz ->
-                    try {
-                        clazz.decompile()
-                        clazz.code?.lowercase()?.contains(lowerKeyword) == true
-                    } catch (_: Exception) {
-                        false
+    /** Greps one class by method body and returns matching source lines with method signatures. */
+    fun handleSearchClassKey(cls: String, key: String, filter: DecxFilter): DecxApiResult {
+        val query = mapOf("target" to key, "class" to cls) + filter.toQuery()
+        return try {
+            if (key.isBlank()) {
+                return DecxApiResult.fail(AnalysisResultUtils.error(DecxKind.SEARCH_CLASS, query, DecxError.EMPTY_SEARCH_KEY))
+            }
+            val matcher = buildMatcher(key, filter.caseSensitive, filter.regex)
+                ?: return DecxApiResult.fail(AnalysisResultUtils.error(DecxKind.SEARCH_CLASS, query, DecxError.INVALID_PARAMETER, "invalid regex: $key"))
+            val clazz = decompiler.searchJavaClassOrItsParentByOrigFullName(cls)
+                ?: return DecxApiResult.fail(AnalysisResultUtils.error(DecxKind.SEARCH_CLASS, query, DecxError.CLASS_NOT_FOUND, cls))
+            val maxResults = filter.maxResults ?: 0
+            if (maxResults <= 0) {
+                return DecxApiResult.ok(AnalysisResultUtils.success(DecxKind.SEARCH_CLASS, query, emptyList()))
+            }
+            clazz.decompile()
+            val items = mutableListOf<Map<String, Any>>()
+            for (method in clazz.methods) {
+                val signature = method.toString()
+                val lines = method.codeStr.lines()
+                for ((index, line) in lines.withIndex()) {
+                    if (!matcher.matches(line)) continue
+                    items += AnalysisResultUtils.item(
+                        id = "$signature#${index + 1}",
+                        kind = ItemKind.CODE,
+                        title = "$signature",
+                        content = line.trim(),
+                        meta = mapOf(
+                            "line" to index + 1
+                        )
+                    )
+                    if (items.size >= maxResults) {
+                        return DecxApiResult.ok(AnalysisResultUtils.success(DecxKind.SEARCH_CLASS, query, items))
                     }
                 }
-                ?.collect(Collectors.toList()) ?: emptyList()
-
-            val result: HashMap<String, Any> = hashMapOf(
-                "type" to "list",
-                "count" to classes.size,
-                "classes-list" to classes.map { it.fullName }
-            )
-            return DecxApiResult(success = true, data = result)
+            }
+            DecxApiResult.ok(AnalysisResultUtils.success(DecxKind.SEARCH_CLASS, query, items))
         } catch (e: Exception) {
-            return DecxApiResult(success = false, data = hashMapOf("error" to "handleSearchClassKey: ${e.message}"))
+            DecxApiResult.fail(AnalysisResultUtils.error(DecxKind.SEARCH_CLASS, query, DecxError.SERVER_INTERNAL_ERROR, e.message ?: "unknown"))
         }
     }
 
+    private fun buildMatcher(key: String, caseSensitive: Boolean, regex: Boolean): SearchMatcher? {
+        return if (regex) {
+            try {
+                val regexOptions = if (caseSensitive) emptySet() else setOf(RegexOption.IGNORE_CASE)
+                SearchMatcher.RegexSearch(Regex(key, regexOptions))
+            } catch (_: PatternSyntaxException) {
+                null
+            } catch (_: IllegalArgumentException) {
+                null
+            }
+        } else {
+            SearchMatcher.LiteralSearch(key, ignoreCase = !caseSensitive)
+        }
+    }
+
+    private sealed interface SearchMatcher {
+        fun matches(text: String): Boolean
+
+        data class LiteralSearch(private val key: String, private val ignoreCase: Boolean) : SearchMatcher {
+            override fun matches(text: String): Boolean = text.contains(key, ignoreCase = ignoreCase)
+        }
+
+        data class RegexSearch(private val regex: Regex) : SearchMatcher {
+            override fun matches(text: String): Boolean = regex.containsMatchIn(text)
+        }
+    }
+
+    /** Searches method signatures by substring. */
     fun handleSearchMethod(mth: String): DecxApiResult {
-        try {
+        val query = mapOf("target" to mth)
+        return try {
+            if (mth.isBlank()) {
+                return DecxApiResult.fail( AnalysisResultUtils.error(DecxKind.SEARCH_METHOD, query, DecxError.EMPTY_SEARCH_KEY))
+            }
             val lowerMethodName = mth.lowercase()
             val mths = decompiler.classesWithInners?.flatMap { clazz ->
-                clazz.methods.filter { method ->
-                    method.fullName.lowercase().contains(lowerMethodName)
-                }
+                clazz.methods.filter { method -> method.fullName.lowercase().contains(lowerMethodName) }
             } ?: emptyList()
-            val result = hashMapOf(
-                "type" to "list",
-                "count" to mths.size,
-                "methods-list" to mths.map { it.toString() }
-            )
-            return DecxApiResult(success = true, data = result)
+            val items = mths.map { method ->
+                val sig = method.toString()
+                AnalysisResultUtils.item(
+                    id = sig,
+                    kind = ItemKind.SYMBOL,
+                    title = "Method: $sig",
+                    content = sig
+                )
+            }
+            DecxApiResult.ok(AnalysisResultUtils.success(DecxKind.SEARCH_METHOD, query, items))
         } catch (e: Exception) {
-            return DecxApiResult(success = false, data = hashMapOf("error" to "handleSearchMethod: ${e.message}"))
+            DecxApiResult.fail( AnalysisResultUtils.error(DecxKind.SEARCH_METHOD, query, DecxError.SERVER_INTERNAL_ERROR, e.message ?: "unknown"))
         }
     }
 
+    /** Returns a single method body in Java or smali form. */
     fun handleGetMethodSource(mth: String, smali: Boolean): DecxApiResult {
-        try {
-            val mthPair = CodeUtils.findMethod(decompiler, mth) ?: return DecxApiResult(
-                success = false,
-                data = hashMapOf("error" to "handleGetMethodSource: $mth not found")
-            )
+        val query = mapOf("target" to mth, "smali" to smali)
+        return try {
+            val mthPair = CodeUtils.findMethod(decompiler, mth)
+                ?: return DecxApiResult.fail(AnalysisResultUtils.error(DecxKind.METHOD_SOURCE, query, DecxError.METHOD_NOT_FOUND, mth))
             val jcls = mthPair.first
             val jmth = mthPair.second
             jcls.decompile()
-
             val code = if (smali) CodeUtils.extractMethodSmaliCode(jcls, jmth) else jmth.codeStr
-            val result: HashMap<String, Any> = hashMapOf(
-                "type" to "code",
-                "name" to jmth.toString(),
-                "code" to code
-            )
-            return DecxApiResult(success = true, data = result)
-        } catch (e: Exception) {
-            return DecxApiResult(success = false, data = hashMapOf("error" to "handleGetMethodSource: ${e.message}"))
-        }
-    }
-
-    fun handleGetMethodXref(mth: String): DecxApiResult {
-        try {
-            val mthPair = CodeUtils.findMethod(decompiler, mth)
-                ?: return DecxApiResult(
-                    success = false,
-                    data = hashMapOf("error" to "handleGetMethodXref: $mth not found")
+            val items = listOf(
+                AnalysisResultUtils.item(
+                    id = jmth.toString(),
+                    kind = ItemKind.CODE,
+                    title = jmth.toString(),
+                    content = code,
+                    meta = mapOf("language" to if (smali) "smali" else "java")
                 )
-            val jmth = mthPair.second
-            val xrefMap = CodeUtils.buildUsageQuery(decompiler, jmth)
-            val xrefNodes = xrefMap.values.flatten().toMutableList()
-            val references = processUsage(jmth, xrefNodes)
-            val result = hashMapOf<String, Any>(
-                "type" to "list",
-                "count" to xrefNodes.size,
-                "references-list" to references
             )
-            return DecxApiResult(success = true, data = result)
+            DecxApiResult.ok(AnalysisResultUtils.success(DecxKind.METHOD_SOURCE, query, items))
         } catch (e: Exception) {
-            return DecxApiResult(success = false, data = hashMapOf("error" to "handleGetMethodXref: ${e.message}"))
+            DecxApiResult.fail(AnalysisResultUtils.error(DecxKind.METHOD_SOURCE, query, DecxError.SERVER_INTERNAL_ERROR, e.message ?: "unknown"))
         }
     }
 
-    fun handleGetFieldXref(fld: String): DecxApiResult {
-        try {
-            val fldPair = CodeUtils.findField(decompiler, fld)
-                ?: return DecxApiResult(
-                    success = false,
-                    data = hashMapOf("error" to "handleGetFieldXref: $fld not found")
-                )
-            val jfld = fldPair.second
-            val xrefMap = CodeUtils.buildUsageQuery(decompiler, jfld)
-            val xrefNodes = xrefMap.values.flatten().toMutableList()
-            val references = processUsage(jfld, xrefNodes)
-            val result = hashMapOf<String, Any>(
-                "type" to "list",
-                "count" to xrefNodes.size,
-                "references-list" to references
-            )
-            return DecxApiResult(success = true, data = result)
-        } catch (e: Exception) {
-            return DecxApiResult(success = false, data = hashMapOf("error" to "handleGetFieldXref: ${e.message}"))
-        }
-    }
-
-    fun handleGetClassXref(cls: String): DecxApiResult {
-        try {
-            val jclazz = decompiler.searchJavaClassOrItsParentByOrigFullName(cls)
-                ?: return DecxApiResult(
-                    success = false,
-                    data = hashMapOf("error" to "handleGetClassXref: $cls not found")
-                )
-            val xrefMap = CodeUtils.buildUsageQuery(decompiler, jclazz)
-            val xrefNodes = xrefMap.values.flatten().toMutableList()
-            val references = processUsage(jclazz, xrefNodes)
-            val result = hashMapOf<String, Any>(
-                "type" to "list",
-                "count" to xrefNodes.size,
-                "references-list" to references
-            )
-            return DecxApiResult(success = true, data = result)
-        } catch (e: Exception) {
-            return DecxApiResult(success = false, data = hashMapOf("error" to "handleGetClassXref: ${e.message}"))
-        }
-    }
-
-    fun handleGetImplementOfInterface(iface: String): DecxApiResult {
-        return try {
-            val interfaceClazz = decompiler.searchJavaClassOrItsParentByOrigFullName(iface)
-                ?: return DecxApiResult(
-                    success = false,
-                    data = hashMapOf("error" to "handleGetImplementOfInterface: $iface not found")
-                )
-            val implementingClasses = decompiler.classesWithInners.filter {
-                it.smali.contains(".super L${interfaceClazz.fullName.replace('.', '/')};")
-            }
-            val result = hashMapOf(
-                "type" to "list",
-                "classes-list" to implementingClasses.map { it.fullName }
-            )
-            return DecxApiResult(success = true, data = result)
-        } catch (e: Exception) {
-            return DecxApiResult(success = false, data = hashMapOf("error" to "handleGetImplementOfInterface: ${e.message}"))
-        }
-    }
-
-    fun handleGetSubclasses(cls: String): DecxApiResult {
-        return try {
-            val clazz = decompiler.searchJavaClassOrItsParentByOrigFullName(cls)
-                ?: return DecxApiResult(
-                    success = false,
-                    data = hashMapOf("error" to "handleGetSubclasses: $cls not found")
-                )
-
-            val subClasses = decompiler.classesWithInners.filter {
-                it.smali.contains(".super L${clazz.fullName.replace(".", "/")};")
-            }
-            val result = hashMapOf(
-                "type" to "list",
-                "classes-list" to subClasses.map { it.fullName }
-            )
-            return DecxApiResult(success = true, data = result)
-        } catch (e: Exception) {
-            return DecxApiResult(success = false, data = hashMapOf("error" to "handleGetSubclasses: ${e.message}"))
-        }
-    }
 }

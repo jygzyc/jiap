@@ -6,11 +6,13 @@ import io.javalin.http.bodyAsClass
 import jadx.api.JadxDecompiler
 import jadx.plugins.decx.DecxConstants
 import jadx.plugins.decx.api.DecxApi
+import jadx.plugins.decx.api.DecxRoutes
 import jadx.plugins.decx.api.DecxApiImpl
 import jadx.plugins.decx.utils.CacheUtils
 import jadx.plugins.decx.utils.LogUtils
 import jadx.plugins.decx.utils.PluginUtils
 import jadx.plugins.decx.model.DecxError
+import jadx.plugins.decx.utils.AnalysisResultUtils
 
 /**
  * HTTP server built on Javalin. Delegates all business logic to [DecxApi].
@@ -23,36 +25,8 @@ class DecxServer(
 ) {
 
     companion object {
-        private const val SHUTDOWN_TIMEOUT_MS = 2000L
         private const val RESTART_DELAY_MS = 2000L
-
-        val ALL_ROUTES = setOf(
-            // Common Service
-            "/api/decx/get_all_classes",
-            "/api/decx/get_class_info",
-            "/api/decx/get_class_source",
-            "/api/decx/search_class_key",
-            "/api/decx/search_method",
-            "/api/decx/get_method_source",
-            "/api/decx/get_method_xref",
-            "/api/decx/get_field_xref",
-            "/api/decx/get_class_xref",
-            "/api/decx/get_implement",
-            "/api/decx/get_sub_classes",
-            // Android App Service
-            "/api/decx/get_aidl",
-            "/api/decx/get_app_manifest",
-            "/api/decx/get_main_activity",
-            "/api/decx/get_application",
-            "/api/decx/get_exported_components",
-            "/api/decx/get_deep_links",
-            "/api/decx/get_dynamic_receivers",
-            "/api/decx/get_all_resources",
-            "/api/decx/get_resource_file",
-            "/api/decx/get_strings",
-            // Android Framework Service
-            "/api/decx/get_system_service_impl",
-        )
+        private const val HEALTH_KIND = "health"
 
         /** Create a DecxServer directly from a decompiler instance. */
         fun create(decompiler: JadxDecompiler, port: Int = DecxConstants.DEFAULT_PORT): DecxServer {
@@ -105,10 +79,6 @@ class DecxServer(
         return try {
             app?.stop()
             app = null
-            val startTime = System.currentTimeMillis()
-            while (System.currentTimeMillis() - startTime < SHUTDOWN_TIMEOUT_MS) {
-                Thread.sleep(50)
-            }
             LogUtils.info("Server stopped")
             true
         } catch (e: Exception) {
@@ -155,10 +125,11 @@ class DecxServer(
             )
         } catch (e: Exception) {
             LogUtils.error(DecxError.HEALTH_CHECK_FAILED, e)
-            ctx.status(500).json(
-                mapOf(
-                    "error" to DecxError.HEALTH_CHECK_FAILED.code,
-                    "message" to e.message
+            ctx.status(DecxError.HEALTH_CHECK_FAILED.status).json(
+                AnalysisResultUtils.error(
+                    kind = HEALTH_KIND,
+                    code = DecxError.HEALTH_CHECK_FAILED.code,
+                    message = DecxError.HEALTH_CHECK_FAILED.format(e.message ?: "unknown")
                 )
             )
         }
@@ -172,15 +143,15 @@ class DecxServer(
     private fun configureRoutes() {
         app?.apply {
             get("/health") { ctx -> handleHealthCheck(ctx) }
-            ALL_ROUTES.forEach { path ->
-                post(path) { ctx -> handleRoute(ctx, path) }
+            DecxRoutes.all.forEach { route ->
+                post(route.path) { ctx -> handleRoute(ctx, route.path) }
             }
         }
     }
 
     private fun handleRoute(ctx: Context, path: String) {
         try {
-            val payload = ctx.bodyAsClass<Map<String, Any>>()
+            val payload = readPayload(ctx)
             val page = payload["page"] as? Int ?: 1
 
             val handler = routeHandler ?: throw IllegalStateException("RouteHandler not initialized")
@@ -193,20 +164,32 @@ class DecxServer(
     }
 
     private fun handleRouteError(ctx: Context, e: Exception, path: String) {
-        val (decxError, message) = when (e) {
-            is IllegalArgumentException -> DecxError.INVALID_PARAMETER to (e.message ?: "Invalid parameters: $path")
-            is NoSuchMethodException -> DecxError.METHOD_NOT_FOUND to (e.message ?: "Method missing: $path")
-            is IllegalStateException -> DecxError.SERVICE_ERROR to (e.message ?: "State error: $path")
-            else -> DecxError.SERVER_INTERNAL_ERROR to "Internal error: ${e.message ?: path}"
+        val decxError = when (e) {
+            is IllegalArgumentException -> {
+                if (e.message?.startsWith("Unknown endpoint") == true) DecxError.UNKNOWN_ENDPOINT else DecxError.INVALID_PARAMETER
+            }
+            is NoSuchMethodException -> DecxError.METHOD_NOT_FOUND
+            is IllegalStateException -> DecxError.SERVICE_ERROR
+            else -> DecxError.SERVER_INTERNAL_ERROR
         }
+        val detail = e.message ?: path
+        val message = decxError.format(detail)
 
-        ctx.status(500).json(
-            mapOf(
-                "error" to decxError.code,
-                "message" to message
+        ctx.status(decxError.status).json(
+            AnalysisResultUtils.error(
+                kind = routeHandler?.pathToKind(path) ?: "unknown",
+                code = decxError.code,
+                message = message
             )
         )
-        LogUtils.error(decxError, e, message)
+        LogUtils.error(decxError, e, detail)
+    }
+
+    private fun readPayload(ctx: Context): Map<String, Any> {
+        if (ctx.body().isBlank()) {
+            return emptyMap()
+        }
+        return ctx.bodyAsClass()
     }
 
     private fun setupShutdownHook() {

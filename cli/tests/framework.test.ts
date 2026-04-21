@@ -4,6 +4,7 @@ import { cleanFrameworkOutputs, cleanFrameworkTempDirs } from "../src/android/fr
 import { normalizeOem } from "../src/android/framework-collector.js";
 import { resolveFrameworkJarPath, resolveFrameworkLayout, summarizeFrameworkArtifact } from "../src/android/framework.js";
 import { resolveFrameworkTools } from "../src/android/framework-tools.js";
+import { resetTestDir, testPath } from "./test-paths.js";
 
 function writeArtifact(outDir: string, vendor: string, oem: string = "xiaomi"): string {
   const jarPath = path.join(outDir, `framework_${oem}_${vendor.toLowerCase().replace(/\s+/g, "_")}.jar`);
@@ -35,26 +36,27 @@ describe("framework collector", () => {
 
 describe("framework layout", () => {
   it("derives source, temp, and jar paths from out-dir", () => {
-    const layout = resolveFrameworkLayout({ outDir: "/tmp/decx-fw" });
-    expect(layout.rootDir).toBe("/tmp/decx-fw");
-    expect(layout.sourceDir).toBe(path.join("/tmp/decx-fw", "source"));
-    expect(layout.outTmpDir).toBe(path.join("/tmp/decx-fw", "out_tmp"));
-    expect(layout.apexTmpDir).toBe(path.join("/tmp/decx-fw", "apex_tmp"));
-    expect(layout.artifactPath).toBe(path.join("/tmp/decx-fw", ".artifact.json"));
-    expect(layout.jarPath).toBe(path.join("/tmp/decx-fw", "framework_google_unknown.jar"));
+    const outDir = testPath("tmp", "decx-fw");
+    const layout = resolveFrameworkLayout({ outDir });
+    expect(layout.rootDir).toBe(outDir);
+    expect(layout.sourceDir).toBe(path.join(outDir, "source"));
+    expect(layout.outTmpDir).toBe(path.join(outDir, "out_tmp"));
+    expect(layout.apexTmpDir).toBe(path.join(outDir, "apex_tmp"));
+    expect(layout.artifactPath).toBe(path.join(outDir, ".artifact.json"));
+    expect(layout.jarPath).toBe(path.join(outDir, "framework_google_unknown.jar"));
   });
 
   it("uses oem as brand and defaults vendor to unknown without persisted artifact", () => {
+    const outDir = testPath("tmp", "decx-fw-xiaomi");
     const layout = resolveFrameworkLayout({
       oem: "xiaomi",
-      outDir: "/tmp/decx-fw",
+      outDir,
     });
-    expect(layout.jarPath).toBe(path.join("/tmp/decx-fw", "framework_xiaomi_unknown.jar"));
+    expect(layout.jarPath).toBe(path.join(outDir, "framework_xiaomi_unknown.jar"));
   });
 
   it("ignores legacy meta files when no artifact exists", () => {
-    const outDir = "/tmp/decx-fw-legacy-meta";
-    mkdirSync(outDir, { recursive: true });
+    const outDir = resetTestDir("tmp", "decx-fw-legacy-meta");
     writeFileSync(path.join(outDir, ".meta.json"), JSON.stringify({ vendor: "K70 Ultra" }), "utf-8");
 
     const layout = resolveFrameworkLayout({ oem: "xiaomi", outDir });
@@ -64,8 +66,7 @@ describe("framework layout", () => {
   });
 
   it("uses oem as brand and reuses vendor from persisted artifact", () => {
-    const outDir = "/tmp/decx-fw-meta";
-    mkdirSync(outDir, { recursive: true });
+    const outDir = resetTestDir("tmp", "decx-fw-meta");
     writeArtifact(outDir, "K70 Ultra");
 
     const layout = resolveFrameworkLayout({ oem: "xiaomi", outDir });
@@ -75,8 +76,7 @@ describe("framework layout", () => {
   });
 
   it("builds an artifact summary with oem, vendor, and jar path", () => {
-    const outDir = "/tmp/decx-fw-summary";
-    mkdirSync(outDir, { recursive: true });
+    const outDir = resetTestDir("tmp", "decx-fw-summary");
     writeArtifact(outDir, "K70 Ultra");
     const layout = resolveFrameworkLayout({ oem: "xiaomi", outDir });
 
@@ -91,12 +91,12 @@ describe("framework layout", () => {
   });
 
   it("resolves an explicit framework jar path without device detection", async () => {
-    await expect(resolveFrameworkJarPath("/tmp/custom.jar", {})).resolves.toBe("/tmp/custom.jar");
+    const jarPath = testPath("tmp", "custom.jar");
+    await expect(resolveFrameworkJarPath(jarPath, {})).resolves.toBe(jarPath);
   });
 
   it("resolves the generated framework jar using detected device oem", async () => {
-    const outDir = "/tmp/decx-fw-open";
-    mkdirSync(outDir, { recursive: true });
+    const outDir = resetTestDir("tmp", "decx-fw-open");
     const expectedJar = writeArtifact(outDir, "K70 Ultra");
     writeFileSync(expectedJar, "", "utf-8");
 
@@ -108,8 +108,7 @@ describe("framework layout", () => {
   });
 
   it("falls back to the persisted artifact record when the computed jar path changed", async () => {
-    const outDir = "/tmp/decx-fw-artifact-fallback";
-    mkdirSync(outDir, { recursive: true });
+    const outDir = resetTestDir("tmp", "decx-fw-artifact-fallback");
     const expectedJar = writeArtifact(outDir, "k70_ultra");
     writeFileSync(expectedJar, "", "utf-8");
 
@@ -121,8 +120,7 @@ describe("framework layout", () => {
   });
 
   it("fails with a clear error when no generated framework jar exists", async () => {
-    const outDir = "/tmp/decx-fw-open-missing";
-    mkdirSync(outDir, { recursive: true });
+    const outDir = resetTestDir("tmp", "decx-fw-open-missing");
 
     await expect(
       resolveFrameworkJarPath(undefined, { outDir }, async () => "xiaomi"),
@@ -132,7 +130,7 @@ describe("framework layout", () => {
   });
 
   it("removes all tmp directories after packing cleanup", () => {
-    const outDir = "/tmp/decx-fw-clean-pack";
+    const outDir = resetTestDir("tmp", "decx-fw-clean-pack");
     const layout = resolveFrameworkLayout({ outDir });
     mkdirSync(layout.outTmpDir, { recursive: true });
     mkdirSync(layout.apexTmpDir, { recursive: true });
@@ -145,7 +143,7 @@ describe("framework layout", () => {
   });
 
   it("optionally removes source during final cleanup", () => {
-    const outDir = "/tmp/decx-fw-clean-source";
+    const outDir = resetTestDir("tmp", "decx-fw-clean-source");
     const layout = resolveFrameworkLayout({ outDir });
     mkdirSync(layout.sourceDir, { recursive: true });
     mkdirSync(layout.outTmpDir, { recursive: true });

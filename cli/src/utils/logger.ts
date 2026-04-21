@@ -8,9 +8,9 @@
 
 import { appendFileSync, mkdirSync, existsSync } from "fs";
 import * as path from "path";
-import * as os from "os";
+import { decxPath } from "../core/paths.js";
 
-const LOG_DIR = path.join(os.homedir(), ".decx", "logs");
+const LOG_DIR = decxPath("logs");
 const GENERAL_LOG = path.join(LOG_DIR, "cli.log");
 
 let dirInitialized = false;

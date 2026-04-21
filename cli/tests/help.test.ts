@@ -99,16 +99,17 @@ describe("code", () => {
     cmd = findCommand(createProgram(), ["code"])!;
   });
 
-  it("registers 11 subcommands", () => {
+  it("registers 14 subcommands", () => {
     expect(getSubcommandNames(cmd)).toEqual([
-      "all-classes", "class-info", "class-source", "method-source",
+      "all-classes", "search-global", "class-context", "class-source",
+      "method-source", "method-context", "method-cfg",
       "search-class", "search-method", "xref-method", "xref-class",
       "xref-field", "implement", "subclass",
     ]);
   });
 
-  it("class-info has <class> argument", () => {
-    const info = findCommand(cmd, ["class-info"])!;
+  it("class-context has <class> argument", () => {
+    const info = findCommand(cmd, ["class-context"])!;
     expect(info.registeredArguments.length).toBeGreaterThanOrEqual(1);
   });
 
@@ -120,6 +121,21 @@ describe("code", () => {
   it("method-source has <signature> argument", () => {
     const ms = findCommand(cmd, ["method-source"])!;
     expect(ms.registeredArguments.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("search-global has <keyword> argument", () => {
+    const sg = findCommand(cmd, ["search-global"])!;
+    expect(sg.registeredArguments.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("method-context has <signature> argument", () => {
+    const mc = findCommand(cmd, ["method-context"])!;
+    expect(mc.registeredArguments.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("method-cfg has <signature> argument", () => {
+    const mc = findCommand(cmd, ["method-cfg"])!;
+    expect(mc.registeredArguments.length).toBeGreaterThanOrEqual(1);
   });
 
   it("implement has <interface> argument", () => {

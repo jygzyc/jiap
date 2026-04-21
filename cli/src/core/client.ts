@@ -12,6 +12,40 @@ export { DecxError };
 
 export type FetchFn = typeof globalThis.fetch;
 
+export type ClassFilterOptions = {
+    filter: {
+        first?: number;
+        includes: string[];
+        excludes: string[];
+        regex?: boolean;
+    };
+};
+
+export type ExportedComponentOptions = {
+    includes: string[];
+    excludes?: string[];
+    regex?: boolean;
+};
+
+export type GlobalSearchOptions = {
+    search: {
+        first?: number;
+        maxResults: number;
+        includes: string[];
+        excludes: string[];
+        caseSensitive: boolean;
+        regex: boolean;
+    };
+};
+
+export type ClassGrepOptions = {
+    grep: {
+        maxResults: number;
+        caseSensitive: boolean;
+        regex: boolean;
+    };
+};
+
 export class DecxClient {
     private baseUrl: string;
     private timeout: number;
@@ -68,8 +102,14 @@ export class DecxClient {
             let errorMessage = `HTTP ${response.status}`;
             let errorCode = `HTTP_${response.status}`;
             try {
-                const errorBody = (await response.json()) as { error?: string; message?: string };
-                if (errorBody.error) {
+                const errorBody = (await response.json()) as {
+                    error?: string | { code?: string; message?: string };
+                    message?: string;
+                };
+                if (typeof errorBody.error === "object" && errorBody.error !== null) {
+                    errorCode = errorBody.error.code ?? errorCode;
+                    errorMessage = errorBody.error.message ?? errorMessage;
+                } else if (errorBody.error) {
                     errorCode = errorBody.error;
                     errorMessage = errorBody.message ?? errorBody.error;
                 }
@@ -114,28 +154,42 @@ export class DecxClient {
 
     // ── CommonService ───────────────────────────────────────────────────────
 
-    async getAllClasses(page: number = 1): Promise<Record<string, unknown>> {
-        return this.request("POST", "/api/decx/get_all_classes", { page });
+    async getAllClasses(options: ClassFilterOptions, page: number = 1): Promise<Record<string, unknown>> {
+        return this.request("POST", "/api/decx/get_all_classes", { ...options, page });
     }
 
-    async getClassInfo(cls: string, page: number = 1): Promise<Record<string, unknown>> {
-        return this.request("POST", "/api/decx/get_class_info", { cls, page });
+    async searchGlobalKey(key: string, options: GlobalSearchOptions, page: number = 1): Promise<Record<string, unknown>> {
+        return this.request("POST", "/api/decx/search_global_key", { key, ...options, page });
+    }
+
+    async getClassContext(cls: string, page: number = 1): Promise<Record<string, unknown>> {
+        return this.request("POST", "/api/decx/get_class_context", { cls, page });
     }
 
     async getClassSource(cls: string, smali: boolean = false, page: number = 1): Promise<Record<string, unknown>> {
         return this.request("POST", "/api/decx/get_class_source", { cls, smali, page });
     }
 
-    async getMethodSource(mth: string, smali: boolean = false, page: number = 1): Promise<Record<string, unknown>> {
-        return this.request("POST", "/api/decx/get_method_source", { mth, smali, page });
-    }
-
-    async searchClassKey(key: string, page: number = 1): Promise<Record<string, unknown>> {
-        return this.request("POST", "/api/decx/search_class_key", { key, page });
+    async searchClassKey(cls: string, key: string, options: ClassGrepOptions, page: number = 1): Promise<Record<string, unknown>> {
+        return this.request("POST", "/api/decx/search_class_key", { cls, key, ...options, page });
     }
 
     async searchMethod(mth: string, page: number = 1): Promise<Record<string, unknown>> {
         return this.request("POST", "/api/decx/search_method", { mth, page });
+    }
+
+    // ── ContextService ──────────────────────────────────────────────────────
+
+    async getMethodSource(mth: string, smali: boolean = false, page: number = 1): Promise<Record<string, unknown>> {
+        return this.request("POST", "/api/decx/get_method_source", { mth, smali, page });
+    }
+
+    async getMethodContext(mth: string, page: number = 1): Promise<Record<string, unknown>> {
+        return this.request("POST", "/api/decx/get_method_context", { mth, page });
+    }
+
+    async getMethodCfg(mth: string, page: number = 1): Promise<Record<string, unknown>> {
+        return this.request("POST", "/api/decx/get_method_cfg", { mth, page });
     }
 
     async getMethodXref(mth: string, page: number = 1): Promise<Record<string, unknown>> {
@@ -158,10 +212,10 @@ export class DecxClient {
         return this.request("POST", "/api/decx/get_sub_classes", { cls, page });
     }
 
-    // ── Android App Service ───────────────────────────────────────────────────
+    // ── AndroidService ─────────────────────────────────────────────────────
 
-    async getAidlInterfaces(page: number = 1): Promise<Record<string, unknown>> {
-        return this.request("POST", "/api/decx/get_aidl", { page });
+    async getAidlInterfaces(options: ClassFilterOptions = { filter: { includes: [], excludes: [] } }, page: number = 1): Promise<Record<string, unknown>> {
+        return this.request("POST", "/api/decx/get_aidl", { ...options, page });
     }
 
     async getAppManifest(page: number = 1): Promise<Record<string, unknown>> {
@@ -176,16 +230,16 @@ export class DecxClient {
         return this.request("POST", "/api/decx/get_application", { page });
     }
 
-    async getExportedComponents(page: number = 1): Promise<Record<string, unknown>> {
-        return this.request("POST", "/api/decx/get_exported_components", { page });
+    async getExportedComponents(options: ExportedComponentOptions = { includes: [], excludes: [] }, page: number = 1): Promise<Record<string, unknown>> {
+        return this.request("POST", "/api/decx/get_exported_components", { ...options, page });
     }
 
     async getDeepLinks(page: number = 1): Promise<Record<string, unknown>> {
         return this.request("POST", "/api/decx/get_deep_links", { page });
     }
 
-    async getDynamicReceivers(page: number = 1): Promise<Record<string, unknown>> {
-        return this.request("POST", "/api/decx/get_dynamic_receivers", { page });
+    async getDynamicReceivers(options: ClassFilterOptions = { filter: { includes: [], excludes: [] } }, page: number = 1): Promise<Record<string, unknown>> {
+        return this.request("POST", "/api/decx/get_dynamic_receivers", { ...options, page });
     }
 
     async getAllResources(page: number = 1): Promise<Record<string, unknown>> {
@@ -199,8 +253,6 @@ export class DecxClient {
     async getStrings(page: number = 1): Promise<Record<string, unknown>> {
         return this.request("POST", "/api/decx/get_strings", { page });
     }
-
-    // ── AndroidFrameworkService ─────────────────────────────────────────────
 
     async getSystemServiceImpl(iface: string, page: number = 1): Promise<Record<string, unknown>> {
         return this.request("POST", "/api/decx/get_system_service_impl", { iface, page });

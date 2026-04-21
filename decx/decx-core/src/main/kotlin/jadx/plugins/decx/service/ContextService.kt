@@ -1,0 +1,340 @@
+package jadx.plugins.decx.service
+
+import jadx.api.JadxDecompiler
+import jadx.api.JavaNode
+import jadx.core.dex.instructions.BaseInvokeNode
+import jadx.core.dex.instructions.InvokeNode
+import jadx.core.dex.nodes.MethodNode
+import jadx.core.dex.visitors.DotGraphVisitor
+import jadx.plugins.decx.api.DecxApiResult
+import jadx.plugins.decx.api.DecxKind
+import jadx.plugins.decx.model.DecxError
+import jadx.plugins.decx.model.DecxServiceInterface
+import jadx.plugins.decx.utils.AnalysisResultUtils
+import jadx.plugins.decx.utils.CodeUtils
+import jadx.plugins.decx.utils.ItemKind
+import java.nio.file.Files
+
+class ContextService(override val decompiler: JadxDecompiler) : DecxServiceInterface {
+
+    private data class CalleeSummary(
+        val signature: String,
+        val owner: String,
+        var callCount: Int = 0,
+        val invokeTypes: MutableSet<String> = linkedSetOf(),
+        var insnStr: String? = null
+    )
+
+    private fun processUsage(searchNode: JavaNode, xrefNodes: MutableList<JavaNode>): List<Map<String, Any>> {
+        val items = mutableListOf<Map<String, Any>>()
+        xrefNodes.groupBy(JavaNode::getTopParentClass).forEach classLoop@{ (topUseClass, nodesInClass) ->
+            val codeInfo = topUseClass.codeInfo
+            val usePositions = topUseClass.getUsePlacesFor(codeInfo, searchNode)
+            if (usePositions.isEmpty()) {
+                return@classLoop
+            }
+            val code = codeInfo.codeStr
+            usePositions.forEach positionLoop@{ pos ->
+                val line = CodeUtils.getLineForPos(code, pos)
+                if (line.trim().startsWith("import ")) {
+                    return@positionLoop
+                }
+                val correspondingNode = nodesInClass.firstOrNull() ?: nodesInClass.first()
+                val codeLineNumber = CodeUtils.getLineNumberForPos(code, pos)
+                items.add(
+                    AnalysisResultUtils.item(
+                        id = "${correspondingNode.fullName}#$codeLineNumber",
+                        kind = ItemKind.XREF,
+                        title = "Caller: ${correspondingNode.fullName}",
+                        content = line.trim(),
+                        meta = mapOf(
+                            "owner" to topUseClass.fullName,
+                            "member" to correspondingNode.fullName,
+                            "line" to codeLineNumber
+                        )
+                    )
+                )
+            }
+        }
+        return items
+    }
+
+    private fun collectCalleeItems(mth: String, methodNode: MethodNode): List<Map<String, Any>> {
+        try {
+            methodNode.load()
+        } catch (_: Exception) {
+            return emptyList()
+        }
+        val insnArr = methodNode.instructions ?: return emptyList()
+        val callees = linkedMapOf<String, CalleeSummary>()
+        for (insn in insnArr) {
+            if (insn == null) continue
+            insn.visitInsns { currentInsn ->
+                if (currentInsn is BaseInvokeNode) {
+                    try {
+                        val callMth = currentInsn.callMth
+                        val signature = callMth.toString()
+                        val insnStr = currentInsn.toString()
+                        val callee = callees.getOrPut(signature) {
+                            CalleeSummary(signature, callMth.declClass.fullName)
+                        }
+                        callee.callCount += 1
+                        callee.invokeTypes.add((currentInsn as? InvokeNode)?.invokeType?.toString() ?: currentInsn.javaClass.simpleName)
+                        if (callee.insnStr == null) callee.insnStr = insnStr
+                    } catch (_: Exception) {
+                        // skip unresolvable invoke
+                    }
+                }
+            }
+        }
+        return callees.entries.mapIndexed { index, entry ->
+            val callee = entry.value
+            AnalysisResultUtils.item(
+                id = "$mth#callee-$index",
+                kind = ItemKind.XREF,
+                title = "Callee: ${entry.key}",
+                content = callee.insnStr ?: entry.key,
+                meta = mapOf(
+                    "owner" to callee.owner,
+                    "call_count" to callee.callCount,
+                    "invoke_types" to callee.invokeTypes.toList()
+                )
+            )
+        }
+    }
+
+    private fun dumpCfgDot(methodNode: MethodNode): String {
+        val tempDir = Files.createTempDirectory("decx-cfg-").toFile()
+        return try {
+            DotGraphVisitor.dump().save(tempDir, methodNode)
+            val paths = Files.walk(tempDir.toPath())
+            try {
+                val dotPath = paths
+                    .filter { Files.isRegularFile(it) && it.fileName.toString().endsWith(".dot") }
+                    .findFirst()
+                    .orElse(null)
+                if (dotPath == null) "digraph { }" else String(Files.readAllBytes(dotPath))
+            } finally {
+                paths.close()
+            }
+        } finally {
+            tempDir.deleteRecursively()
+        }
+    }
+
+    /** Returns class-level context, including the class symbol and its members. */
+    fun handleGetClassContext(cls: String): DecxApiResult {
+        val query = mapOf("target" to cls)
+        return try {
+            val clazz = decompiler.searchJavaClassOrItsParentByOrigFullName(cls)
+                ?: return DecxApiResult.fail( AnalysisResultUtils.error(DecxKind.CLASS_CONTEXT, query, DecxError.CLASS_NOT_FOUND, cls))
+            val methodItems = clazz.methods.map { method ->
+                val signature = method.toString()
+                AnalysisResultUtils.item(
+                    id = signature,
+                    kind = ItemKind.SYMBOL,
+                    title = "Method: $signature",
+                    content = signature
+                )
+            }
+            val fieldItems = clazz.fields.map { field ->
+                val signature = field.toString()
+                AnalysisResultUtils.item(
+                    id = signature,
+                    kind = ItemKind.SYMBOL,
+                    title = "Field: $signature",
+                    content = signature
+                )
+            }
+            val items = listOf(
+                AnalysisResultUtils.item(
+                    id = cls,
+                    kind = ItemKind.SYMBOL,
+                    title = "Class: ${cls.substringAfterLast('.')}",
+                    content = cls,
+                    meta = mapOf(
+                        "method_count" to methodItems.size,
+                        "field_count" to fieldItems.size
+                    )
+                )
+            ) + methodItems + fieldItems
+            DecxApiResult.ok(AnalysisResultUtils.success(DecxKind.CLASS_CONTEXT, query, items))
+        } catch (e: Exception) {
+            DecxApiResult.fail( AnalysisResultUtils.error(DecxKind.CLASS_CONTEXT, query, DecxError.SERVER_INTERNAL_ERROR, e.message ?: "unknown"))
+        }
+    }
+
+    /** Returns full class source in Java or smali form. */
+    fun handleGetClassSource(cls: String, smali: Boolean): DecxApiResult {
+        val query = mapOf("target" to cls, "smali" to smali)
+        return try {
+            val clazz = decompiler.classesWithInners.find { it.fullName == cls }
+                ?: return DecxApiResult.fail( AnalysisResultUtils.error(DecxKind.CLASS_SOURCE, query, DecxError.CLASS_NOT_FOUND, cls))
+            clazz.decompile()
+            val code = if (smali) clazz.smali else clazz.code
+            val items = listOf(
+                AnalysisResultUtils.item(
+                    id = cls,
+                    kind = ItemKind.CODE,
+                    title = cls,
+                    content = code ?: "",
+                    meta = mapOf("language" to if (smali) "smali" else "java")
+                )
+            )
+            DecxApiResult.ok(AnalysisResultUtils.success(DecxKind.CLASS_SOURCE, query, items))
+        } catch (e: Exception) {
+            DecxApiResult.fail( AnalysisResultUtils.error(DecxKind.CLASS_SOURCE, query, DecxError.SERVER_INTERNAL_ERROR, e.message ?: "unknown"))
+        }
+    }
+
+    /** Returns method signature with caller and callee relationships. */
+    fun handleGetMethodContext(mth: String): DecxApiResult {
+        val query = mapOf("target" to mth)
+        return try {
+            val mthPair = CodeUtils.findMethod(decompiler, mth)
+                ?: return DecxApiResult.fail( AnalysisResultUtils.error(DecxKind.METHOD_CONTEXT, query, DecxError.METHOD_NOT_FOUND, mth))
+            val jcls = mthPair.first
+            val jmth = mthPair.second
+            jcls.decompile()
+            val methodNode = jmth.methodNode
+            val xrefMap = CodeUtils.buildUsageQuery(decompiler, jmth)
+            val callerItems = processUsage(jmth, xrefMap.values.flatten().toMutableList())
+            val calleeItems = collectCalleeItems(jmth.toString(), methodNode)
+            val signatureItem = AnalysisResultUtils.item(
+                id = jmth.toString(),
+                kind = ItemKind.SYMBOL,
+                title = "Method signature: $jmth",
+                content = jmth.toString(),
+                meta = mapOf(
+                    "owner" to jcls.fullName,
+                    "return_type" to jmth.returnType.toString(),
+                    "argument_count" to jmth.arguments.size,
+                    "caller_count" to callerItems.size,
+                    "callee_count" to calleeItems.size
+                )
+            )
+            val items = listOf(signatureItem) + callerItems + calleeItems
+            DecxApiResult.ok(AnalysisResultUtils.success(DecxKind.METHOD_CONTEXT, query, items))
+        } catch (e: Exception) {
+            DecxApiResult.fail(AnalysisResultUtils.error(DecxKind.METHOD_CONTEXT, query, DecxError.SERVER_INTERNAL_ERROR, "${e.javaClass.simpleName}: ${e.message}"))
+        }
+    }
+
+    /** Returns a DOT control-flow graph built from JADX basic blocks. */
+    fun handleGetMethodCfg(mth: String): DecxApiResult {
+        val query = mapOf("target" to mth)
+        return try {
+            val mthPair = CodeUtils.findMethod(decompiler, mth)
+                ?: return DecxApiResult.fail(AnalysisResultUtils.error(DecxKind.METHOD_CFG, query, DecxError.METHOD_NOT_FOUND, mth))
+            val jmth = mthPair.second
+            val methodNode = jmth.methodNode
+            methodNode.load()
+            val dot = dumpCfgDot(methodNode)
+            val item = AnalysisResultUtils.item(
+                id = "${jmth}#cfg-dot",
+                kind = ItemKind.CODE,
+                title = "CFG DOT: $jmth",
+                content = dot,
+                meta = mapOf("language" to "dot")
+            )
+            DecxApiResult.ok(AnalysisResultUtils.success(DecxKind.METHOD_CFG, query, listOf(item)))
+        } catch (e: Exception) {
+            DecxApiResult.fail(AnalysisResultUtils.error(DecxKind.METHOD_CFG, query, DecxError.SERVER_INTERNAL_ERROR, e.message ?: "unknown"))
+        }
+    }
+
+    /** Returns call sites that reference the requested method. */
+    fun handleGetMethodXref(mth: String): DecxApiResult {
+        val query = mapOf("target" to mth)
+        return try {
+            val mthPair = CodeUtils.findMethod(decompiler, mth)
+                ?: return DecxApiResult.fail( AnalysisResultUtils.error(DecxKind.METHOD_XREF, query, DecxError.METHOD_NOT_FOUND, mth))
+            val jmth = mthPair.second
+            val xrefMap = CodeUtils.buildUsageQuery(decompiler, jmth)
+            val xrefNodes = xrefMap.values.flatten().toMutableList()
+            val items = processUsage(jmth, xrefNodes)
+            DecxApiResult.ok(AnalysisResultUtils.success(DecxKind.METHOD_XREF, query, items))
+        } catch (e: Exception) {
+            DecxApiResult.fail( AnalysisResultUtils.error(DecxKind.METHOD_XREF, query, DecxError.SERVER_INTERNAL_ERROR, e.message ?: "unknown"))
+        }
+    }
+
+    /** Returns usage sites that reference the requested field. */
+    fun handleGetFieldXref(fld: String): DecxApiResult {
+        val query = mapOf("target" to fld)
+        return try {
+            val fldPair = CodeUtils.findField(decompiler, fld)
+                ?: return DecxApiResult.fail( AnalysisResultUtils.error(DecxKind.FIELD_XREF, query, DecxError.FIELD_NOT_FOUND, fld))
+            val jfld = fldPair.second
+            val xrefMap = CodeUtils.buildUsageQuery(decompiler, jfld)
+            val xrefNodes = xrefMap.values.flatten().toMutableList()
+            val items = processUsage(jfld, xrefNodes)
+            DecxApiResult.ok(AnalysisResultUtils.success(DecxKind.FIELD_XREF, query, items))
+        } catch (e: Exception) {
+            DecxApiResult.fail( AnalysisResultUtils.error(DecxKind.FIELD_XREF, query, DecxError.SERVER_INTERNAL_ERROR, e.message ?: "unknown"))
+        }
+    }
+
+    /** Returns usage sites that reference the requested class symbol. */
+    fun handleGetClassXref(cls: String): DecxApiResult {
+        val query = mapOf("target" to cls)
+        return try {
+            val jclazz = decompiler.searchJavaClassOrItsParentByOrigFullName(cls)
+                ?: return DecxApiResult.fail( AnalysisResultUtils.error(DecxKind.CLASS_XREF, query, DecxError.CLASS_NOT_FOUND, cls))
+            val xrefMap = CodeUtils.buildUsageQuery(decompiler, jclazz)
+            val xrefNodes = xrefMap.values.flatten().toMutableList()
+            val items = processUsage(jclazz, xrefNodes)
+            DecxApiResult.ok(AnalysisResultUtils.success(DecxKind.CLASS_XREF, query, items))
+        } catch (e: Exception) {
+            DecxApiResult.fail( AnalysisResultUtils.error(DecxKind.CLASS_XREF, query, DecxError.SERVER_INTERNAL_ERROR, e.message ?: "unknown"))
+        }
+    }
+
+    /** Lists direct implementors of the requested interface. */
+    fun handleGetImplementOfInterface(iface: String): DecxApiResult {
+        val query = mapOf("target" to iface)
+        return try {
+            val interfaceClazz = decompiler.searchJavaClassOrItsParentByOrigFullName(iface)
+                ?: return DecxApiResult.fail(AnalysisResultUtils.error(DecxKind.IMPLEMENTATIONS, query, DecxError.INTERFACE_NOT_FOUND, iface))
+            val implementingClasses = decompiler.classesWithInners.filter {
+                it.smali.contains(".implement L${interfaceClazz.fullName.replace('.', '/')};")
+            }
+            val items = implementingClasses.map { clazz ->
+                AnalysisResultUtils.item(
+                    id = clazz.fullName,
+                    kind = ItemKind.SYMBOL,
+                    title = "Implementation: ${clazz.fullName.substringAfterLast('.')}",
+                    content = "${clazz.fullName} implements $iface",
+                    meta = mapOf("interface" to iface)
+                )
+            }
+            DecxApiResult.ok(AnalysisResultUtils.success(DecxKind.IMPLEMENTATIONS, query, items))
+        } catch (e: Exception) {
+            DecxApiResult.fail(AnalysisResultUtils.error(DecxKind.IMPLEMENTATIONS, query, DecxError.SERVER_INTERNAL_ERROR, e.message ?: "unknown"))
+        }
+    }
+
+    /** Lists direct subclasses for the requested class. */
+    fun handleGetSubclasses(cls: String): DecxApiResult {
+        val query = mapOf("target" to cls)
+        return try {
+            val clazz = decompiler.searchJavaClassOrItsParentByOrigFullName(cls)
+                ?: return DecxApiResult.fail(AnalysisResultUtils.error(DecxKind.SUB_CLASSES, query, DecxError.CLASS_NOT_FOUND, cls))
+            val subClasses = decompiler.classesWithInners.filter {
+                it.smali.contains(".super L${clazz.fullName.replace(".", "/")};")
+            }
+            val items = subClasses.map { sub ->
+                AnalysisResultUtils.item(
+                    id = sub.fullName,
+                    kind = ItemKind.SYMBOL,
+                    title = "Subclass: ${sub.fullName.substringAfterLast('.')}",
+                    content = "${sub.fullName} extends $cls",
+                    meta = mapOf("superclass" to cls)
+                )
+            }
+            DecxApiResult.ok(AnalysisResultUtils.success(DecxKind.SUB_CLASSES, query, items))
+        } catch (e: Exception) {
+            DecxApiResult.fail(AnalysisResultUtils.error(DecxKind.SUB_CLASSES, query, DecxError.SERVER_INTERNAL_ERROR, e.message ?: "unknown"))
+        }
+    }
+}

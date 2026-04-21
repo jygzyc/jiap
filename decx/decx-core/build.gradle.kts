@@ -11,6 +11,9 @@ dependencies {
     compileOnly(libs.jadx.core) {
         isChanging = false
     }
+    compileOnly(libs.jadx.gui) {
+        isChanging = false
+    }
     compileOnly(libs.slf4j.api)
     compileOnly(libs.logback.classic)
 }
@@ -40,6 +43,7 @@ tasks.processResources {
 
 tasks.jar {
     dependsOn(generateVersionProperties)
+    from(sourceSets.main.get().output)
     manifest {
         attributes("Implementation-Version" to project.version.toString())
     }

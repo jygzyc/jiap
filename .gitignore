@@ -1,9 +1,10 @@
-# Tools
-.archive/
+# Test Directories
+.decx_test/
 
 # FileDump
 Source/
 Output/
+docs/
 
 # Python
 __pycache__/

@@ -56,16 +56,16 @@ All standard [jadx-cli options](https://github.com/skylot/jadx) are passed throu
 decx ard app-manifest                    # Get AndroidManifest.xml
 decx ard main-activity                   # Get main activity name
 decx ard app-application                 # Get Application class name
-decx ard exported-components             # List exported components
+decx ard exported-components [--type <pattern>] [--no-regex] # List exported components
 decx ard app-deeplinks                   # List deep link schemes
-decx ard app-receivers                   # List dynamic broadcast receivers
+decx ard app-receivers [--first <n>] [--include-package <pattern>] [--exclude-package <pattern>] [--no-regex] # List dynamic broadcast receivers
 decx ard system-service-impl <interface> # Find system service implementations
 decx ard system-services [--serial <serial>] [--grep <kw>] # List Android system services as structured JSON
 decx ard perm-info <permission> [--serial <serial>]        # Show structured permission details
 decx ard all-resources                   # List all resource file names
 decx ard resource-file <res>             # Get resource file content
 decx ard strings                         # Get strings.xml content
-decx ard get-aidl                        # Get all AIDL interfaces
+decx ard get-aidl [--first <n>] [--include-package <pattern>] [--exclude-package <pattern>] [--no-regex] # Get AIDL interfaces
 decx ard framework collect               # Collect framework files from the connected device
 decx ard framework process <oem>         # Process local framework source files and pack the framework jar
 decx ard framework run                   # Collect, process, pack, and optionally open
@@ -196,11 +196,14 @@ Artifact segments are resolved like this:
 ### code
 
 ```bash
-decx code all-classes                    # Get all classes
-decx code class-info <class>             # Get class information
+decx code all-classes                    # Get classes; supports --include-package/--exclude-package
+decx code class-context <class>          # Get class information
 decx code class-source <class>           # Get class source code (--smali for Smali)
 decx code method-source <sig>            # Get method source (--smali for Smali)
-decx code search-class <keyword>         # Search in class content
+decx code method-context <sig>           # Get method signature, callers, and callees
+decx code method-cfg <sig>               # Get method control flow graph as DOT source
+decx code search-global <keyword> --max-results <n>  # Regex by default; supports --no-regex
+decx code search-class <class> <pattern> --max-results <n>  # Regex by default; supports --no-regex
 decx code search-method <name>           # Search methods by name
 decx code xref-method <sig>              # Find method callers
 decx code xref-class <class>             # Find class usages

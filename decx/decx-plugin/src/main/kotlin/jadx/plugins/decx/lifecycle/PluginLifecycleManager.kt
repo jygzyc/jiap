@@ -4,6 +4,7 @@ import jadx.api.plugins.JadxPluginContext
 import jadx.plugins.decx.api.DecxApi
 import jadx.plugins.decx.api.DecxApiImpl
 import jadx.plugins.decx.http.DecxServer
+import jadx.plugins.decx.service.UIService
 import jadx.plugins.decx.model.DecxError
 import jadx.plugins.decx.utils.LogUtils
 import jadx.plugins.decx.utils.PreferencesManager
@@ -47,7 +48,8 @@ class PluginLifecycleManager(
                 PreferencesManager.initialize(decompiler)
 
                 val port = PreferencesManager.getPort()
-                val api: DecxApi = DecxApiImpl(decompiler)
+                val uiService = UIService(ctx)
+                val api: DecxApi = DecxApiImpl(decompiler, uiService = uiService)
                 val server = DecxServer(api, port)
                 server.start()
                 onReady(server, api)

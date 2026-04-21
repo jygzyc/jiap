@@ -10,12 +10,12 @@ import {
   readdirSync, unlinkSync, renameSync,
 } from "fs";
 import * as path from "path";
-import * as os from "os";
 import { randomBytes } from "crypto";
 import { spawnSync } from "child_process";
 import type { Session } from "./types.js";
+import { decxPath } from "./paths.js";
 
-const SESSIONS_DIR = path.join(os.homedir(), ".decx", "sessions");
+const SESSIONS_DIR = decxPath("sessions");
 const SESSION_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 function sessionFilePath(name: string): string {

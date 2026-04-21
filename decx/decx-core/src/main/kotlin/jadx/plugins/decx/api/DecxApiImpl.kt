@@ -1,10 +1,12 @@
 package jadx.plugins.decx.api
 
 import jadx.api.JadxDecompiler
-import jadx.plugins.decx.service.AndroidAppService
-import jadx.plugins.decx.service.AndroidFrameworkService
+import jadx.plugins.decx.service.AndroidService
+import jadx.plugins.decx.service.ContextService
 import jadx.plugins.decx.service.CommonService
-import jadx.plugins.decx.service.VulnMiningService
+import jadx.plugins.decx.service.UIService
+import jadx.plugins.decx.model.DecxError
+import jadx.plugins.decx.utils.AnalysisResultUtils
 import jadx.plugins.decx.utils.CacheUtils
 
 /**
@@ -13,40 +15,50 @@ import jadx.plugins.decx.utils.CacheUtils
  */
 class DecxApiImpl(
     decompiler: JadxDecompiler,
-    private val cacheEnabled: Boolean = true
+    private val cacheEnabled: Boolean = true,
+    private val uiService: UIService? = null
 ) : DecxApi {
 
     private val commonService = CommonService(decompiler)
-    private val androidAppService = AndroidAppService(decompiler)
-    private val androidFrameworkService = AndroidFrameworkService(decompiler)
-    private val vulnMiningService = VulnMiningService(decompiler)
+    private val contextService = ContextService(decompiler)
+    private val androidService = AndroidService(decompiler)
 
     // ==================== Common Service ====================
 
-    override fun getAllClasses(): DecxApiResult {
-        return if (cacheEnabled) cached("getAllClasses", emptyMap()) { commonService.handleGetAllClasses() }
-        else commonService.handleGetAllClasses()
+    override fun getClasses(filter: DecxFilter): DecxApiResult {
+        return if (cacheEnabled) cached("getClasses", filter.toQuery()) { commonService.handleGetClasses(filter) }
+        else commonService.handleGetClasses(filter)
     }
 
-    override fun getClassInfo(cls: String): DecxApiResult {
-        return if (cacheEnabled) cached("getClassInfo", mapOf("cls" to cls)) { commonService.handleGetClassInfo(cls) }
-        else commonService.handleGetClassInfo(cls)
+    override fun searchGlobalKey(key: String, filter: DecxFilter): DecxApiResult {
+        val params = mapOf("key" to key) + filter.toQuery()
+        return if (cacheEnabled) cached("searchGlobalKey", params) { commonService.handleSearchGlobalKey(key, filter) }
+        else commonService.handleSearchGlobalKey(key, filter)
     }
 
     override fun getClassSource(cls: String, smali: Boolean): DecxApiResult {
         return if (cacheEnabled) cached("getClassSource", mapOf("cls" to cls, "smali" to smali)) {
-            commonService.handleGetClassSource(cls, smali)
-        } else commonService.handleGetClassSource(cls, smali)
+            contextService.handleGetClassSource(cls, smali)
+        } else contextService.handleGetClassSource(cls, smali)
     }
 
-    override fun searchClassKey(key: String): DecxApiResult {
-        return if (cacheEnabled) cached("searchClassKey", mapOf("key" to key)) { commonService.handleSearchClassKey(key) }
-        else commonService.handleSearchClassKey(key)
+    override fun searchClassKey(cls: String, key: String, filter: DecxFilter): DecxApiResult {
+        val params = mapOf("cls" to cls, "key" to key) + filter.toQuery()
+        return if (cacheEnabled) cached("searchClassKey", params) {
+            commonService.handleSearchClassKey(cls, key, filter)
+        } else commonService.handleSearchClassKey(cls, key, filter)
     }
 
     override fun searchMethod(mth: String): DecxApiResult {
         return if (cacheEnabled) cached("searchMethod", mapOf("mth" to mth)) { commonService.handleSearchMethod(mth) }
         else commonService.handleSearchMethod(mth)
+    }
+
+    // ==================== Context Service ====================
+
+    override fun getClassContext(cls: String): DecxApiResult {
+        return if (cacheEnabled) cached("getClassContext", mapOf("cls" to cls)) { contextService.handleGetClassContext(cls) }
+        else contextService.handleGetClassContext(cls)
     }
 
     override fun getMethodSource(mth: String, smali: Boolean): DecxApiResult {
@@ -55,80 +67,104 @@ class DecxApiImpl(
         } else commonService.handleGetMethodSource(mth, smali)
     }
 
+    override fun getMethodContext(mth: String): DecxApiResult {
+        return if (cacheEnabled) cached("getMethodContext", mapOf("mth" to mth)) { contextService.handleGetMethodContext(mth) }
+        else contextService.handleGetMethodContext(mth)
+    }
+
+    override fun getMethodCfg(mth: String): DecxApiResult {
+        return if (cacheEnabled) cached("getMethodCfg", mapOf("mth" to mth)) { contextService.handleGetMethodCfg(mth) }
+        else contextService.handleGetMethodCfg(mth)
+    }
+
     override fun getMethodXref(mth: String): DecxApiResult {
-        return if (cacheEnabled) cached("getMethodXref", mapOf("mth" to mth)) { commonService.handleGetMethodXref(mth) }
-        else commonService.handleGetMethodXref(mth)
+        return if (cacheEnabled) cached("getMethodXref", mapOf("mth" to mth)) { contextService.handleGetMethodXref(mth) }
+        else contextService.handleGetMethodXref(mth)
     }
 
     override fun getFieldXref(fld: String): DecxApiResult {
-        return if (cacheEnabled) cached("getFieldXref", mapOf("fld" to fld)) { commonService.handleGetFieldXref(fld) }
-        else commonService.handleGetFieldXref(fld)
+        return if (cacheEnabled) cached("getFieldXref", mapOf("fld" to fld)) { contextService.handleGetFieldXref(fld) }
+        else contextService.handleGetFieldXref(fld)
     }
 
     override fun getClassXref(cls: String): DecxApiResult {
-        return if (cacheEnabled) cached("getClassXref", mapOf("cls" to cls)) { commonService.handleGetClassXref(cls) }
-        else commonService.handleGetClassXref(cls)
+        return if (cacheEnabled) cached("getClassXref", mapOf("cls" to cls)) { contextService.handleGetClassXref(cls) }
+        else contextService.handleGetClassXref(cls)
     }
 
     override fun getImplementOfInterface(iface: String): DecxApiResult {
         return if (cacheEnabled) cached("getImplementOfInterface", mapOf("iface" to iface)) {
-            commonService.handleGetImplementOfInterface(iface)
-        } else commonService.handleGetImplementOfInterface(iface)
+            contextService.handleGetImplementOfInterface(iface)
+        } else contextService.handleGetImplementOfInterface(iface)
     }
 
     override fun getSubclasses(cls: String): DecxApiResult {
-        return if (cacheEnabled) cached("getSubclasses", mapOf("cls" to cls)) { commonService.handleGetSubclasses(cls) }
-        else commonService.handleGetSubclasses(cls)
+        return if (cacheEnabled) cached("getSubclasses", mapOf("cls" to cls)) { contextService.handleGetSubclasses(cls) }
+        else contextService.handleGetSubclasses(cls)
     }
 
     // ==================== Android App Service ====================
 
-    override fun getAidlInterfaces(): DecxApiResult {
-        return if (cacheEnabled) cached("getAidlInterfaces", emptyMap()) {
-            androidAppService.handleGetAidlInterfaces()
-        } else androidAppService.handleGetAidlInterfaces()
+    override fun getAidlInterfaces(filter: DecxFilter): DecxApiResult {
+        return if (cacheEnabled) cached("getAidlInterfaces", filter.toQuery()) {
+            androidService.handleGetAidlInterfaces(filter)
+        } else androidService.handleGetAidlInterfaces(filter)
     }
 
     override fun getAppManifest(): DecxApiResult {
-        return androidAppService.handleGetAppManifest()
+        return androidService.handleGetAppManifest()
     }
 
     override fun getMainActivity(): DecxApiResult {
-        return androidAppService.handleGetMainActivity()
+        return androidService.handleGetMainActivity()
     }
 
     override fun getApplication(): DecxApiResult {
-        return androidAppService.handleGetApplication()
+        return androidService.handleGetApplication()
     }
 
-    override fun getExportedComponents(): DecxApiResult {
-        return androidAppService.handleGetExportedComponents()
+    override fun getExportedComponents(filter: DecxFilter): DecxApiResult {
+        return if (cacheEnabled) cached("getExportedComponents", filter.toQuery()) {
+            androidService.handleGetExportedComponents(filter)
+        } else androidService.handleGetExportedComponents(filter)
     }
 
     override fun getDeepLinks(): DecxApiResult {
-        return androidAppService.handleGetDeepLinks()
+        return androidService.handleGetDeepLinks()
     }
 
-    override fun getDynamicReceivers(): DecxApiResult {
-        return androidAppService.handleGetDynamicReceivers()
+    override fun getDynamicReceivers(filter: DecxFilter): DecxApiResult {
+        return if (cacheEnabled) cached("getDynamicReceivers", filter.toQuery()) {
+            androidService.handleGetDynamicReceivers(filter)
+        } else androidService.handleGetDynamicReceivers(filter)
     }
 
     override fun getAllResources(): DecxApiResult {
-        return androidAppService.handleGetAllResources()
+        return androidService.handleGetAllResources()
     }
 
     override fun getResourceFile(res: String): DecxApiResult {
-        return androidAppService.handleGetResourceFile(res)
+        return androidService.handleGetResourceFile(res)
     }
 
     override fun getStrings(): DecxApiResult {
-        return androidAppService.handleGetStrings()
+        return androidService.handleGetStrings()
     }
 
-    // ==================== Android Framework Service ====================
-
     override fun getSystemServiceImpl(iface: String): DecxApiResult {
-        return androidFrameworkService.handleGetSystemServiceImpl(iface)
+        return androidService.handleGetSystemServiceImpl(iface)
+    }
+
+    // ==================== UI Service ====================
+
+    override fun getSelectedText(): DecxApiResult {
+        return uiService?.handleGetSelectedText()
+            ?: DecxApiResult.fail(AnalysisResultUtils.error(DecxKind.SELECTED_TEXT, emptyMap(), DecxError.NOT_GUI_MODE))
+    }
+
+    override fun getSelectedClass(): DecxApiResult {
+        return uiService?.handleGetSelectedClass()
+            ?: DecxApiResult.fail(AnalysisResultUtils.error(DecxKind.SELECTED_CLASS, emptyMap(), DecxError.NOT_GUI_MODE))
     }
 
     // ==================== Cache ====================
@@ -145,4 +181,3 @@ class DecxApiImpl(
         return result
     }
 }
-

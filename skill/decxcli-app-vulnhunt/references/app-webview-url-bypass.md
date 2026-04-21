@@ -27,7 +27,7 @@ Visible impact must be concrete, such as:
 ## Attack Flow
 
 ```text
-1. decx code search-class "WebView" -P <port>
+1. decx code search-global "WebView" --max-results 50 -P <port>
 2. decx code class-source "<WebViewHost>" -P <port>
 3. Inspect loadUrl, loadData, loadDataWithBaseURL, and shouldOverrideUrlLoading
 4. Confirm whether attacker-controlled URLs can bypass validation

@@ -5,6 +5,7 @@
 import { Manager, expandPath } from "../src/core/config.js";
 import * as path from "path";
 import * as os from "os";
+import { DECX_TEST_DECX_HOME } from "./test-paths.js";
 
 describe("expandPath", () => {
   it("expands ~/ to home directory", () => {
@@ -35,7 +36,7 @@ describe("Manager", () => {
     const mgr = Manager.get();
     expect(mgr.serverJar).toBeDefined();
     expect(mgr.serverJar.version).toBeDefined();
-    expect(mgr.serverJar.installDir).toBeDefined();
+    expect(mgr.serverJar.installDir).toBe(path.join(DECX_TEST_DECX_HOME, "bin"));
   });
 
   it("has server config with defaultPort", () => {
@@ -48,7 +49,7 @@ describe("Manager", () => {
   it("has output config", () => {
     const mgr = Manager.get();
     expect(mgr.output).toBeDefined();
-    expect(mgr.output.defaultDir).toBeDefined();
+    expect(mgr.output.defaultDir).toBe(path.join(DECX_TEST_DECX_HOME, "output"));
   });
 
   describe("session delegation", () => {

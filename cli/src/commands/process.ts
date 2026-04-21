@@ -5,7 +5,6 @@
 import { Command } from "commander";
 import { spawn, execSync } from "child_process";
 import * as path from "path";
-import * as os from "os";
 import { existsSync, mkdirSync, openSync, closeSync, readFileSync } from "fs";
 import { downloadWithProgress, formatBytes } from "../utils/progress.js";
 import { createHash } from "crypto";
@@ -17,6 +16,7 @@ import { FileError, ProcessError, DecxError, ServerError, handleCliError } from 
 import { findDecxServerJar } from "../server/installer.js";
 import { isSessionAlive } from "../core/session.js";
 import { logCliEvent } from "../utils/logger.js";
+import { decxPath } from "../core/paths.js";
 
 export interface OpenAnalysisTargetOptions {
   port?: string;
@@ -100,7 +100,7 @@ export async function openAnalysisTarget(
     String(port),
     ...normalizeJadxPassthroughArgs(opts.passthroughArgs ?? []),
   ];
-  const logDir = path.join(os.homedir(), ".decx", "logs");
+  const logDir = decxPath("logs");
   mkdirSync(logDir, { recursive: true });
   const logPath = path.join(logDir, `${fileName}.log`);
   const logFd = openSync(logPath, "a");
@@ -427,7 +427,7 @@ function killProcessTreeWin(pid: number): Promise<boolean> {
 const URL_RE = /^https?:\/\//i;
 
 /**
- * Resolve file input: if it's a URL, download to ~/.decx/tmp/ and return local path.
+ * Resolve file input: if it's a URL, download to the DECX tmp dir and return local path.
  * If it's a local path, return it as-is.
  */
 async function resolveFileInput(input: string): Promise<string> {
@@ -436,8 +436,8 @@ async function resolveFileInput(input: string): Promise<string> {
     return path.resolve(input);
   }
 
-  // URL — download to ~/.decx/tmp/
-  const tmpDir = path.join(os.homedir(), ".decx", "tmp");
+  // URL — download to DECX tmp dir
+  const tmpDir = decxPath("tmp");
   mkdirSync(tmpDir, { recursive: true });
 
   // Derive filename from URL (prefix with URL hash to avoid collisions)

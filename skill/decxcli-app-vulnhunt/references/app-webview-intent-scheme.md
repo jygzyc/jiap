@@ -27,7 +27,7 @@ Visible impact must be concrete, such as:
 ## Attack Flow
 
 ```text
-1. decx code search-class "WebView" -P <port>
+1. decx code search-global "WebView" --max-results 50 -P <port>
 2. Inspect shouldOverrideUrlLoading
 3. Confirm whether intent:// or custom schemes are parsed into Intents
 4. Confirm whether the parsed Intent is launched without strict validation

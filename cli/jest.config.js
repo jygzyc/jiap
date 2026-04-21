@@ -3,6 +3,8 @@ export default {
   preset: "ts-jest",
   testEnvironment: "node",
   testMatch: ["**/tests/**/*.test.ts"],
+  globalSetup: "<rootDir>/tests/global-setup.js",
+  setupFiles: ["<rootDir>/tests/setup.ts"],
   modulePathIgnorePatterns: ["<rootDir>/dist/"],
   transform: {
     "^.+\\.ts$": ["ts-jest", {

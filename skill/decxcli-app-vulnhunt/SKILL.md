@@ -33,6 +33,23 @@ Ceiling:
 - Quote package names, classes, methods, and file paths
 - If uncertain, check `--help`
 
+### Package Filtering
+
+Default filter options for commands that support them (`all-classes`, `app-receivers`, `get-aidl`, `exported-components`, `search-global`, `search-class`):
+
+```text
+--first <n>                    return only the first N results
+--include-package <pattern>    only include matching items (repeatable)
+--exclude-package <pattern>    exclude matching items (repeatable)
+--no-regex                     treat filter values as literal text
+```
+
+Filters use regex by default. Always exclude SDK packages unless the target is a framework or SDK-interaction bug:
+
+```text
+--exclude-package "androidx\\..*" --exclude-package "android\\.support\\..*" --exclude-package "kotlin\\..*" --exclude-package "java\\.lang\\..*"
+```
+
 ### Routing
 
 - Use this skill only for APK/app sessions whose surface starts from Activities, Services, Providers, Receivers, deep links, WebViews, scan flows, or app Binder surfaces
@@ -143,11 +160,11 @@ Execution model:
 Recon commands:
 
 ```bash
-decx ard exported-components -P <port>
+decx ard exported-components --type <pattern> --exclude-type <pattern> -P <port>
 decx ard app-deeplinks -P <port>
-decx ard app-receivers -P <port>
+decx ard app-receivers --exclude-package "androidx\\..*" --exclude-package "android\\.support\\..*" -P <port>
 decx ard app-manifest -P <port>
-decx ard get-aidl -P <port>
+decx ard get-aidl --exclude-package "androidx\\..*" --exclude-package "android\\.support\\..*" -P <port>
 decx ard strings -P <port>
 ```
 

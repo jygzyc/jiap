@@ -1,7 +1,5 @@
 package jadx.plugins.decx.api
 
-import jadx.api.JadxDecompiler
-
 /**
  * Type-safe API interface for Decx core services.
  * Server and Plugin both consume this API — it has zero HTTP/transport dependencies.
@@ -10,12 +8,18 @@ interface DecxApi {
 
     // ==================== Common Service ====================
 
-    fun getAllClasses(): DecxApiResult
-    fun getClassInfo(cls: String): DecxApiResult
-    fun getClassSource(cls: String, smali: Boolean): DecxApiResult
-    fun searchClassKey(key: String): DecxApiResult
+    fun getClasses(filter: DecxFilter): DecxApiResult
+    fun searchGlobalKey(key: String, filter: DecxFilter): DecxApiResult
+    fun searchClassKey(cls: String, key: String, filter: DecxFilter): DecxApiResult
     fun searchMethod(mth: String): DecxApiResult
+    fun getClassSource(cls: String, smali: Boolean): DecxApiResult
     fun getMethodSource(mth: String, smali: Boolean): DecxApiResult
+
+    // ==================== Context Service ====================
+
+    fun getClassContext(cls: String): DecxApiResult
+    fun getMethodContext(mth: String): DecxApiResult
+    fun getMethodCfg(mth: String): DecxApiResult
     fun getMethodXref(mth: String): DecxApiResult
     fun getFieldXref(fld: String): DecxApiResult
     fun getClassXref(cls: String): DecxApiResult
@@ -24,20 +28,21 @@ interface DecxApi {
 
     // ==================== Android App Service ====================
 
-    fun getAidlInterfaces(): DecxApiResult
+    fun getAidlInterfaces(filter: DecxFilter): DecxApiResult
     fun getAppManifest(): DecxApiResult
     fun getMainActivity(): DecxApiResult
     fun getApplication(): DecxApiResult
-    fun getExportedComponents(): DecxApiResult
+    fun getExportedComponents(filter: DecxFilter): DecxApiResult
     fun getDeepLinks(): DecxApiResult
-    fun getDynamicReceivers(): DecxApiResult
+    fun getDynamicReceivers(filter: DecxFilter): DecxApiResult
     fun getAllResources(): DecxApiResult
     fun getResourceFile(res: String): DecxApiResult
     fun getStrings(): DecxApiResult
-
-    // ==================== Android Framework Service ====================
-
     fun getSystemServiceImpl(iface: String): DecxApiResult
+
+    // ==================== UI Service ====================
+    fun getSelectedText(): DecxApiResult
+    fun getSelectedClass(): DecxApiResult
 }
 
 /**
@@ -49,6 +54,6 @@ data class DecxApiResult(
 ) {
     companion object {
         fun ok(data: Map<String, Any>) = DecxApiResult(true, data)
-        fun fail(message: String) = DecxApiResult(false, mapOf("error" to message))
+        fun fail(data: Map<String, Any>) = DecxApiResult(false, data)
     }
 }

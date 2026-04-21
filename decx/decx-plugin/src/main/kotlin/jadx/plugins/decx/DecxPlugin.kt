@@ -9,7 +9,6 @@ import jadx.plugins.decx.http.DecxServer
 import jadx.plugins.decx.lifecycle.PluginLifecycleManager
 import jadx.plugins.decx.model.DecxError
 import jadx.plugins.decx.ui.DecxUIManager
-import jadx.plugins.decx.ui.UIService
 import jadx.plugins.decx.mcp.SidecarProcessManager
 import jadx.plugins.decx.utils.CacheUtils
 import jadx.plugins.decx.utils.LogUtils
@@ -36,9 +35,8 @@ class DecxPlugin : JadxPlugin {
                 val mcp = SidecarProcessManager(PreferencesManager.getPort())
                 this.sidecarManager = mcp
 
-                val uiService = UIService(ctx, api)
                 ctx.guiContext?.let { guiContext ->
-                    DecxUIManager(ctx, srv, api, uiService, mcp).initializeGuiComponents(guiContext)
+                    DecxUIManager(ctx, srv, api, mcp).initializeGuiComponents(guiContext)
                 }
             }.start()
 

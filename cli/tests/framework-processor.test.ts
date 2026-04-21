@@ -1,9 +1,9 @@
 import { existsSync, mkdirSync, rmSync, statSync, writeFileSync } from "fs";
-import * as os from "os";
 import * as path from "path";
 import { spawnSync } from "child_process";
 import type { FrameworkPathLayout, FrameworkToolPaths } from "../src/android/types.js";
 import { processFrameworkFiles, runTasksWithConcurrency } from "../src/android/framework-processor.js";
+import { resetTestDir } from "./test-paths.js";
 
 describe("framework processor concurrency", () => {
   it("runs tasks with a bounded level of concurrency", async () => {
@@ -46,7 +46,7 @@ describe("framework processor concurrency", () => {
 
 describe("framework processor zip extraction", () => {
   it("extracts large dex entries without hitting unzip buffer limits", async () => {
-    const rootDir = path.join(os.tmpdir(), `decx-fw-processor-${Date.now()}`);
+    const rootDir = resetTestDir("tmp", "framework-processor");
     const sourceDir = path.join(rootDir, "source");
     const outTmpDir = path.join(rootDir, "out_tmp");
     const apexTmpDir = path.join(rootDir, "apex_tmp");

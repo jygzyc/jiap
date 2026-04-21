@@ -44,9 +44,6 @@ async def request_to_decx(
         resp.raise_for_status()
         json_response = resp.json()
 
-        if isinstance(json_response, dict) and "error" in json_response:
-            return ToolResult({"error": json_response["error"], "endpoint": endpoint})
-
         # Return the response directly (decx_core handles slicing)
         return ToolResult(json_response)
 
@@ -65,9 +62,32 @@ async def request_to_decx(
     description="List all decompiled classes. Retrieve complete class list from project.",
 )
 async def get_all_classes(
+    first: Optional[int] = Field(
+        None,
+        description="Return only the first N classes after package filtering",
+    ),
+    include_packages: Optional[list[str]] = Field(
+        None,
+        description="Only list classes under these Java packages",
+    ),
+    exclude_packages: Optional[list[str]] = Field(
+        None,
+        description="Exclude classes under these Java packages",
+    ),
+    regex: bool = Field(True, description="Treat filter values as regular expressions"),
     page: int = Field(1, description="Page number for pagination (default: 1)"),
 ) -> ToolResult:
-    return await request_to_decx("get_all_classes", page=page)
+    filter_options = {
+        "includes": include_packages or [],
+        "excludes": exclude_packages or [],
+    }
+    if first is not None:
+        filter_options["first"] = first
+    if not regex:
+        filter_options["regex"] = False
+    return await request_to_decx(
+        "get_all_classes", json_data={"filter": filter_options}, page=page
+    )
 
 
 @mcp.tool(
@@ -104,13 +124,66 @@ async def search_method(
 
 @mcp.tool(
     name="search_class_key",
-    description="Search class source by keyword. Find classes containing specific text/code.",
+    description="Grep one class by keyword. Returns matching source lines and method signatures.",
 )
 async def search_class_key(
-    key: str = Field(description="Keyword to search within class source"),
+    class_name: str = Field(description="Full class name to grep"),
+    key: str = Field(description="Regular expression to search within the class"),
+    max_results: int = Field(description="Maximum returned grep line results"),
+    case_sensitive: bool = Field(False, description="Use case-sensitive matching"),
+    regex: bool = Field(True, description="Treat key as a regular expression"),
     page: int = Field(1, description="Page number for pagination (default: 1)"),
 ) -> ToolResult:
-    return await request_to_decx("search_class_key", json_data={"key": key}, page=page)
+    grep = {
+        "maxResults": max_results,
+        "caseSensitive": case_sensitive,
+        "regex": regex,
+    }
+    payload = {
+        "cls": class_name,
+        "key": key,
+        "grep": grep,
+    }
+    return await request_to_decx("search_class_key", json_data=payload, page=page)
+
+
+@mcp.tool(
+    name="search_global_key",
+    description="Search all class bodies by keyword.",
+)
+async def search_global_key(
+    key: str = Field(description="Keyword to search globally"),
+    first: Optional[int] = Field(
+        None,
+        description="Search only the first N candidates after package filtering",
+    ),
+    max_results: int = Field(description="Maximum returned search results"),
+    include_packages: Optional[list[str]] = Field(
+        None,
+        description="Only search classes and methods under these Java packages",
+    ),
+    exclude_packages: Optional[list[str]] = Field(
+        None,
+        description="Exclude classes and methods under these Java packages",
+    ),
+    case_sensitive: bool = Field(False, description="Use case-sensitive matching"),
+    regex: bool = Field(True, description="Treat key as a regular expression"),
+    page: int = Field(1, description="Page number for pagination (default: 1)"),
+) -> ToolResult:
+    search = {
+        "maxResults": max_results,
+        "includes": include_packages or [],
+        "excludes": exclude_packages or [],
+        "caseSensitive": case_sensitive,
+        "regex": regex,
+    }
+    if first is not None:
+        search["first"] = first
+    payload = {
+        "key": key,
+        "search": search,
+    }
+    return await request_to_decx("search_global_key", json_data=payload, page=page)
 
 
 @mcp.tool(
@@ -135,17 +208,47 @@ async def get_method_source(
 
 
 @mcp.tool(
-    name="get_class_info",
-    description="Get class structure. View fields, methods.",
+    name="get_class_context",
+    description="Get class context. View class symbol, fields, and methods.",
 )
-async def get_class_info(
+async def get_class_context(
     class_name: str = Field(
         description="Full class name (e.g., com.example.Myclass$Innerclass)"
     ),
     page: int = Field(1, description="Page number for pagination (default: 1)"),
 ) -> ToolResult:
     return await request_to_decx(
-        "get_class_info", json_data={"cls": class_name}, page=page
+        "get_class_context", json_data={"cls": class_name}, page=page
+    )
+
+
+@mcp.tool(
+    name="get_method_context",
+    description="Get method context. Returns method signature, callers, and callees.",
+)
+async def get_method_context(
+    method_name: str = Field(
+        description="Full signature (e.g., com.example.Myclass.myMethod(java.lang.String,int):String)"
+    ),
+    page: int = Field(1, description="Page number for pagination (default: 1)"),
+) -> ToolResult:
+    return await request_to_decx(
+        "get_method_context", json_data={"mth": method_name}, page=page
+    )
+
+
+@mcp.tool(
+    name="get_method_cfg",
+    description="Get method control flow graph as DOT source.",
+)
+async def get_method_cfg(
+    method_name: str = Field(
+        description="Full signature (e.g., com.example.Myclass.myMethod(java.lang.String,int):String)"
+    ),
+    page: int = Field(1, description="Page number for pagination (default: 1)"),
+) -> ToolResult:
+    return await request_to_decx(
+        "get_method_cfg", json_data={"mth": method_name}, page=page
     )
 
 
@@ -234,7 +337,7 @@ async def get_sub_classes(
 async def selected_text(
     page: int = Field(1, description="Page number for pagination (default: 1)"),
 ) -> ToolResult:
-    return await request_to_decx("selected_text", page=page)
+    return await request_to_decx("get_selected_text", page=page)
 
 
 @mcp.tool(
@@ -244,18 +347,39 @@ async def selected_text(
 async def selected_class(
     page: int = Field(1, description="Page number for pagination (default: 1)"),
 ) -> ToolResult:
-    return await request_to_decx("selected_class", page=page)
+    return await request_to_decx("get_selected_class", page=page)
 
 
 # Android App specific endpoints
 @mcp.tool(
     name="get_aidl",
-    description="Get all AIDL interfaces. Find AIDL interfaces and their implementations by scanning Stub classes.",
+    description="Get AIDL interfaces. Supports package include/exclude filters.",
 )
 async def get_aidl(
+    first: Optional[int] = Field(
+        None,
+        description="Return only the first N AIDL interfaces after package filtering",
+    ),
+    include_packages: Optional[list[str]] = Field(
+        None,
+        description="Only include AIDL interfaces under these Java packages",
+    ),
+    exclude_packages: Optional[list[str]] = Field(
+        None,
+        description="Exclude AIDL interfaces under these Java packages",
+    ),
+    regex: bool = Field(True, description="Treat filter values as regular expressions"),
     page: int = Field(1, description="Page number for pagination (default: 1)"),
 ) -> ToolResult:
-    return await request_to_decx("get_aidl", page=page)
+    filter_options = {
+        "includes": include_packages or [],
+        "excludes": exclude_packages or [],
+    }
+    if first is not None:
+        filter_options["first"] = first
+    if not regex:
+        filter_options["regex"] = False
+    return await request_to_decx("get_aidl", json_data={"filter": filter_options}, page=page)
 
 
 @mcp.tool(
@@ -290,12 +414,31 @@ async def get_application(
 
 @mcp.tool(
     name="get_exported_components",
-    description="Get exported components. List activities, services, receivers, providers with permissions.",
+    description="Get exported components. Optionally filter by activity, service, receiver, or provider.",
 )
 async def get_exported_components(
+    component_types: Optional[list[str]] = Field(
+        None,
+        description="Only include these component types: activity, service, receiver, provider",
+    ),
+    exclude_component_types: Optional[list[str]] = Field(
+        None,
+        description="Exclude these component types: activity, service, receiver, provider",
+    ),
+    regex: bool = Field(True, description="Treat component type filters as regular expressions"),
     page: int = Field(1, description="Page number for pagination (default: 1)"),
 ) -> ToolResult:
-    return await request_to_decx("get_exported_components", page=page)
+    payload = {
+        "includes": component_types or [],
+        "excludes": exclude_component_types or [],
+    }
+    if not regex:
+        payload["regex"] = False
+    return await request_to_decx(
+        "get_exported_components",
+        json_data=payload,
+        page=page,
+    )
 
 
 @mcp.tool(
@@ -358,12 +501,33 @@ async def get_strings(
 
 @mcp.tool(
     name="get_dynamic_receivers",
-    description="Get dynamically registered BroadcastReceivers. Scan for registerReceiver calls.",
+    description="Get dynamically registered BroadcastReceivers. Supports package include/exclude filters.",
 )
 async def get_dynamic_receivers(
+    first: Optional[int] = Field(
+        None,
+        description="Search only the first N classes after package filtering",
+    ),
+    include_packages: Optional[list[str]] = Field(
+        None,
+        description="Only scan classes under these Java packages",
+    ),
+    exclude_packages: Optional[list[str]] = Field(
+        None,
+        description="Exclude classes under these Java packages",
+    ),
+    regex: bool = Field(True, description="Treat filter values as regular expressions"),
     page: int = Field(1, description="Page number for pagination (default: 1)"),
 ) -> ToolResult:
-    return await request_to_decx("get_dynamic_receivers", page=page)
+    filter_options = {
+        "includes": include_packages or [],
+        "excludes": exclude_packages or [],
+    }
+    if first is not None:
+        filter_options["first"] = first
+    if not regex:
+        filter_options["regex"] = False
+    return await request_to_decx("get_dynamic_receivers", json_data={"filter": filter_options}, page=page)
 
 
 # Health check

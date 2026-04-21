@@ -1,9 +1,9 @@
 import { chmodSync, existsSync, mkdirSync } from "fs";
-import * as os from "os";
 import * as path from "path";
 import { fileURLToPath } from "url";
 import { spawnSync } from "child_process";
 import { FileError } from "../utils/errors.js";
+import { decxPath } from "../core/paths.js";
 import type {
   FrameworkToolsCheck,
   FrameworkToolPaths,
@@ -121,5 +121,5 @@ export function ensureDirectory(dir: string): string {
 }
 
 export function defaultFrameworkRoot(): string {
-  return path.join(os.homedir(), ".decx", "output", "framework");
+  return decxPath("output", "framework");
 }

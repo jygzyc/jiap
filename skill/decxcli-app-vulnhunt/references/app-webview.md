@@ -17,7 +17,7 @@ Modern Android WebView analysis must cover more than `loadUrl()`. Real attack ch
 ## Analysis Flow
 
 ```text
-1. decx code search-class "WebView" -P <port>
+1. decx code search-global "WebView" --max-results 50 -P <port>
    -> locate WebView hosts
 2. decx code class-source "<WebViewHost>" -P <port>
    -> inspect:

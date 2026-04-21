@@ -70,12 +70,15 @@ chmod +x gradlew
 所有工具均支持通过 `page` 参数进行分页。
 
 **代码分析**
-- `get_all_classes(page=1)` - 获取所有可用类
-- `search_class_key(key, page=1)` - 搜索源代码中包含指定关键字的类（不区分大小写）
+- `get_all_classes(first=None, include_packages=None, exclude_packages=None, page=1)` - 获取类列表，支持包过滤
+- `search_global_key(key, first=None, max_results, include_packages=None, exclude_packages=None, case_sensitive=False, regex=True, page=1)` - 按候选项、包和结果上限搜索所有类源码
+- `search_class_key(class_name, key, max_results, case_sensitive=False, regex=True, page=1)` - 在单个类中 grep，并返回命中行和方法签名
 - `get_class_source(class_name, smali=False, page=1)` - 获取 Java 或 Smali 格式的类源代码
 - `search_method(method_name, page=1)` - 搜索匹配给定方法名的方法
 - `get_method_source(method_name, smali=False, page=1)` - 获取方法源代码
-- `get_class_info(class_name, page=1)` - 获取类信息，包括字段和方法
+- `get_class_context(class_name, page=1)` - 获取类信息，包括字段和方法
+- `get_method_context(method_name, page=1)` - 获取方法签名、caller 和 callee
+- `get_method_cfg(method_name, page=1)` - 获取方法控制流图摘要
 - `get_method_xref(method_name, page=1)` - 查找方法使用位置
 - `get_field_xref(field_name, page=1)` - 查找字段使用位置
 - `get_class_xref(class_name, page=1)` - 查找类使用位置
@@ -90,13 +93,13 @@ chmod +x gradlew
 - `get_app_manifest(page=1)` - 获取 Android 清单内容
 - `get_main_activity(page=1)` - 获取主 Activity 源代码
 - `get_application(page=1)` - 获取 Android 应用类及其信息
-- `get_exported_components(page=1)` - 获取导出的组件（Activity、Service、Receiver、Provider）及权限
+- `get_exported_components(component_types=None, regex=True, page=1)` - 获取导出组件，支持按组件类型正则过滤
 - `get_deep_links(page=1)` - 获取应用的 URL Schemes 和 Intent Filters
 - `get_all_resources(page=1)` - 列出所有资源文件名（包括 resources.arsc 子文件）
 - `get_resource_file(resource_name, page=1)` - 按名称获取资源文件内容
 - `get_strings(page=1)` - 获取应用 strings.xml 内容
-- `get_dynamic_receivers(page=1)` - 获取动态注册的 BroadcastReceivers
-- `get_aidl(page=1)` - 获取所有 AIDL 接口及其实现类
+- `get_dynamic_receivers(first=None, include_packages=None, exclude_packages=None, regex=True, page=1)` - 获取动态注册的 BroadcastReceivers，支持包过滤
+- `get_aidl(first=None, include_packages=None, exclude_packages=None, regex=True, page=1)` - 获取 AIDL 接口及其实现类，支持包过滤
 - `get_system_service_impl(interface_name, page=1)` - 获取系统服务实现
 
 **系统**
@@ -183,10 +186,11 @@ npm install -g @jygzyc/decx-cli
 - `decx process list` - 列出运行中的进程
 
 **代码分析：**
-- `decx code all-classes` - 获取所有类
-- `decx code class-info <class>` - 获取类信息
+- `decx code all-classes` - 获取类列表（支持 `--first`、`--include-package`、`--exclude-package`）
+- `decx code class-context <class>` - 获取类信息
 - `decx code class-source <class>` - 获取类源代码（`--smali` 输出 Smali 格式）
-- `decx code search-class <keyword>` - 搜索类内容
+- `decx code search-global <keyword> --max-results <n>` - 全局搜索（支持 `--first`、`--include-package`、`--exclude-package`、`--no-regex`、`--case-sensitive`）
+- `decx code search-class <class> <pattern> --max-results <n>` - 在单个类中 grep（支持 `--no-regex`、`--case-sensitive`）
 - `decx code search-method <name>` - 按名称搜索方法
 - `decx code method-source <signature>` - 获取方法源代码（`--smali` 输出 Smali 格式）
 - `decx code xref-method <signature>` - 查找方法调用者
@@ -199,16 +203,16 @@ npm install -g @jygzyc/decx-cli
 - `decx ard app-manifest` - 获取 AndroidManifest.xml
 - `decx ard main-activity` - 获取主 Activity 名称
 - `decx ard app-application` - 获取 Application 类名
-- `decx ard exported-components` - 列出导出组件
+- `decx ard exported-components [--type <pattern>] [--no-regex]` - 列出导出组件，可按类型过滤
 - `decx ard app-deeplinks` - 列出深度链接
-- `decx ard app-receivers` - 列出动态广播接收器
+- `decx ard app-receivers [--first <n>] [--include-package <pattern>] [--exclude-package <pattern>] [--no-regex]` - 列出动态广播接收器，支持包过滤
 - `decx ard system-service-impl <interface>` - 查找系统服务实现
 - `decx ard system-services [--serial <serial>] [--grep <keyword>]` - 以结构化 JSON 列出当前设备上的系统服务
 - `decx ard perm-info <permission> [--serial <serial>]` - 查看结构化权限详情
 - `decx ard all-resources` - 列出所有资源文件名
 - `decx ard resource-file <res>` - 按名称获取资源文件内容
 - `decx ard strings` - 获取 strings.xml 内容
-- `decx ard get-aidl` - 获取所有 AIDL 接口
+- `decx ard get-aidl [--first <n>] [--include-package <pattern>] [--exclude-package <pattern>] [--no-regex]` - 获取 AIDL 接口，支持包过滤
 
 **自管理：**
 - `decx self install` - 安装或更新 decx-server.jar（`-p` 安装预发布版）
@@ -318,21 +322,14 @@ override fun doSomething(param: String): DecxApiResult {
 }
 ```
 
-**3. 在 `DecxServer.ALL_ROUTES` 中注册路由，在 `RouteHandler.dispatch()` 中添加分发**
+**3. 在 `DecxRoutes` 中注册路由**
 
-文件：`decx/decx-core/src/main/kotlin/jadx/plugins/decx/http/DecxServer.kt`
-
-```kotlin
-val ALL_ROUTES = setOf(
-    // ... 已有路由 ...
-    "/api/decx/do_something",
-)
-```
-
-文件：`decx/decx-core/src/main/kotlin/jadx/plugins/decx/http/RouteHandler.kt`
+文件：`decx/decx-core/src/main/kotlin/jadx/plugins/decx/api/DecxApiContract.kt`
 
 ```kotlin
-"/api/decx/do_something" -> requireParam(payload, "param") { api.doSomething(it) }
+DecxRoute("/api/decx/do_something", "do_something") { api, params ->
+    api.doSomething(params.requireString("param"))
+}
 ```
 
 ### 故障排查

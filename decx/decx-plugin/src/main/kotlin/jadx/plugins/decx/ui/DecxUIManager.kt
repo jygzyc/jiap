@@ -15,7 +15,6 @@ class DecxUIManager(
     private val pluginContext: JadxPluginContext,
     private val server: DecxServer,
     private val api: DecxApi,
-    private val uiService: UIService,
     private val sidecarManager: SidecarProcessManager
 ) {
     private var mcpAutoStartCheckbox: JCheckBox? = null
