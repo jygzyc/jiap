@@ -14,7 +14,7 @@ Broadcasts are often treated as low-risk plumbing, but exported receivers, order
 ## Analysis Flow
 
 ```text
-1. decx ard app-receivers -P <port>
+1. decx ard app-receivers --exclude-package "androidx\\..*" --exclude-package "android\\.support\\..*" -P <port>
 2. decx code search-method "registerReceiver" -P <port>
 3. decx code class-source "<ReceiverClass>" -P <port>
 4. Inspect:

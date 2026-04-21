@@ -19,14 +19,16 @@ ContentProviders expose one of the clearest app-data boundaries. Export mistakes
 ```text
 1. decx ard exported-components -P <port>
    -> locate exported providers and authorities
-2. decx code class-source "<ProviderClass>" -P <port>
+2. decx code class-context "<ProviderClass>" -P <port>
+   -> quick overview of overridden CRUD methods, call(), openFile
+3. decx code class-source "<ProviderClass>" -P <port>
    -> inspect query / insert / update / delete / openFile / call / applyBatch / bulkInsert
-3. Check:
+4. Check:
    -> manifest permission on the provider
    -> per-method caller validation
    -> per-URI and per-row validation
    -> path normalization and root confinement
-4. Track whether the provider can expose:
+5. Track whether the provider can expose:
    -> account rows, tokens, chat history, files, config data
    -> attacker-controlled writes into sensitive tables
 ```

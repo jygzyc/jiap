@@ -142,9 +142,11 @@ Default navigation order:
 
 Prefer:
 
-- `method-source` when you already know the exact entrypoint
+- `method-context` when you need callers and callees in one call
+- `method-source` when you need the full body
+- `class-context` when you need a quick method/field overview
 - `class-source` when you need surrounding context
-- `xref-method` when you want callers
+- `xref-method` when you want only callers (no callees needed)
 - `xref-field` when you want reads and writes
 - `implement` for interfaces
 - `subclass` for base classes or framework callbacks

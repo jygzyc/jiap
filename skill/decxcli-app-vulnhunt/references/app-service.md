@@ -16,13 +16,11 @@ Services expose long-lived IPC and background execution surfaces. Exported binde
 
 ```text
 1. decx ard exported-components -P <port>
-2. decx ard get-aidl -P <port>
-3. decx code class-source "<ServiceClass>" -P <port>
-4. Inspect:
-   -> onBind
-   -> onStartCommand
-   -> onHandleIntent
-   -> Messenger / Handler callbacks
+2. decx ard get-aidl --exclude-package "androidx\\..*" --exclude-package "android\\.support\\..*" -P <port>
+3. decx code class-context "<ServiceClass>" -P <port>
+   -> quick overview of onBind, onStartCommand, handlers, AIDL stubs
+4. decx code class-source "<ServiceClass>" -P <port>
+   -> inspect Binder / Messenger / Intent handling logic
 5. Confirm whether the service enforces:
    -> manifest permission
    -> Binder caller validation

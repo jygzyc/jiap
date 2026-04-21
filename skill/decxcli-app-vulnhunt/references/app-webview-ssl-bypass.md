@@ -27,10 +27,11 @@ Visible impact must be concrete, such as:
 ## Attack Flow
 
 ```text
-1. decx code subclass "android.webkit.WebViewClient" -P <port>
-2. Inspect onReceivedSslError()
-3. Confirm whether handler.proceed() is called unconditionally
-4. Confirm the affected WebView handles meaningful authenticated content
+1. decx code search-global "onReceivedSslError" --max-results 50 -P <port>
+2. decx code class-source "<WebViewClientImpl>" -P <port>
+3. Inspect onReceivedSslError()
+4. Confirm whether handler.proceed() is called unconditionally
+5. Confirm the affected WebView handles meaningful authenticated content
 ```
 
 ## Key Code Patterns

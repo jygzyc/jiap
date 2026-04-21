@@ -271,8 +271,10 @@ Coverage steward contract:
 Tracing command:
 
 ```bash
-decx code method-source "<currentMethod>" -P <port>
+decx code method-context "<currentMethod>" -P <port>
 ```
+
+Use `method-source` only when you need the full body; prefer `method-context` to see callers and callees in one call.
 
 Method labels:
 

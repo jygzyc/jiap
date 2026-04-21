@@ -16,9 +16,11 @@ Framework services run in `system_server` or other privileged processes. The sam
 ## Analysis Flow
 
 ```text
-1. decx ard system-service-impl "<Interface>" -P <port>
-2. decx code class-source "<ServiceImpl>" -P <port>
-3. Inspect Binder-exposed methods for:
+1. decx ard system-service-impl "<Interface>" -P <port> [--page <n>]
+2. decx code class-context "<ServiceImpl>" -P <port>
+   -> quick overview of all Binder-exposed methods
+3. decx code class-source "<ServiceImpl>" -P <port>
+4. Inspect Binder-exposed methods for:
    -> enforceCallingPermission / checkCallingPermission
    -> Binder.getCallingUid / UserHandle.getCallingUserId
    -> clearCallingIdentity / restoreCallingIdentity

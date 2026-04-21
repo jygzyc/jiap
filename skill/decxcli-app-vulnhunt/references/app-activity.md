@@ -21,19 +21,21 @@ Activities are the most common Android entrypoint. Exported activities, deep lin
 ```text
 1. decx ard exported-components -P <port>
    -> list exported activities and deep-link handlers
-2. decx code class-source "<ActivityClass>" -P <port>
-   -> inspect onCreate / onNewIntent / activity-result handlers
-3. Check external inputs:
+2. decx code class-context "<ActivityClass>" -P <port>
+   -> quick overview of all methods and fields
+3. decx code method-context "<ActivityClass>.onCreate(android.os.Bundle):void" -P <port>
+   -> trace callers and callees of lifecycle entry
+4. Check external inputs:
    -> getIntent().get*Extra()
    -> getIntent().getData()
    -> getClipData()
    -> onActivityResult() / ActivityResultLauncher callbacks
-4. Check sensitive actions:
+5. Check sensitive actions:
    -> startActivity / startService / sendBroadcast
    -> setResult
    -> file read/write helpers
    -> WebView host initialization
-5. Confirm whether caller validation, signature checks, package allowlists, or target allowlists exist
+6. Confirm whether caller validation, signature checks, package allowlists, or target allowlists exist
 ```
 
 ## Key Trace Patterns
