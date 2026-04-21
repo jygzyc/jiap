@@ -245,7 +245,7 @@ The adb-backed `system-services` and `perm-info` commands use `--serial` / `--ad
 
 ## AI Agent Skills
 
-The `skill/` directory contains AI Agent skill definitions (SKILL.md), enabling AI assistants to perform automated Android analysis.
+The `skill/` directory contains AI agent skill definitions that enable automated Android reverse-engineering, vulnerability hunting, and PoC construction.
 
 ### Available Skills
 
@@ -254,13 +254,24 @@ The `skill/` directory contains AI Agent skill definitions (SKILL.md), enabling 
 | **decxcli** | General analysis: code navigation, xrefs, manifest/resources inspection | `decx` |
 | **decxcli-app-vulnhunt** | App vulnerability hunting: APK attack-surface enumeration, component/WebView/IPC tracing, exploitability triage, bilingual report generation (zh/en) | `decx` |
 | **decxcli-framework-vulnhunt** | Framework vulnerability hunting: Binder service enumeration, framework JAR tracing, permission-gate review, exploitability triage, bilingual report generation (zh/en) | `decx` |
-| **decxcli-poc** | PoC construction: finding normalization, exploit-class implementation, optional compile/deploy | `decx`, `node`, `unzip` |
+| **decxcli-poc** | PoC construction: finding normalization, exploit-class implementation, optional compile/deploy | `decx`, `node` |
 
 Skills are designed to work in sequence: `decxcli` (analysis) → `decxcli-app-vulnhunt` or `decxcli-framework-vulnhunt` (vulnerability hunting) → `decxcli-poc` (PoC construction).
 
+### Prerequisite
+
+Install the DECX CLI before using any skill:
+
+```bash
+npm install -g @jygzyc/decx-cli
+```
+
 ### Installation
 
+__Note:__ Installation differs by platform.
+
 **Claude Code**
+
 ```bash
 cp -r skill/decxcli ~/.claude/skills/
 cp -r skill/decxcli-app-vulnhunt ~/.claude/skills/
@@ -269,6 +280,7 @@ cp -r skill/decxcli-poc ~/.claude/skills/
 ```
 
 **Cursor**
+
 ```bash
 cp skill/decxcli/SKILL.md .cursor/rules/decxcli.md
 cp skill/decxcli-app-vulnhunt/SKILL.md .cursor/rules/decxcli-app-vulnhunt.md
@@ -277,6 +289,7 @@ cp skill/decxcli-poc/SKILL.md .cursor/rules/decxcli-poc.md
 ```
 
 **Cline**
+
 ```bash
 cp skill/decxcli/SKILL.md .clinerules-decxcli
 cp skill/decxcli-app-vulnhunt/SKILL.md .clinerules-decxcli-app-vulnhunt
@@ -285,14 +298,13 @@ cp skill/decxcli-poc/SKILL.md .clinerules-decxcli-poc
 ```
 
 **Windsurf**
+
 ```bash
 cp skill/decxcli/SKILL.md .windsurfrules-decxcli
 cp skill/decxcli-app-vulnhunt/SKILL.md .windsurfrules-decxcli-app-vulnhunt
 cp skill/decxcli-framework-vulnhunt/SKILL.md .windsurfrules-decxcli-framework-vulnhunt
 cp skill/decxcli-poc/SKILL.md .windsurfrules-decxcli-poc
 ```
-
-Dependency: `decx` CLI installed (`npm install -g @jygzyc/decx-cli`).
 
 ---
 

@@ -151,19 +151,34 @@ DECX 包含自动性能优化：
 
 DECX 使用结构化的错误码进行清晰的诊断：
 
-| 错误码 | 描述 | 常见原因 |
-|--------|------|----------|
-| **E001** | 内部服务器错误 | 意外的服务器状态 |
-| **E002** | 服务错误 | 通用服务错误 |
-| **E003** | 健康检查失败 | 无法连接 DECX 服务器 |
-| **E004** | 方法未找到 | 请求的方法不存在 |
-| **E005** | 参数无效 | 参数格式/值无效 |
+| 错误码 | 描述 | HTTP 状态码 |
+|--------|------|-------------|
+| **INTERNAL_ERROR** | 内部服务器错误 | 500 |
+| **SERVICE_ERROR** | 服务错误 | 503 |
+| **HEALTH_CHECK_FAILED** | 健康检查失败 | 500 |
+| **UNKNOWN_ENDPOINT** | 未知端点 | 404 |
+| **INVALID_PARAMETER** | 参数无效 | 400 |
+| **METHOD_NOT_FOUND** | 方法未找到 | 404 |
+| **CLASS_NOT_FOUND** | 类未找到 | 404 |
+| **RESOURCE_NOT_FOUND** | 资源未找到 | 404 |
+| **MANIFEST_NOT_FOUND** | AndroidManifest 未找到 | 404 |
+| **FIELD_NOT_FOUND** | 字段未找到 | 404 |
+| **INTERFACE_NOT_FOUND** | 接口未找到 | 404 |
+| **SERVICE_IMPL_NOT_FOUND** | 服务实现未找到 | 404 |
+| **NO_STRINGS_FOUND** | 未找到 strings.xml 资源 | 404 |
+| **NO_MAIN_ACTIVITY** | 未找到 MAIN/LAUNCHER Activity | 404 |
+| **NO_APPLICATION** | 未找到 Application 类 | 404 |
+| **EMPTY_SEARCH_KEY** | 搜索关键字不能为空 | 400 |
+| **NOT_GUI_MODE** | 非 GUI 模式 | 503 |
 
 **错误响应格式：**
 ```json
 {
-  "error": "E001",
-  "message": "内部错误: 启动失败"
+  "ok": false,
+  "error": {
+    "code": "CLASS_NOT_FOUND",
+    "message": "Class not found: com.example.Foo"
+  }
 }
 ```
 
@@ -193,6 +208,8 @@ npm install -g @jygzyc/decx-cli
 - `decx code search-class <class> <pattern> --max-results <n>` - 在单个类中 grep（支持 `--no-regex`、`--case-sensitive`）
 - `decx code search-method <name>` - 按名称搜索方法
 - `decx code method-source <signature>` - 获取方法源代码（`--smali` 输出 Smali 格式）
+- `decx code method-context <signature>` - 获取方法签名、caller 和 callee
+- `decx code method-cfg <signature>` - 获取方法控制流图摘要
 - `decx code xref-method <signature>` - 查找方法调用者
 - `decx code xref-class <class>` - 查找类使用位置
 - `decx code xref-field <field>` - 查找字段使用位置
@@ -228,7 +245,7 @@ npm install -g @jygzyc/decx-cli
 
 ## AI Agent 技能
 
-`skill/` 目录下包含 AI Agent 技能定义文件（SKILL.md），支持 AI 编程助手执行自动化 Android 分析。
+`skill/` 目录下包含 AI Agent 技能定义文件，支持自动化 Android 逆向分析、漏洞挖掘和 PoC 构造。
 
 ### 可用技能
 
@@ -237,13 +254,24 @@ npm install -g @jygzyc/decx-cli
 | **decxcli** | 通用分析：代码导航、交叉引用、Manifest/资源检查 | `decx` |
 | **decxcli-app-vulnhunt** | App 漏洞挖掘：APK 攻击面枚举、组件/WebView/IPC 追踪、可利用性评估、中英文报告生成 | `decx` |
 | **decxcli-framework-vulnhunt** | Framework 漏洞挖掘：Binder 服务枚举、framework JAR 追踪、权限门审计、可利用性评估、中英文报告生成 | `decx` |
-| **decxcli-poc** | PoC 构造：漏洞归一化、Exploit 类实现、可选编译部署 | `decx`、`node`、`unzip` |
+| **decxcli-poc** | PoC 构造：漏洞归一化、Exploit 类实现、可选编译部署 | `decx`, `node` |
 
 技能按顺序协作：`decxcli`（分析） → `decxcli-app-vulnhunt` 或 `decxcli-framework-vulnhunt`（漏洞挖掘） → `decxcli-poc`（PoC 构造）。
 
+### 前置依赖
+
+使用任何技能前，请先安装 DECX CLI：
+
+```bash
+npm install -g @jygzyc/decx-cli
+```
+
 ### 安装
 
+__注意：__ 安装方式因平台而异。
+
 **Claude Code**
+
 ```bash
 cp -r skill/decxcli ~/.claude/skills/
 cp -r skill/decxcli-app-vulnhunt ~/.claude/skills/
@@ -252,6 +280,7 @@ cp -r skill/decxcli-poc ~/.claude/skills/
 ```
 
 **Cursor**
+
 ```bash
 cp skill/decxcli/SKILL.md .cursor/rules/decxcli.md
 cp skill/decxcli-app-vulnhunt/SKILL.md .cursor/rules/decxcli-app-vulnhunt.md
@@ -260,6 +289,7 @@ cp skill/decxcli-poc/SKILL.md .cursor/rules/decxcli-poc.md
 ```
 
 **Cline**
+
 ```bash
 cp skill/decxcli/SKILL.md .clinerules-decxcli
 cp skill/decxcli-app-vulnhunt/SKILL.md .clinerules-decxcli-app-vulnhunt
@@ -268,14 +298,13 @@ cp skill/decxcli-poc/SKILL.md .clinerules-decxcli-poc
 ```
 
 **Windsurf**
+
 ```bash
 cp skill/decxcli/SKILL.md .windsurfrules-decxcli
 cp skill/decxcli-app-vulnhunt/SKILL.md .windsurfrules-decxcli-app-vulnhunt
 cp skill/decxcli-framework-vulnhunt/SKILL.md .windsurfrules-decxcli-framework-vulnhunt
 cp skill/decxcli-poc/SKILL.md .windsurfrules-decxcli-poc
 ```
-
-依赖：`decx` CLI 已安装（`npm install -g @jygzyc/decx-cli`）。
 
 ---
 
@@ -346,9 +375,9 @@ DecxRoute("/api/decx/do_something", "do_something") { api, params ->
 - 验证防火墙是否允许 localhost 连接
 
 **常见错误：**
-- **E001**：查看 DECX 日志中的内部错误信息
-- **E003**：确保 DECX 插件已启用并加载
-- **E005**：检查参数格式和值
+- **INTERNAL_ERROR**：查看 DECX 日志中的内部错误信息
+- **HEALTH_CHECK_FAILED**：确保 DECX 插件已启用并加载
+- **INVALID_PARAMETER**：检查参数格式和值
 
 ## 贡献
 
