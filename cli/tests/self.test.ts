@@ -1,6 +1,8 @@
 import { jest } from "@jest/globals";
+import { mkdirSync, writeFileSync } from "fs";
+import * as path from "path";
 import { buildCliUpdateArgs, executeSelfInstall, getCliPackageMetadata } from "../src/commands/self.js";
-import { testPath } from "./test-paths.js";
+import { resetTestDir, testPath } from "./test-paths.js";
 
 describe("self command metadata", () => {
   it("prefers npm env metadata when available", () => {
@@ -17,6 +19,21 @@ describe("self command metadata", () => {
     const { name, version } = getCliPackageMetadata({} as NodeJS.ProcessEnv);
     expect(name).toBe("@jygzyc/decx-cli");
     expect(version).toMatch(/^\d+\.\d+\.\d+/);
+  });
+
+  it("finds package metadata from the bundled dist directory", () => {
+    const distDir = resetTestDir("tmp", "self-dist");
+    const nestedDir = path.join(distDir, "commands");
+    mkdirSync(nestedDir, { recursive: true });
+    writeFileSync(path.join(distDir, "package.json"), JSON.stringify({
+      name: "@custom/bundled-decx",
+      version: "1.2.3",
+    }));
+
+    expect(getCliPackageMetadata({} as NodeJS.ProcessEnv, nestedDir)).toEqual({
+      name: "@custom/bundled-decx",
+      version: "1.2.3",
+    });
   });
 
   it("builds npm install args from the package name", () => {

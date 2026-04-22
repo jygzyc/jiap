@@ -4,7 +4,7 @@
 
 import { Command } from "commander";
 import { spawnSync } from "child_process";
-import { readFileSync } from "fs";
+import { existsSync, readFileSync } from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
 import { Formatter } from "../utils/formatter.js";
@@ -17,17 +17,30 @@ interface CliPackageMetadata {
   version: string;
 }
 
-function readCliPackageJson(): Partial<CliPackageMetadata> {
-  try {
-    const pkgPath = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "package.json");
-    return JSON.parse(readFileSync(pkgPath, "utf-8")) as Partial<CliPackageMetadata>;
-  } catch {
-    return {};
+function readCliPackageJson(startDir: string = path.dirname(fileURLToPath(import.meta.url))): Partial<CliPackageMetadata> {
+  let dir = startDir;
+  while (true) {
+    const pkgPath = path.join(dir, "package.json");
+    if (existsSync(pkgPath)) {
+      try {
+        return JSON.parse(readFileSync(pkgPath, "utf-8")) as Partial<CliPackageMetadata>;
+      } catch {
+        return {};
+      }
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) {
+      return {};
+    }
+    dir = parent;
   }
 }
 
-export function getCliPackageMetadata(env: NodeJS.ProcessEnv = process.env): CliPackageMetadata {
-  const pkg = readCliPackageJson();
+export function getCliPackageMetadata(
+  env: NodeJS.ProcessEnv = process.env,
+  startDir?: string,
+): CliPackageMetadata {
+  const pkg = readCliPackageJson(startDir);
   return {
     name: env.npm_package_name ?? pkg.name ?? "unknown",
     version: env.npm_package_version ?? pkg.version ?? "unknown",
