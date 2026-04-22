@@ -18,138 +18,118 @@ DECX (Decompiler + X) 是一个基于JADX反编译器的智能代码分析平台
 
 ---
 
-## 快速开始
+## 安装
 
 ### 环境要求
 
-- **Java**: JDK 11+ （用于 DECX Core）
-- **Python**: 3.10+ （可选 - 自动管理）
-- **JADX**: v1.5.2+ 支持插件的 JADX 反编译器
-- **Python 依赖**: `requests`, `fastmcp`, `pydantic`（自动安装）
+- **Java**: JDK 11+
+- **Node.js**: 18+，用于 CLI
+- **JADX**: v1.5.2+，使用 GUI 插件时需要
+- **Python**: 3.10+ 或 `uv`，用于插件 MCP 伴生进程；不使用 `uv` 时需准备 `requests`、`fastmcp`、`pydantic`
 
-### 安装
+### CLI 和 AI 技能
+
+给 AI 使用时，先安装 CLI 和 DECX server JAR，再把仓库内置技能暴露给 Agent：
 
 ```bash
-# 1. 在 JADX GUI 中安装插件
-# JADX -> Settings -> Plugins -> Install Decx
-
-# 或使用命令行安装
-jadx plugins --install-jar <path-to-decx.jar>
-
-# 2. 构建 DECX Core（从源码）
-cd decx
-chmod +x gradlew
-./gradlew dist
+npm install -g @jygzyc/decx-cli
+decx self install
+git clone https://github.com/jygzyc/decx ~/.decx/source
+mkdir -p ~/.agents
+ln -s ~/.decx/source/skills ~/.agents/skills
 ```
 
-**MCP 服务器自动管理：**
-- 插件会自动提取并管理 MCP 服务器脚本
-- 无需手动安装 Python 依赖或启动 MCP 服务器
-- 无需手动配置环境变量
+如果你的 Agent 使用其他目录，把 `~/.agents/skills` 换成对应路径：
 
-### 使用说明
+| Agent | 链接目标 |
+|---|---|
+| Claude Code | `~/.claude/skills` |
+| Opencode | `~/.config/opencode/skills` |
+| Codex | `~/.codex/skills` |
+| 通用 Agent 配置 | `~/.agents/skills` |
 
-* 启动 DECX 插件
+`skills/` 目录包含：
 
-  - 启动 JADX 并启用 DECX 插件
-  - 插件会自动启动 HTTP 服务器，MCP 服务器可手动确认启动
-  - 确认服务器运行在 `http://127.0.0.1:25419`
+| 技能 | 用途 |
+|---|---|
+| `decxcli` | 通用代码导航、源码查看、交叉引用、Manifest 和资源检查 |
+| `decxcli-app-vulnhunt` | APK 攻击面枚举、组件/WebView/IPC 追踪、可利用性评估和中英文报告 |
+| `decxcli-framework-vulnhunt` | 只面向处理后的最终 framework 包，分析 Android framework、Binder 和系统服务漏洞 |
+| `decxcli-poc` | 将一个已确认漏洞转换为可构建的 Android PoC App 和可选辅助服务 |
 
-**自动执行流程：**
-1. DECX 插件启动 HTTP 服务器（端口 `25419`）
-2. 插件自动提取 MCP 脚本到 `~/.decx/mcp/`
-3. 若启用自动启动，伴生进程（MCP 服务器）将自动启动（端口 `25419 + 1`）
-4. 两个进程在关闭时协同停止
+### JADX 插件
 
-* 验证连接
+可从 JADX GUI 插件管理器安装，也可以手动安装插件 JAR：
 
-使用 `health_check()` 验证 MCP 服务器与 DECX 插件之间的连接
-
-* 可用工具
-
-所有工具均支持通过 `page` 参数进行分页。
-
-**代码分析**
-- `get_all_classes(first=None, include_packages=None, exclude_packages=None, page=1)` - 获取类列表，支持包过滤
-- `search_global_key(key, first=None, max_results, include_packages=None, exclude_packages=None, case_sensitive=False, regex=True, page=1)` - 按候选项、包和结果上限搜索所有类源码
-- `search_class_key(class_name, key, max_results, case_sensitive=False, regex=True, page=1)` - 在单个类中 grep，并返回命中行和方法签名
-- `get_class_source(class_name, smali=False, page=1)` - 获取 Java 或 Smali 格式的类源代码
-- `search_method(method_name, page=1)` - 搜索匹配给定方法名的方法
-- `get_method_source(method_name, smali=False, page=1)` - 获取方法源代码
-- `get_class_context(class_name, page=1)` - 获取类信息，包括字段和方法
-- `get_method_context(method_name, page=1)` - 获取方法签名、caller 和 callee
-- `get_method_cfg(method_name, page=1)` - 获取方法控制流图摘要
-- `get_method_xref(method_name, page=1)` - 查找方法使用位置
-- `get_field_xref(field_name, page=1)` - 查找字段使用位置
-- `get_class_xref(class_name, page=1)` - 查找类使用位置
-- `get_implement(interface_name, page=1)` - 获取接口实现
-- `get_sub_classes(class_name, page=1)` - 获取子类
-
-**UI 集成**
-- `selected_text(page=1)` - 获取 JADX GUI 中当前选中的文本
-- `selected_class(page=1)` - 获取 JADX GUI 中当前选中的类
-
-**Android 分析**
-- `get_app_manifest(page=1)` - 获取 Android 清单内容
-- `get_main_activity(page=1)` - 获取主 Activity 源代码
-- `get_application(page=1)` - 获取 Android 应用类及其信息
-- `get_exported_components(component_types=None, regex=True, page=1)` - 获取导出组件，支持按组件类型正则过滤
-- `get_deep_links(page=1)` - 获取应用的 URL Schemes 和 Intent Filters
-- `get_all_resources(page=1)` - 列出所有资源文件名（包括 resources.arsc 子文件）
-- `get_resource_file(resource_name, page=1)` - 按名称获取资源文件内容
-- `get_strings(page=1)` - 获取应用 strings.xml 内容
-- `get_dynamic_receivers(first=None, include_packages=None, exclude_packages=None, regex=True, page=1)` - 获取动态注册的 BroadcastReceivers，支持包过滤
-- `get_aidl(first=None, include_packages=None, exclude_packages=None, regex=True, page=1)` - 获取 AIDL 接口及其实现类，支持包过滤
-- `get_system_service_impl(interface_name, page=1)` - 获取系统服务实现
-
-**系统**
-- `health_check()` - 验证服务器连接状态
-
-### 配置说明
-
-**端口配置：**
-- **GUI 方式**：DECX Server Status 菜单 → 设置新端口 → 自动重启
-- **插件选项**：在 JADX 插件选项中设置 `decx.port`
-- **默认值**：`25419`（Decx）
-
-**MCP 脚本路径：**
-- **GUI 方式**：DECX Server Status 菜单 → 浏览并选择自定义脚本
-- **插件选项**：在 JADX 插件选项中设置 `decx.mcp_path` 为自定义脚本路径
-- **默认值**：自动提取到 `~/.decx/mcp/decx_mcp_server.py`
-
-**伴生进程配置：**
 ```bash
-# 自动检测执行器：uv、python3 或 python
-# 自动提取脚本到 ~/.decx/mcp/
-# 自动启动并配置正确的 DECX_URL 和 MCP_PORT
+jadx plugins --install-jar <path-to-jadx_decx_plugin.jar>
 ```
 
-**缓存配置：**
-DECX 支持两种缓存模式以提升性能：
-- **disk**（默认）：将反编译缓存持久化到磁盘（`~/.decx/cache/`）
-- **memory**：仅在内存中保留缓存，适用于小型项目
+安装后，在 JADX 中打开 APK/JAR 并启用 DECX。插件会把当前 JADX 项目暴露为 DECX HTTP API 和 MCP 工具。
 
-**配置方式：**
-- **插件选项**：在 JADX 插件选项中设置 `decx.cache` 为 `disk` 或 `memory`
-- **默认值**：`disk`，以在后续运行中提供更好的性能
+---
 
-**性能优化：**
-DECX 包含自动性能优化：
+## 使用
 
-**反编译器预热：**
-- DECX 启动时自动预热反编译器引擎
-- 过滤掉 SDK 包（android.*、androidx.*、java.*、javax.*、kotlin.*）
-- 随机采样最多 15,000 个应用类
-- 确保后续查询的最佳性能
+### CLI + 技能
 
-**磁盘缓存：**
-- 反编译的代码缓存到磁盘以实现更快检索
-- 缓存跨 JADX 会话持久化
-- 大幅缩短大型项目的分析时间
+Agent 驱动分析时，先用 CLI 创建会话，再让已安装技能接管具体分析流程：
 
-### 错误码说明
+```bash
+decx process open target.apk --name target
+decx code all-classes --first 50
+decx code search-global "WebView" --max-results 20
+decx ard exported-components
+decx ard app-deeplinks
+decx process close target
+```
 
-DECX 使用结构化的错误码进行清晰的诊断：
+典型技能顺序：
+
+- `decxcli` 用于探索和收集证据
+- `decxcli-app-vulnhunt` 或 `decxcli-framework-vulnhunt` 用于聚焦漏洞挖掘
+- `decxcli-poc` 用于把一个确认漏洞转换为可构建 PoC
+
+常用命令分组：
+
+| 需求 | 命令 |
+|---|---|
+| 会话管理 | `decx process open <file>`、`decx process list`、`decx process check`、`decx process close [name]` |
+| 代码分析 | `decx code all-classes`、`class-source`、`method-source`、`method-context`、`search-global`、`search-class`、`xref-method`、`xref-class`、`xref-field`、`implement`、`subclass` |
+| APK 分析 | `decx ard app-manifest`、`main-activity`、`app-application`、`exported-components`、`app-deeplinks`、`app-receivers`、`get-aidl`、`all-resources`、`resource-file`、`strings` |
+| Framework 分析 | `decx ard framework collect`、`process <oem>`、`run`、`open [jar]`，以及 `system-service-impl <interface>` |
+| 设备辅助 | `decx ard system-services`、`decx ard perm-info <permission>` |
+| CLI/server 管理 | `decx self install`、`decx self update` |
+
+注意：
+
+- 基于会话的 `code` 和 `ard` 命令支持 `--page <n>`，也可用 `-s, --session <name>` 或 `-P, --port <port>` 指向指定会话。
+- `decx process open <file>` 会透传标准 `jadx-cli` 参数，并默认启用 `--show-bad-code`。
+- `system-services` 和 `perm-info` 是 adb 命令，使用 `--serial` / `--adb-path`，不使用 `-P <port>`。
+- `decx ard framework run` 默认从已连接设备收集、处理、打包并打开最终 framework JAR；`process <oem>` 用于处理本地 framework dump。
+
+### 插件 + MCP
+
+当你希望 AI 直接分析 JADX GUI 中已打开的项目时，使用插件模式：
+
+1. 在 JADX 中打开目标 APK/JAR。
+2. 启用 DECX 插件，确认服务可通过 `http://127.0.0.1:25419` 访问。
+3. 在 AI/MCP 客户端中连接 DECX，并调用 `health_check()`。
+4. 使用 MCP 工具进行代码搜索、源码查看、交叉引用、Android Manifest/资源/组件分析、framework 服务查找和 JADX GUI 选中内容读取。
+
+返回内容较大时，MCP 工具均可通过 `page` 参数分页。
+
+可能需要的插件选项：
+
+- `decx.port`：DECX HTTP 服务端口，默认 `25419`
+- `decx.mcp_path`：不使用内置脚本时指定自定义 MCP 脚本路径
+- `decx.cache`：`disk` 或 `memory`，默认 `disk`
+
+---
+
+## 错误码
+
+插件模式和独立 server 模式都会返回同一套结构化错误格式：
 
 | 错误码 | 描述 | HTTP 状态码 |
 |--------|------|-------------|
@@ -184,202 +164,40 @@ DECX 使用结构化的错误码进行清晰的诊断：
 
 ---
 
-## CLI 命令行工具
-
-DECX 提供了一个 TypeScript CLI 工具，用于通过命令行访问分析平台。
-
-**安装：**
-
-```bash
-npm install -g @jygzyc/decx-cli
-```
-
-**进程管理：**
-- `decx process check` - 检查 DECX 服务器状态
-- `decx process open <file>` - 打开并分析文件（APK、DEX、JAR 等）；默认启用 `--show-bad-code`
-- `decx process close [name]` - 按会话名停止 DECX 服务器
-- `decx process list` - 列出运行中的进程
-
-**代码分析：**
-- `decx code all-classes` - 获取类列表（支持 `--first`、`--include-package`、`--exclude-package`）
-- `decx code class-context <class>` - 获取类信息
-- `decx code class-source <class>` - 获取类源代码（`--smali` 输出 Smali 格式）
-- `decx code search-global <keyword> --max-results <n>` - 全局搜索（支持 `--first`、`--include-package`、`--exclude-package`、`--no-regex`、`--case-sensitive`）
-- `decx code search-class <class> <pattern> --max-results <n>` - 在单个类中 grep（支持 `--no-regex`、`--case-sensitive`）
-- `decx code search-method <name>` - 按名称搜索方法
-- `decx code method-source <signature>` - 获取方法源代码（`--smali` 输出 Smali 格式）
-- `decx code method-context <signature>` - 获取方法签名、caller 和 callee
-- `decx code method-cfg <signature>` - 获取方法控制流图摘要
-- `decx code xref-method <signature>` - 查找方法调用者
-- `decx code xref-class <class>` - 查找类使用位置
-- `decx code xref-field <field>` - 查找字段使用位置
-- `decx code implement <interface>` - 查找接口实现
-- `decx code subclass <class>` - 查找子类
-
-**Android 分析：**
-- `decx ard app-manifest` - 获取 AndroidManifest.xml
-- `decx ard main-activity` - 获取主 Activity 名称
-- `decx ard app-application` - 获取 Application 类名
-- `decx ard exported-components [--type <pattern>] [--no-regex]` - 列出导出组件，可按类型过滤
-- `decx ard app-deeplinks` - 列出深度链接
-- `decx ard app-receivers [--first <n>] [--include-package <pattern>] [--exclude-package <pattern>] [--no-regex]` - 列出动态广播接收器，支持包过滤
-- `decx ard system-service-impl <interface>` - 查找系统服务实现
-- `decx ard system-services [--serial <serial>] [--grep <keyword>]` - 以结构化 JSON 列出当前设备上的系统服务
-- `decx ard perm-info <permission> [--serial <serial>]` - 查看结构化权限详情
-- `decx ard all-resources` - 列出所有资源文件名
-- `decx ard resource-file <res>` - 按名称获取资源文件内容
-- `decx ard strings` - 获取 strings.xml 内容
-- `decx ard get-aidl [--first <n>] [--include-package <pattern>] [--exclude-package <pattern>] [--no-regex]` - 获取 AIDL 接口，支持包过滤
-
-**自管理：**
-- `decx self install` - 安装或更新 decx-server.jar（`-p` 安装预发布版）
-- `decx self update` - 更新 decx-server.jar 和当前已安装的 npm CLI 包（`-p` 目前只影响 server JAR 更新路径）
-
-所有基于会话的 `code` 和 `ard` 命令都支持 `--page <n>` 分页。
-基于 adb 的 `system-services` 和 `perm-info` 不使用 `-P <port>`，而是使用 `--serial` / `--adb-path`。
-
-`system-services` 返回结构化 JSON，包含 `total` 和 `services[]`；每个服务对象含 `index`、`name`、`interfaces`。
-`perm-info` 返回单个已解析的权限对象，字段包括 `permission`、`package`、`label`、`description`、`protectionLevel` 等。
-
----
-
-## AI Agent 技能
-
-`skill/` 目录下包含 AI Agent 技能定义文件，支持自动化 Android 逆向分析、漏洞挖掘和 PoC 构造。
-
-### 可用技能
-
-| 技能 | 说明 | 依赖 |
-|------|------|------|
-| **decxcli** | 通用分析：代码导航、交叉引用、Manifest/资源检查 | `decx` |
-| **decxcli-app-vulnhunt** | App 漏洞挖掘：APK 攻击面枚举、组件/WebView/IPC 追踪、可利用性评估、中英文报告生成 | `decx` |
-| **decxcli-framework-vulnhunt** | Framework 漏洞挖掘：Binder 服务枚举、framework JAR 追踪、权限门审计、可利用性评估、中英文报告生成 | `decx` |
-| **decxcli-poc** | PoC 构造：漏洞归一化、Exploit 类实现、可选编译部署 | `decx`, `node` |
-
-技能按顺序协作：`decxcli`（分析） → `decxcli-app-vulnhunt` 或 `decxcli-framework-vulnhunt`（漏洞挖掘） → `decxcli-poc`（PoC 构造）。
-
-### 前置依赖
-
-使用任何技能前，请先安装 DECX CLI：
-
-```bash
-npm install -g @jygzyc/decx-cli
-```
-
-### 安装
-
-__注意：__ 安装方式因平台而异。
-
-**Claude Code**
-
-```bash
-cp -r skill/decxcli ~/.claude/skills/
-cp -r skill/decxcli-app-vulnhunt ~/.claude/skills/
-cp -r skill/decxcli-framework-vulnhunt ~/.claude/skills/
-cp -r skill/decxcli-poc ~/.claude/skills/
-```
-
-**Cursor**
-
-```bash
-cp skill/decxcli/SKILL.md .cursor/rules/decxcli.md
-cp skill/decxcli-app-vulnhunt/SKILL.md .cursor/rules/decxcli-app-vulnhunt.md
-cp skill/decxcli-framework-vulnhunt/SKILL.md .cursor/rules/decxcli-framework-vulnhunt.md
-cp skill/decxcli-poc/SKILL.md .cursor/rules/decxcli-poc.md
-```
-
-**Cline**
-
-```bash
-cp skill/decxcli/SKILL.md .clinerules-decxcli
-cp skill/decxcli-app-vulnhunt/SKILL.md .clinerules-decxcli-app-vulnhunt
-cp skill/decxcli-framework-vulnhunt/SKILL.md .clinerules-decxcli-framework-vulnhunt
-cp skill/decxcli-poc/SKILL.md .clinerules-decxcli-poc
-```
-
-**Windsurf**
-
-```bash
-cp skill/decxcli/SKILL.md .windsurfrules-decxcli
-cp skill/decxcli-app-vulnhunt/SKILL.md .windsurfrules-decxcli-app-vulnhunt
-cp skill/decxcli-framework-vulnhunt/SKILL.md .windsurfrules-decxcli-framework-vulnhunt
-cp skill/decxcli-poc/SKILL.md .windsurfrules-decxcli-poc
-```
-
----
-
 ## 开发
 
-### 从源码构建
+### 项目结构
+
+| 路径 | 作用 |
+|---|---|
+| `decx/decx-core/` | 共享 Kotlin API、HTTP 传输、模型、服务和工具 |
+| `decx/decx-plugin/` | JADX GUI 插件和内置 MCP 资源 |
+| `decx/decx-server/` | 独立 headless server 入口和 fat JAR 打包 |
+| `cli/` | TypeScript CLI，负责会话、代码分析、Android 辅助、framework 处理和自管理 |
+| `skills/` | 面向 AI Agent 的 DECX 分析、App/Framework 漏洞挖掘和 PoC 构造技能 |
+
+核心请求链路：
+
+```text
+CLI / MCP / HTTP
+  -> DecxServer / RouteHandler
+  -> DecxApi / DecxApiImpl
+  -> service/* and utils/*
+```
+
+### 构建
 
 ```bash
-# 构建 DECX Core
 cd decx
-chmod +x gradlew
 ./gradlew dist
 
-# 构建 CLI
-cd cli
+cd ../cli
 npm install
 npm run build
+npm test
 ```
 
-### 增加自定义功能
-
-DECX 的架构分为三层：`DecxApi` 接口定义 → `DecxApiImpl` 实现 → `RouteHandler` HTTP 路由分发。
-
-**1. 在 `DecxApi` 接口中添加方法**
-
-文件：`decx/decx-core/src/main/kotlin/jadx/plugins/decx/api/DecxApi.kt`
-
-```kotlin
-interface DecxApi {
-    // ... 已有方法 ...
-
-    fun doSomething(param: String): DecxApiResult
-}
-```
-
-**2. 在 `DecxApiImpl` 中实现方法**
-
-文件：`decx/decx-core/src/main/kotlin/jadx/plugins/decx/api/DecxApiImpl.kt`
-
-```kotlin
-override fun doSomething(param: String): DecxApiResult {
-    val result = // 业务逻辑
-    return DecxApiResult.ok(mapOf("data" to result))
-}
-```
-
-**3. 在 `DecxRoutes` 中注册路由**
-
-文件：`decx/decx-core/src/main/kotlin/jadx/plugins/decx/api/DecxApiContract.kt`
-
-```kotlin
-DecxRoute("/api/decx/do_something", "do_something") { api, params ->
-    api.doSomething(params.requireString("param"))
-}
-```
-
-### 故障排查
-
-**伴生进程问题：**
-- **查看日志**：在 DECX 日志中查找 `[MCP]` 消息
-- **验证 Python**：确保已安装 Python 3.10+ 或 `uv`
-- **检查依赖**：插件会自动检查 `requests`、`fastmcp`、`pydantic`
-- **手动路径**：如有需要，可通过 GUI 配置自定义脚本路径
-
-**连接问题：**
-- 使用 `health_check()` 验证两个服务器是否都在运行
-- 检查端口冲突：`lsof -i :25419`
-- 验证防火墙是否允许 localhost 连接
-
-**常见错误：**
-- **INTERNAL_ERROR**：查看 DECX 日志中的内部错误信息
-- **HEALTH_CHECK_FAILED**：确保 DECX 插件已启用并加载
-- **INVALID_PARAMETER**：检查参数格式和值
-
-## 贡献
+### 贡献
 
 1. Fork 本仓库
 2. 创建功能分支
