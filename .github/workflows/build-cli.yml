@@ -30,7 +30,7 @@ jobs:
       run: npm ci
 
     - name: Type check
-      run: npm run typecheck || true
+      run: npm run typecheck
 
     - name: Lint
       run: npm run lint

@@ -18,8 +18,8 @@ interface CliPackageMetadata {
 }
 
 function readCliPackageJson(startDir: string = path.dirname(fileURLToPath(import.meta.url))): Partial<CliPackageMetadata> {
-  let dir = startDir;
-  while (true) {
+  let dir: string | undefined = startDir;
+  while (dir) {
     const pkgPath = path.join(dir, "package.json");
     if (existsSync(pkgPath)) {
       try {
@@ -30,10 +30,11 @@ function readCliPackageJson(startDir: string = path.dirname(fileURLToPath(import
     }
     const parent = path.dirname(dir);
     if (parent === dir) {
-      return {};
+      break;
     }
     dir = parent;
   }
+  return {};
 }
 
 export function getCliPackageMetadata(
