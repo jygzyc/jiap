@@ -8,6 +8,7 @@ import jadx.plugins.decx.service.UIService
 import jadx.plugins.decx.model.DecxError
 import jadx.plugins.decx.utils.LogUtils
 import jadx.plugins.decx.utils.PreferencesManager
+import jadx.plugins.decx.utils.WarmupUtils
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
@@ -65,29 +66,12 @@ class PluginLifecycleManager(
     private fun warmupDecompilation(decompiler: jadx.api.JadxDecompiler) {
         Thread({
             try {
-                val classes = decompiler.classesWithInners ?: emptyList()
+                val classes = WarmupUtils.selectWarmupClasses(decompiler)
                 if (classes.isEmpty()) return@Thread
 
-                val sdkPackagePrefixes = listOf(
-                    "android.support.", "androidx.", "java.", "javax.", "kotlin.", "kotlinx."
-                )
-
-                val appClasses = classes.filter { clazz ->
-                    sdkPackagePrefixes.none { prefix -> clazz.fullName.startsWith(prefix) }
-                }
-
-                val targetCount = 15000
-                val classesToDecompile: List<jadx.api.JavaClass> = if (appClasses.size >= targetCount) {
-                    appClasses.shuffled().take(targetCount)
-                } else {
-                    classes
-                }
-                LogUtils.debug("Warmup classes count: ${classesToDecompile.size}")
-
                 val startTime = System.currentTimeMillis()
-                classesToDecompile.forEach { clazz ->
-                    try { clazz.decompile() } catch (_: Exception) {}
-                }
+                LogUtils.debug("Warmup classes count: ${classes.size}")
+                WarmupUtils.warmup(classes, logProgress = { message -> LogUtils.info(message) })
 
                 val elapsed = System.currentTimeMillis() - startTime
                 LogUtils.info("Warmup completed in ${elapsed}ms, decompiler engine ready")

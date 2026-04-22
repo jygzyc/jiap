@@ -70,7 +70,11 @@ class DecxPlugin : JadxPlugin {
     }
 
     private fun cleanupOnError() {
-        sidecarManager?.stop()
-        server?.stop()
+        try {
+            sidecarManager?.stop()
+        } finally {
+            sidecarManager?.cleanupMcpFiles()
+            server?.stop()
+        }
     }
 }
