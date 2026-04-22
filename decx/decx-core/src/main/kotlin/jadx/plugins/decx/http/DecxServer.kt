@@ -13,6 +13,15 @@ import jadx.plugins.decx.utils.LogUtils
 import jadx.plugins.decx.utils.PluginUtils
 import jadx.plugins.decx.model.DecxError
 import jadx.plugins.decx.utils.AnalysisResultUtils
+import java.util.concurrent.Executors
+import java.util.concurrent.ExecutionException
+import java.util.concurrent.Future
+import java.util.concurrent.ThreadFactory
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
+import java.util.concurrent.atomic.AtomicInteger
+import kotlin.math.max
+import kotlin.math.min
 
 /**
  * HTTP server built on Javalin. Delegates all business logic to [DecxApi].
@@ -27,6 +36,8 @@ class DecxServer(
     companion object {
         private const val RESTART_DELAY_MS = 2000L
         private const val HEALTH_KIND = "health"
+        private const val DEFAULT_REQUEST_TIMEOUT_MS = 120_000L
+        private const val ROUTE_THREAD_CAP = 8
 
         /** Create a DecxServer directly from a decompiler instance. */
         fun create(decompiler: JadxDecompiler, port: Int = DecxConstants.DEFAULT_PORT): DecxServer {
@@ -38,6 +49,8 @@ class DecxServer(
 
     private var app: Javalin? = null
     private var routeHandler: RouteHandler? = null
+    private var routeExecutor = createRouteExecutor()
+    private val requestTimeoutMs = java.lang.Long.getLong("decx.requestTimeoutMs", DEFAULT_REQUEST_TIMEOUT_MS)
 
     @Volatile
     private var started = false
@@ -79,6 +92,8 @@ class DecxServer(
         return try {
             app?.stop()
             app = null
+            routeExecutor.shutdownNow()
+            routeExecutor = createRouteExecutor()
             LogUtils.info("Server stopped")
             true
         } catch (e: Exception) {
@@ -150,17 +165,40 @@ class DecxServer(
     }
 
     private fun handleRoute(ctx: Context, path: String) {
+        var future: Future<Map<String, Any>>? = null
         try {
             val payload = readPayload(ctx)
-            val page = payload["page"] as? Int ?: 1
-
-            val handler = routeHandler ?: throw IllegalStateException("RouteHandler not initialized")
-            val response = handler.handle(path, payload, page)
-
+            future = routeExecutor.submit<Map<String, Any>> {
+                executeRoute(path, payload)
+            }
+            val response = future.get(requestTimeoutMs, TimeUnit.MILLISECONDS)
             ctx.json(response)
+        } catch (e: TimeoutException) {
+            future?.cancel(true)
+            handleRouteTimeout(ctx, path)
+        } catch (e: ExecutionException) {
+            handleRouteError(ctx, e.cause as? Exception ?: e, path)
         } catch (e: Exception) {
             handleRouteError(ctx, e, path)
         }
+    }
+
+    private fun executeRoute(path: String, payload: Map<String, Any>): Map<String, Any> {
+        val page = payload["page"] as? Int ?: 1
+        val handler = routeHandler ?: throw IllegalStateException("RouteHandler not initialized")
+        return handler.handle(path, payload, page)
+    }
+
+    private fun handleRouteTimeout(ctx: Context, path: String) {
+        val message = DecxError.REQUEST_TIMEOUT.format(requestTimeoutMs, path)
+        ctx.status(DecxError.REQUEST_TIMEOUT.status).json(
+            AnalysisResultUtils.error(
+                kind = routeHandler?.pathToKind(path) ?: "unknown",
+                code = DecxError.REQUEST_TIMEOUT.code,
+                message = message
+            )
+        )
+        LogUtils.warn(message)
     }
 
     private fun handleRouteError(ctx: Context, e: Exception, path: String) {
@@ -215,4 +253,17 @@ class DecxServer(
             shutdownHook = null
         }
     }
+
+    private fun createRouteExecutor() =
+        Executors.newFixedThreadPool(
+            min(ROUTE_THREAD_CAP, max(2, Runtime.getRuntime().availableProcessors())),
+            object : ThreadFactory {
+                private val counter = AtomicInteger(0)
+                override fun newThread(r: Runnable): Thread {
+                    return Thread(r, "DecxServer-Route-${counter.incrementAndGet()}").apply {
+                        isDaemon = true
+                    }
+                }
+            }
+        )
 }

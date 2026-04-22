@@ -3,6 +3,7 @@ package jadx.plugins.decx.model
 enum class DecxError(val code: String, val status: Int, val message: String) {
     SERVER_INTERNAL_ERROR("INTERNAL_ERROR", 500, "Internal error: %s"),
     SERVICE_ERROR("SERVICE_ERROR", 503, "Service error: %s"),
+    REQUEST_TIMEOUT("REQUEST_TIMEOUT", 504, "Request timed out after %sms: %s"),
     HEALTH_CHECK_FAILED("HEALTH_CHECK_FAILED", 500, "Health check failed: %s"),
     UNKNOWN_ENDPOINT("UNKNOWN_ENDPOINT", 404, "Unknown endpoint: %s"),
     INVALID_PARAMETER("INVALID_PARAMETER", 400, "Invalid parameter: %s"),

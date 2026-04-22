@@ -5,6 +5,7 @@ import jadx.cli.JadxCLIArgs
 import jadx.plugins.decx.DecxConstants
 import jadx.plugins.decx.http.DecxServer
 import jadx.plugins.decx.utils.PluginUtils
+import jadx.plugins.decx.utils.WarmupUtils
 
 /**
  * DECX Server — Java Intelligence Analysis Platform.
@@ -85,16 +86,8 @@ object DecxServerApp {
 		println("[+] Loaded $classCount classes")
 
 		println("[*] Warming up decompiler engine...")
-		val warmupStart = System.currentTimeMillis()
-		val sdkPrefixes = listOf("android.support.", "androidx.", "java.", "javax.", "kotlin.", "kotlinx.")
-		val appClasses = decompiler.classesWithInners.filter { cls ->
-			sdkPrefixes.none { cls.fullName.startsWith(it) }
-		}
-		val toWarmup = if (appClasses.size > 15000) appClasses.shuffled().take(15000) else appClasses
-		toWarmup.forEach { cls ->
-			try { cls.decompile() } catch (_: Exception) {}
-		}
-		val warmupElapsed = System.currentTimeMillis() - warmupStart
+		val toWarmup = WarmupUtils.selectWarmupClasses(decompiler)
+		val warmupElapsed = WarmupUtils.warmup(toWarmup, logProgress = { message -> println("[*] $message") })
 		println("[+] Warmup completed in ${warmupElapsed}ms")
 
 		val server = DecxServer.create(decompiler, port)

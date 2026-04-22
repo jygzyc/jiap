@@ -1,10 +1,9 @@
 package jadx.plugins.decx.utils
 
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.locks.ReentrantReadWriteLock
-import kotlin.concurrent.read
 import kotlin.concurrent.write
-import kotlin.math.min
 
 class LRUCacheWithTTL<K, V>(
     private val maxCapacity: Int,
@@ -23,7 +22,7 @@ class LRUCacheWithTTL<K, V>(
      * Retrieve a value from cache
      */
     fun get(key: K): V? {
-        return lock.read {
+        return lock.write {
             val entry = cache[key]
             if (entry == null) {
                 null
@@ -31,17 +30,13 @@ class LRUCacheWithTTL<K, V>(
                 // Check if entry has expired
                 if (System.currentTimeMillis() > entry.expiryTime) {
                     // Entry expired, remove it
-                    lock.write {
-                        cache.remove(key)
-                        accessOrder.remove(key)
-                    }
+                    cache.remove(key)
+                    accessOrder.remove(key)
                     null
                 } else {
                     // Move to end (mark as recently used)
-                    lock.write {
-                        accessOrder.remove(key)
-                        accessOrder.add(key)
-                    }
+                    accessOrder.remove(key)
+                    accessOrder.add(key)
                     entry.value
                 }
             }
@@ -92,12 +87,12 @@ class LRUCacheWithTTL<K, V>(
 }
 
 object CacheUtils {
-    private const val CACHE_MAX_SIZE = 7
+    private const val CACHE_MAX_SIZE = 15
     private const val CACHE_TTL_MINUTES = 10
 
     private var responseCache: LRUCacheWithTTL<String, Any>? = null
-    private var hits: Long = 0
-    private var misses: Long = 0
+    private val hits = AtomicLong(0)
+    private val misses = AtomicLong(0)
 
     init {
         initializeCache()
@@ -139,9 +134,9 @@ object CacheUtils {
 
         val result = cache.get(cacheKey)
         if (result != null) {
-            hits++
+            hits.incrementAndGet()
         } else {
-            misses++
+            misses.incrementAndGet()
         }
         return result
     }
