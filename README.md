@@ -18,138 +18,118 @@ DECX (Decompiler + X) is a smart code analysis platform built on the JADX decomp
 
 ---
 
-## Quick Start
+## Installation
 
 ### Prerequisites
 
-- **Java**: JDK 11+ (for DECX Core)
-- **Python**: 3.10+ (optional - auto-managed)
-- **JADX**: v1.5.2+ with plugin support
-- **Python dependencies**: `requests`, `fastmcp`, `pydantic` (auto-installed)
+- **Java**: JDK 11+
+- **Node.js**: 18+ for the CLI
+- **JADX**: v1.5.2+ with plugin support if you use the GUI plugin
+- **Python**: 3.10+ or `uv` for the plugin MCP sidecar; without `uv`, ensure `requests`, `fastmcp`, and `pydantic` are available
 
-### Installation
+### CLI And AI Skills
+
+For AI-assisted CLI work, install the CLI, install the DECX server JAR, then expose the bundled skills to your agent:
 
 ```bash
-# 1. Install plugin in JADX GUI
-# JADX -> Settings -> Plugins -> Install DECX
-
-# Or install via command line
-jadx plugins --install-jar <path-to-decx.jar>
-
-# 2. Build DECX Core (from source)
-cd decx
-chmod +x gradlew
-./gradlew dist
+npm install -g @jygzyc/decx-cli
+decx self install
+git clone https://github.com/jygzyc/decx ~/.decx/source
+mkdir -p ~/.agents
+ln -s ~/.decx/source/skills ~/.agents/skills
 ```
 
-**MCP Server Auto-Management:**
-- Plugin automatically extracts and manages MCP server scripts
-- No manual Python dependency installation or MCP server startup required
-- No manual environment variable configuration required
+Replace `~/.agents/skills` with the skills directory expected by your agent:
 
-### Usage
+| Agent | Link target |
+|---|---|
+| Claude Code | `~/.claude/skills` |
+| Opencode | `~/.config/opencode/skills` |
+| Codex | `~/.codex/skills` |
+| Common agent setup | `~/.agents/skills` |
 
-* Start DECX Plugin
+The `skills/` directory contains:
 
-  - Launch JADX and enable the DECX plugin
-  - The plugin automatically starts the HTTP server, MCP server can be manually confirmed to start
-  - Verify the server is running at `http://127.0.0.1:25419`
+| Skill | Use |
+|---|---|
+| `decxcli` | General code navigation, source lookup, xrefs, manifest, and resource inspection |
+| `decxcli-app-vulnhunt` | APK attack-surface enumeration, component/WebView/IPC tracing, exploitability triage, and bilingual reports |
+| `decxcli-framework-vulnhunt` | Android framework and Binder/service vulnerability hunting on the processed final framework bundle |
+| `decxcli-poc` | Build a focused Android PoC app and optional helper server from one confirmed finding |
 
-**Automatic Process:**
-1. DECX plugin starts HTTP server (port `25419`)
-2. Plugin extracts MCP scripts to `~/.decx/mcp/`
-3. If auto-start is enabled, companion process (MCP server) starts automatically (port `25419 + 1`)
-4. Both processes stop together on shutdown
+### JADX Plugin
 
-* Verify Connection
+Install the plugin from the JADX GUI plugin manager, or install a plugin JAR manually:
 
-Use `health_check()` to verify the connection between MCP server and DECX plugin
-
-* Available Tools
-
-All tools support pagination via the `page` parameter.
-
-**Code Analysis**
-- `get_all_classes(first=None, include_packages=None, exclude_packages=None, page=1)` - Retrieve classes with optional package filtering
-- `search_global_key(key, first=None, max_results, include_packages=None, exclude_packages=None, case_sensitive=False, regex=True, page=1)` - Search all class bodies with package and result limits
-- `search_class_key(class_name, key, max_results, case_sensitive=False, regex=True, page=1)` - Grep one class and return matching lines with method signatures
-- `get_class_source(class_name, smali=False, page=1)` - Get class source code in Java or Smali format
-- `search_method(method_name, page=1)` - Search for methods matching the name
-- `get_method_source(method_name, smali=False, page=1)` - Get method source code
-- `get_class_context(class_name, page=1)` - Get class information (fields and methods)
-- `get_method_context(method_name, page=1)` - Get method signature, callers, and callees
-- `get_method_cfg(method_name, page=1)` - Get method control flow graph as DOT source
-- `get_method_xref(method_name, page=1)` - Find method usage locations
-- `get_field_xref(field_name, page=1)` - Find field usage locations
-- `get_class_xref(class_name, page=1)` - Find class usage locations
-- `get_implement(interface_name, page=1)` - Get interface implementations
-- `get_sub_classes(class_name, page=1)` - Get subclasses
-
-**UI Integration**
-- `selected_text(page=1)` - Get currently selected text in JADX GUI
-- `selected_class(page=1)` - Get currently selected class in JADX GUI
-
-**Android Analysis**
-- `get_app_manifest(page=1)` - Get Android manifest content
-- `get_main_activity(page=1)` - Get main activity source
-- `get_application(page=1)` - Get Android application class and information
-- `get_exported_components(component_types=None, regex=True, page=1)` - Get exported components with optional regex type filtering
-- `get_deep_links(page=1)` - Get app URL schemes and intent filters
-- `get_all_resources(page=1)` - List all resource file names (including resources.arsc sub-files)
-- `get_resource_file(resource_name, page=1)` - Get resource file content by name
-- `get_strings(page=1)` - Get strings.xml content from app resources
-- `get_dynamic_receivers(first=None, include_packages=None, exclude_packages=None, regex=True, page=1)` - Get dynamically registered BroadcastReceivers with package filters
-- `get_aidl(first=None, include_packages=None, exclude_packages=None, regex=True, page=1)` - Get AIDL interfaces and implementations with package filters
-- `get_system_service_impl(interface_name, page=1)` - Get system service implementations
-
-**System**
-- `health_check()` - Verify server connection status
-
-### Configuration
-
-**Port Configuration:**
-- **GUI**: DECX Server Status menu → Set new port → Auto-restart
-- **Plugin Options**: Set `decx.port` in JADX plugin options
-- **Default**: `25419` (Decx)
-
-**MCP Script Path:**
-- **GUI**: DECX Server Status menu → Browse and select custom script
-- **Plugin Options**: Set `decx.mcp_path` to custom script path
-- **Default**: Auto-extracted to `~/.decx/mcp/decx_mcp_server.py`
-
-**Companion Process Configuration:**
 ```bash
-# Auto-detected executor: uv, python3, or python
-# Auto-extracted scripts to ~/.decx/mcp/
-# Auto-started with correct DECX_URL and MCP_PORT
+jadx plugins --install-jar <path-to-jadx_decx_plugin.jar>
 ```
 
-**Cache Configuration:**
-DECX supports two cache modes for improved performance:
-- **disk** (default): Persists decompilation cache to disk (`~/.decx/cache/`)
-- **memory**: Keeps cache in memory only, suitable for small projects
+After installation, open an APK/JAR in JADX and enable DECX. The plugin exposes the DECX HTTP API and MCP tools for the currently opened JADX project.
 
-**Configuration:**
-- **Plugin Options**: Set `decx.cache` to `disk` or `memory`
-- **Default**: `disk` for better performance on subsequent runs
+---
 
-**Performance Optimization:**
-DECX includes automatic performance optimizations:
+## Usage
 
-**Decompiler Warmup:**
-- DECX automatically warms up the decompiler engine on startup
-- Filters out SDK packages (android.*, androidx.*, java.*, javax.*, kotlin.*)
-- Randomly samples up to 15,000 application classes
-- Ensures optimal performance for subsequent queries
+### CLI + Skills
 
-**Disk Caching:**
-- Decompiled code is cached to disk for faster retrieval
-- Cache persists across JADX sessions
-- Significantly reduces analysis time for large projects
+For agent-driven analysis, use the CLI to create a session and let the installed skills drive the detailed workflow:
 
-### Error Codes
+```bash
+decx process open target.apk --name target
+decx code all-classes --first 50
+decx code search-global "WebView" --max-results 20
+decx ard exported-components
+decx ard app-deeplinks
+decx process close target
+```
 
-DECX uses structured error codes for clear diagnostics:
+Typical skill sequence:
+
+- `decxcli` for exploration and evidence gathering
+- `decxcli-app-vulnhunt` or `decxcli-framework-vulnhunt` for focused vulnerability hunting
+- `decxcli-poc` for turning one confirmed finding into a buildable PoC
+
+Useful command groups:
+
+| Need | Commands |
+|---|---|
+| Session lifecycle | `decx process open <file>`, `decx process list`, `decx process check`, `decx process close [name]` |
+| Code analysis | `decx code all-classes`, `class-source`, `method-source`, `method-context`, `search-global`, `search-class`, `xref-method`, `xref-class`, `xref-field`, `implement`, `subclass` |
+| APK analysis | `decx ard app-manifest`, `main-activity`, `app-application`, `exported-components`, `app-deeplinks`, `app-receivers`, `get-aidl`, `all-resources`, `resource-file`, `strings` |
+| Framework analysis | `decx ard framework collect`, `process <oem>`, `run`, `open [jar]`, plus `system-service-impl <interface>` |
+| Live device helpers | `decx ard system-services`, `decx ard perm-info <permission>` |
+| CLI/server management | `decx self install`, `decx self update` |
+
+Notes:
+
+- Session-backed `code` and `ard` commands support `--page <n>` and can target a session with `-s, --session <name>` or a port with `-P, --port <port>`.
+- `decx process open <file>` passes standard `jadx-cli` flags through and enables `--show-bad-code` by default.
+- `system-services` and `perm-info` are adb-backed commands. They use `--serial` / `--adb-path`, not `-P <port>`.
+- `decx ard framework run` collects from the connected device, processes, packs, and opens the final framework JAR by default; `process <oem>` is for local framework dumps.
+
+### Plugin + MCP
+
+Use the plugin when you want the AI assistant to work against the project already opened in JADX GUI:
+
+1. Open the target APK/JAR in JADX.
+2. Enable the DECX plugin and confirm the server is available at `http://127.0.0.1:25419`.
+3. Connect your MCP client to DECX and call `health_check()`.
+4. Use MCP tools for code search/source/xrefs, Android manifest/resources/components, framework service lookup, and JADX GUI selections.
+
+All MCP tools support pagination with `page` where the returned content is large.
+
+Plugin options you may need:
+
+- `decx.port`: DECX HTTP server port, default `25419`
+- `decx.mcp_path`: custom MCP script path when you do not want the bundled script
+- `decx.cache`: `disk` or `memory`, default `disk`
+
+---
+
+## Error Codes
+
+DECX returns the same structured error format from plugin and standalone server modes:
 
 | Code | Description | HTTP Status |
 |------|-------------|-------------|
@@ -184,190 +164,40 @@ DECX uses structured error codes for clear diagnostics:
 
 ---
 
-## CLI
-
-DECX provides a TypeScript CLI for programmatic access to the analysis platform.
-
-**Installation:**
-
-```bash
-npm install -g @jygzyc/decx-cli
-```
-
-**Process Management:**
-- `decx process check` - Check DECX server status
-- `decx process open <file>` - Open and analyze a file (APK, DEX, JAR, etc.); defaults to `--show-bad-code`
-- `decx process close [name]` - Stop DECX server by session name
-- `decx process list` - List running processes
-
-**Code Analysis:**
-- `decx code all-classes` - Get classes (`--first`, `--include-package`, `--exclude-package`)
-- `decx code class-context <class>` - Get class information
-- `decx code class-source <class>` - Get class source code (`--smali` for Smali output)
-- `decx code search-global <keyword> --max-results <n>` - Search globally (`--first`, `--include-package`, `--exclude-package`, `--no-regex`, `--case-sensitive`)
-- `decx code search-class <class> <pattern> --max-results <n>` - Grep one class (`--no-regex`, `--case-sensitive`)
-- `decx code search-method <name>` - Find methods by name
-- `decx code method-source <signature>` - Get method source (`--smali` for Smali output)
-- `decx code method-context <signature>` - Get method signature, callers, and callees
-- `decx code method-cfg <signature>` - Get method control flow graph as DOT source
-- `decx code xref-method <signature>` - Find method callers
-- `decx code xref-class <class>` - Find class usages
-- `decx code xref-field <field>` - Find field usages
-- `decx code implement <interface>` - Find implementations
-- `decx code subclass <class>` - Find subclasses
-
-**Android Analysis:**
-- `decx ard app-manifest` - Get AndroidManifest.xml
-- `decx ard main-activity` - Get main activity name
-- `decx ard app-application` - Get Application class name
-- `decx ard exported-components [--type <pattern>] [--no-regex]` - List exported components with optional type filtering
-- `decx ard app-deeplinks` - List deep link schemes
-- `decx ard app-receivers [--first <n>] [--include-package <pattern>] [--exclude-package <pattern>] [--no-regex]` - List dynamic broadcast receivers with package filters
-- `decx ard system-service-impl <interface>` - Find system service implementations
-- `decx ard system-services [--serial <serial>] [--grep <keyword>]` - List live Android system services as structured JSON
-- `decx ard perm-info <permission> [--serial <serial>]` - Show structured Android permission details
-- `decx ard all-resources` - List all resource file names
-- `decx ard resource-file <res>` - Get resource file content by name
-- `decx ard strings` - Get strings.xml content
-- `decx ard get-aidl [--first <n>] [--include-package <pattern>] [--exclude-package <pattern>] [--no-regex]` - Get AIDL interfaces with package filters
-
-**Self Management:**
-- `decx self install` - Install or update decx-server.jar (`-p` for prerelease)
-- `decx self update` - Update decx-server.jar and the currently installed npm CLI package (`-p` affects the server JAR path only)
-
-All session-backed `code` and `ard` commands support `--page <n>` for pagination.
-The adb-backed `system-services` and `perm-info` commands use `--serial` / `--adb-path` instead of `-P <port>`.
-
-`system-services` returns structured JSON with `total` and `services[]`, where each service includes `index`, `name`, and `interfaces`.
-`perm-info` returns one parsed permission object with fields such as `permission`, `package`, `label`, `description`, and `protectionLevel`.
-
----
-
-## AI Agent Skills
-
-The `skill/` directory contains AI Agent skill definitions (SKILL.md), enabling AI assistants to perform automated Android analysis.
-
-### Available Skills
-
-| Skill | Description | Dependencies |
-|-------|-------------|--------------|
-| **decxcli** | General analysis: code navigation, xrefs, manifest/resources inspection | `decx` |
-| **decxcli-app-vulnhunt** | App vulnerability hunting: APK attack-surface enumeration, component/WebView/IPC tracing, exploitability triage, bilingual report generation (zh/en) | `decx` |
-| **decxcli-framework-vulnhunt** | Framework vulnerability hunting: Binder service enumeration, framework JAR tracing, permission-gate review, exploitability triage, bilingual report generation (zh/en) | `decx` |
-| **decxcli-poc** | PoC construction: finding normalization, exploit-class implementation, optional compile/deploy | `decx`, `node`, `unzip` |
-
-Skills are designed to work in sequence: `decxcli` (analysis) → `decxcli-app-vulnhunt` or `decxcli-framework-vulnhunt` (vulnerability hunting) → `decxcli-poc` (PoC construction).
-
-### Installation
-
-**Claude Code**
-```bash
-cp -r skill/decxcli ~/.claude/skills/
-cp -r skill/decxcli-app-vulnhunt ~/.claude/skills/
-cp -r skill/decxcli-framework-vulnhunt ~/.claude/skills/
-cp -r skill/decxcli-poc ~/.claude/skills/
-```
-
-**Cursor**
-```bash
-cp skill/decxcli/SKILL.md .cursor/rules/decxcli.md
-cp skill/decxcli-app-vulnhunt/SKILL.md .cursor/rules/decxcli-app-vulnhunt.md
-cp skill/decxcli-framework-vulnhunt/SKILL.md .cursor/rules/decxcli-framework-vulnhunt.md
-cp skill/decxcli-poc/SKILL.md .cursor/rules/decxcli-poc.md
-```
-
-**Cline**
-```bash
-cp skill/decxcli/SKILL.md .clinerules-decxcli
-cp skill/decxcli-app-vulnhunt/SKILL.md .clinerules-decxcli-app-vulnhunt
-cp skill/decxcli-framework-vulnhunt/SKILL.md .clinerules-decxcli-framework-vulnhunt
-cp skill/decxcli-poc/SKILL.md .clinerules-decxcli-poc
-```
-
-**Windsurf**
-```bash
-cp skill/decxcli/SKILL.md .windsurfrules-decxcli
-cp skill/decxcli-app-vulnhunt/SKILL.md .windsurfrules-decxcli-app-vulnhunt
-cp skill/decxcli-framework-vulnhunt/SKILL.md .windsurfrules-decxcli-framework-vulnhunt
-cp skill/decxcli-poc/SKILL.md .windsurfrules-decxcli-poc
-```
-
-Dependency: `decx` CLI installed (`npm install -g @jygzyc/decx-cli`).
-
----
-
 ## Development
 
-### Build from Source
+### Project Structure
+
+| Path | Role |
+|---|---|
+| `decx/decx-core/` | Shared Kotlin API, HTTP transport, models, services, and utilities |
+| `decx/decx-plugin/` | JADX GUI plugin and bundled MCP resources |
+| `decx/decx-server/` | Standalone headless server entry point and fat JAR packaging |
+| `cli/` | TypeScript CLI for sessions, code analysis, Android helpers, framework processing, and self-management |
+| `skills/` | AI agent skills for DECX analysis, app/framework vulnerability hunting, and PoC construction |
+
+Core request path:
+
+```text
+CLI / MCP / HTTP
+  -> DecxServer / RouteHandler
+  -> DecxApi / DecxApiImpl
+  -> service/* and utils/*
+```
+
+### Build
 
 ```bash
-# Build DECX Core
 cd decx
-chmod +x gradlew
 ./gradlew dist
 
-# Build CLI
-cd cli
+cd ../cli
 npm install
 npm run build
+npm test
 ```
 
-### Adding Custom Features
-
-Decx's architecture consists of three layers: `DecxApi` interface definition → `DecxApiImpl` implementation → `RouteHandler` HTTP routing.
-
-**1. Add method in `DecxApi` interface**
-
-File: `decx/decx-core/src/main/kotlin/jadx/plugins/decx/api/DecxApi.kt`
-
-```kotlin
-interface DecxApi {
-    // ... existing methods ...
-
-    fun doSomething(param: String): DecxApiResult
-}
-```
-
-**2. Implement method in `DecxApiImpl`**
-
-File: `decx/decx-core/src/main/kotlin/jadx/plugins/decx/api/DecxApiImpl.kt`
-
-```kotlin
-override fun doSomething(param: String): DecxApiResult {
-    val result = // business logic
-    return DecxApiResult.ok(mapOf("data" to result))
-}
-```
-
-**3. Register route in `DecxRoutes`**
-
-File: `decx/decx-core/src/main/kotlin/jadx/plugins/decx/api/DecxApiContract.kt`
-
-```kotlin
-DecxRoute("/api/decx/do_something", "do_something") { api, params ->
-    api.doSomething(params.requireString("param"))
-}
-```
-
-### Troubleshooting
-
-**Companion Process Issues:**
-- **Check logs**: Look for `[MCP]` messages in DECX logs
-- **Verify Python**: Ensure Python 3.10+ or `uv` is installed
-- **Check dependencies**: Plugin auto-checks for `requests`, `fastmcp`, `pydantic`
-- **Manual path**: Configure custom script path via GUI if needed
-
-**Connection Issues:**
-- Use `health_check()` to verify both servers are running
-- Check port conflicts: `lsof -i :25419`
-- Verify firewall allows localhost connections
-
-**Common Errors:**
-- **INTERNAL_ERROR**: Check DECX logs for internal server errors
-- **HEALTH_CHECK_FAILED**: Ensure DECX plugin is enabled and loaded
-- **INVALID_PARAMETER**: Check parameter format and values
-
-## Contributing
+### Contributing
 
 1. Fork this repository
 2. Create a feature branch
