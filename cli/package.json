@@ -1,6 +1,6 @@
 {
   "name": "@jygzyc/decx-cli",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "DECX CLI - Decompiler + X",
   "type": "module",
   "bin": {

@@ -126,7 +126,7 @@ export async function openAnalysisTarget(
   });
 
   const session = await mgr.createSession(fileName, fileHash, resolvedFile, proc.pid, port);
-  const timeout = 120;
+  const timeout = 300; // seconds
   const ready = await waitForServer(port, timeout, logPath, () => processExited);
   if (ready) {
     logCliEvent({ command: "process", action: "open", session: session.name, pid: proc.pid, port, file: resolvedFile });
