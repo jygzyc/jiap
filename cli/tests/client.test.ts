@@ -48,7 +48,7 @@ describe("DecxClient", () => {
     it("has all expected methods", () => {
       const methods = [
         "healthCheck", "isHealthy",
-        "getAllClasses", "searchGlobalKey", "getClassContext", "getClassSource",
+        "getClasses", "searchGlobalKey", "getClassContext", "getClassSource",
         "searchClassKey", "searchMethod",
         "getMethodSource", "getMethodContext", "getMethodCfg",
         "getMethodXref", "getFieldXref", "getClassXref",

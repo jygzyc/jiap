@@ -7,6 +7,7 @@ import jadx.core.dex.instructions.InvokeNode
 import jadx.core.dex.nodes.MethodNode
 import jadx.core.dex.visitors.DotGraphVisitor
 import jadx.plugins.decx.api.DecxApiResult
+import jadx.plugins.decx.api.DecxFilter
 import jadx.plugins.decx.api.DecxKind
 import jadx.plugins.decx.model.DecxError
 import jadx.plugins.decx.model.DecxServiceInterface
@@ -164,21 +165,30 @@ class ContextService(override val decompiler: JadxDecompiler) : DecxServiceInter
         }
     }
 
-    /** Returns full class source in Java or smali form. */
-    fun handleGetClassSource(cls: String, smali: Boolean): DecxApiResult {
-        val query = mapOf("target" to cls, "smali" to smali)
+    /** Returns class source in Java or smali form. */
+    fun handleGetClassSource(cls: String, smali: Boolean, filter: DecxFilter): DecxApiResult {
+        val query = mapOf("target" to cls, "smali" to smali) + filter.toQuery()
         return try {
             val clazz = decompiler.classesWithInners.find { it.fullName == cls }
                 ?: return DecxApiResult.fail( AnalysisResultUtils.error(DecxKind.CLASS_SOURCE, query, DecxError.CLASS_NOT_FOUND, cls))
             clazz.decompile()
-            val code = if (smali) clazz.smali else clazz.code
+            val code = (if (smali) clazz.smali else clazz.code) ?: ""
+            val lines = code.lines()
+            val returnedLineCount = filter.first?.coerceAtMost(lines.size) ?: lines.size
+            val limitedCode = filter.first?.let { first ->
+                lines.take(first).joinToString("\n")
+            } ?: code
             val items = listOf(
                 AnalysisResultUtils.item(
                     id = cls,
                     kind = ItemKind.CODE,
                     title = cls,
-                    content = code ?: "",
-                    meta = mapOf("language" to if (smali) "smali" else "java")
+                    content = limitedCode,
+                    meta = mapOf(
+                        "language" to if (smali) "smali" else "java",
+                        "total_lines" to lines.size,
+                        "returned_lines" to returnedLineCount
+                    )
                 )
             )
             DecxApiResult.ok(AnalysisResultUtils.success(DecxKind.CLASS_SOURCE, query, items))

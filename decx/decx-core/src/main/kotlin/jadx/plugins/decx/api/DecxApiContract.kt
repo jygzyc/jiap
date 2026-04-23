@@ -1,7 +1,7 @@
 package jadx.plugins.decx.api
 
 object DecxKind {
-    const val ALL_CLASSES = "all_classes"
+    const val CLASSES = "classes"
     const val SEARCH_GLOBAL = "search_global"
     const val CLASS_CONTEXT = "class_context"
     const val CLASS_SOURCE = "class_source"
@@ -38,13 +38,13 @@ data class DecxRoute(
 
 object DecxRoutes {
     val all = listOf(
-        DecxRoute("/api/decx/get_all_classes", DecxKind.ALL_CLASSES) { api, params -> api.getClasses(params.filter()) },
+        DecxRoute("/api/decx/get_classes", DecxKind.CLASSES) { api, params -> api.getClasses(params.filter()) },
         DecxRoute("/api/decx/search_global_key", DecxKind.SEARCH_GLOBAL) { api, params ->
             api.searchGlobalKey(params.string("key"), params.search())
         },
         DecxRoute("/api/decx/get_class_context", DecxKind.CLASS_CONTEXT) { api, params -> api.getClassContext(params.string("cls")) },
         DecxRoute("/api/decx/get_class_source", DecxKind.CLASS_SOURCE) { api, params ->
-            api.getClassSource(params.string("cls"), params.boolean("smali"))
+            api.getClassSource(params.string("cls"), params.boolean("smali"), params.filter())
         },
         DecxRoute("/api/decx/search_class_key", DecxKind.SEARCH_CLASS) { api, params ->
             api.searchClassKey(params.string("cls"), params.string("key"), params.grep())
@@ -67,7 +67,7 @@ object DecxRoutes {
         DecxRoute("/api/decx/get_exported_components", DecxKind.EXPORTED_COMPONENTS) { api, params -> api.getExportedComponents(params.exported()) },
         DecxRoute("/api/decx/get_deep_links", DecxKind.DEEP_LINKS) { api, _ -> api.getDeepLinks() },
         DecxRoute("/api/decx/get_dynamic_receivers", DecxKind.DYNAMIC_RECEIVERS) { api, params -> api.getDynamicReceivers(params.filter()) },
-        DecxRoute("/api/decx/get_all_resources", DecxKind.ALL_RESOURCES) { api, _ -> api.getAllResources() },
+        DecxRoute("/api/decx/get_all_resources", DecxKind.ALL_RESOURCES) { api, params -> api.getAllResources(params.filter()) },
         DecxRoute("/api/decx/get_resource_file", DecxKind.RESOURCE_FILE) { api, params -> api.getResourceFile(params.string("res")) },
         DecxRoute("/api/decx/get_strings", DecxKind.STRINGS) { api, _ -> api.getStrings() },
         DecxRoute("/api/decx/get_system_service_impl", DecxKind.SYSTEM_SERVICE_IMPL) { api, params ->

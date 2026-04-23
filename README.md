@@ -77,11 +77,12 @@ For agent-driven analysis, use the CLI to create a session and let the installed
 
 ```bash
 decx process open target.apk --name target
-decx code all-classes --first 50
+decx code classes --first 50
 decx code search-global "WebView" --max-results 20
 decx ard exported-components
 decx ard app-deeplinks
 decx process close target
+decx process close --port 25419
 ```
 
 Typical skill sequence:
@@ -94,8 +95,8 @@ Useful command groups:
 
 | Need | Commands |
 |---|---|
-| Session lifecycle | `decx process open <file>`, `decx process list`, `decx process check`, `decx process close [name]` |
-| Code analysis | `decx code all-classes`, `class-source`, `method-source`, `method-context`, `search-global`, `search-class`, `xref-method`, `xref-class`, `xref-field`, `implement`, `subclass` |
+| Session lifecycle | `decx process open <file>`, `decx process list`, `decx process check`, `decx process close [name] [--port <port>]` |
+| Code analysis | `decx code classes`, `class-source`, `method-source`, `method-context`, `search-global`, `search-class`, `xref-method`, `xref-class`, `xref-field`, `implement`, `subclass` |
 | APK analysis | `decx ard app-manifest`, `main-activity`, `app-application`, `exported-components`, `app-deeplinks`, `app-receivers`, `get-aidl`, `all-resources`, `resource-file`, `strings` |
 | Framework analysis | `decx ard framework collect`, `process <oem>`, `run`, `open [jar]`, plus `system-service-impl <interface>` |
 | Live device helpers | `decx ard system-services`, `decx ard perm-info <permission>` |
@@ -104,7 +105,9 @@ Useful command groups:
 Notes:
 
 - Session-backed `code` and `ard` commands support `--page <n>` and can target a session with `-s, --session <name>` or a port with `-P, --port <port>`.
+- `decx code class-source` supports `--first <n>` to return only the first N source lines.
 - `decx process open <file>` passes standard `jadx-cli` flags through and enables `--show-bad-code` by default.
+- `decx ard all-resources` supports file-name filtering with `--include` and `--no-regex`.
 - `system-services` and `perm-info` are adb-backed commands. They use `--serial` / `--adb-path`, not `-P <port>`.
 - `decx ard framework run` collects from the connected device, processes, packs, and opens the final framework JAR by default; `process <oem>` is for local framework dumps.
 

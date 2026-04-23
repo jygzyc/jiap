@@ -81,11 +81,12 @@ describe("process command structure", () => {
   // ── close ────────────────────────────────────────────────────────────────
 
   describe("close", () => {
-    it("has optional [name] argument and --all option", () => {
+    it("has optional [name] argument, --port option, and --all option", () => {
       const close = findCommand(processCmd, ["close"])!;
       expect(close.registeredArguments.length).toBeGreaterThanOrEqual(1);
       const flags = getOptionFlags(close);
       expect(flags.some(f => f.includes("--all"))).toBe(true);
+      expect(flags.some(f => f.includes("--port"))).toBe(true);
     });
   });
 

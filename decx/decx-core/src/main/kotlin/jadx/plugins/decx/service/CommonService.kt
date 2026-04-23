@@ -18,7 +18,7 @@ class CommonService(override val decompiler: JadxDecompiler) : DecxServiceInterf
         val query = filter.toQuery()
         return try {
             val compiled = filter.compile()
-                ?: return DecxApiResult.fail(AnalysisResultUtils.error(DecxKind.ALL_CLASSES, query, DecxError.INVALID_PARAMETER, "invalid filter regex"))
+                ?: return DecxApiResult.fail(AnalysisResultUtils.error(DecxKind.CLASSES, query, DecxError.INVALID_PARAMETER, "invalid filter regex"))
             val classes = decompiler.classesWithInners
                 .map { it.fullName }
                 .filter { className -> compiled.matches(className) }
@@ -31,9 +31,9 @@ class CommonService(override val decompiler: JadxDecompiler) : DecxServiceInterf
                     content = cls
                 )
             }
-            DecxApiResult.ok(AnalysisResultUtils.success(DecxKind.ALL_CLASSES, query, items))
+            DecxApiResult.ok(AnalysisResultUtils.success(DecxKind.CLASSES, query, items))
         } catch (e: Exception) {
-            DecxApiResult.fail(AnalysisResultUtils.error(DecxKind.ALL_CLASSES, query, DecxError.SERVER_INTERNAL_ERROR, e.message ?: "unknown"))
+            DecxApiResult.fail(AnalysisResultUtils.error(DecxKind.CLASSES, query, DecxError.SERVER_INTERNAL_ERROR, e.message ?: "unknown"))
         }
     }
 

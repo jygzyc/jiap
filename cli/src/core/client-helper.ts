@@ -2,6 +2,7 @@
  * Shared client resolution helper for commands.
  */
 
+import type { Command } from "commander";
 import { DecxClient } from "./client.js";
 import { Formatter } from "../utils/formatter.js";
 import { Manager } from "./config.js";
@@ -51,4 +52,11 @@ export function resolveClient(
   }).catch(() => {});
 
   return { fmt, client };
+}
+
+export function resolveCommandClient(
+  opts: Record<string, unknown>,
+  command: Command,
+): { fmt: Formatter; client: DecxClient } {
+  return resolveClient({ ...command.optsWithGlobals(), ...opts });
 }

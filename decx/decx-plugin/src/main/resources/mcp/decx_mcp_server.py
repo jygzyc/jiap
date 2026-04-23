@@ -58,10 +58,10 @@ async def request_to_decx(
 
 # Basic JADX endpoints
 @mcp.tool(
-    name="get_all_classes",
+    name="get_classes",
     description="List all decompiled classes. Retrieve complete class list from project.",
 )
-async def get_all_classes(
+async def get_classes(
     first: Optional[int] = Field(
         None,
         description="Return only the first N classes after package filtering",
@@ -86,17 +86,21 @@ async def get_all_classes(
     if not regex:
         filter_options["regex"] = False
     return await request_to_decx(
-        "get_all_classes", json_data={"filter": filter_options}, page=page
+        "get_classes", json_data={"filter": filter_options}, page=page
     )
 
 
 @mcp.tool(
     name="get_class_source",
-    description="Get class source code. View Java or Smali decompiled class implementation.",
+    description="Get class source code. View Java or Smali decompiled class implementation, optionally limited to the first N lines.",
 )
 async def get_class_source(
     class_name: str = Field(
         description="Full class name (e.g., com.example.Myclass$Innerclass)"
+    ),
+    first: Optional[int] = Field(
+        None,
+        description="Return only the first N source lines",
     ),
     smali: bool = Field(
         False,
@@ -104,8 +108,13 @@ async def get_class_source(
     ),
     page: int = Field(1, description="Page number for pagination (default: 1)"),
 ) -> ToolResult:
+    filter_options = {}
+    if first is not None:
+        filter_options["first"] = first
     return await request_to_decx(
-        "get_class_source", json_data={"cls": class_name, "smali": smali}, page=page
+        "get_class_source",
+        json_data={"cls": class_name, "smali": smali, "filter": filter_options},
+        page=page,
     )
 
 
@@ -470,12 +479,24 @@ async def get_system_service_impl(
 # Resource Analysis endpoints
 @mcp.tool(
     name="get_all_resources",
-    description="List all resource files. Get all resource file names including resources.arsc sub-files.",
+    description="List resource file names including resources.arsc sub-files. Supports file name include filters.",
 )
 async def get_all_resources(
+    includes: Optional[list[str]] = Field(
+        None,
+        description="Only include resource file names matching these patterns",
+    ),
+    regex: bool = Field(True, description="Treat filter values as regular expressions"),
     page: int = Field(1, description="Page number for pagination (default: 1)"),
 ) -> ToolResult:
-    return await request_to_decx("get_all_resources", page=page)
+    filter_options = {
+        "includes": includes or [],
+    }
+    if not regex:
+        filter_options["regex"] = False
+    return await request_to_decx(
+        "get_all_resources", json_data={"filter": filter_options}, page=page
+    )
 
 
 @mcp.tool(

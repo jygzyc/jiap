@@ -28,7 +28,7 @@ decx <command> [options]
 ```bash
 decx process check               # Check environment status
 decx process open <file> [options] # Open and analyze a file (APK, DEX, JAR, etc.)
-decx process close [name] [--all]  # Stop session
+decx process close [name] [--port <port>] [--all]  # Stop session
 decx process list                  # List running sessions
 decx process status [name]         # Check server status
 ```
@@ -62,7 +62,7 @@ decx ard app-receivers [--first <n>] [--include-package <pattern>] [--exclude-pa
 decx ard system-service-impl <interface> # Find system service implementations
 decx ard system-services [--serial <serial>] [--grep <kw>] # List Android system services as structured JSON
 decx ard perm-info <permission> [--serial <serial>]        # Show structured permission details
-decx ard all-resources                   # List all resource file names
+decx ard all-resources [--include <pattern>] [--no-regex] # List resource file names
 decx ard resource-file <res>             # Get resource file content
 decx ard strings                         # Get strings.xml content
 decx ard get-aidl [--first <n>] [--include-package <pattern>] [--exclude-package <pattern>] [--no-regex] # Get AIDL interfaces
@@ -134,6 +134,7 @@ decx ard framework open
 decx ard framework open ~/.decx/output/framework/google/framework_google_pixel.jar
 decx process list
 decx process close framework_google_pixel
+decx process close --port 25419
 ```
 
 **Common framework options:**
@@ -196,9 +197,9 @@ Artifact segments are resolved like this:
 ### code
 
 ```bash
-decx code all-classes                    # Get classes; supports --include-package/--exclude-package
+decx code classes                    # Get classes; supports --include-package/--exclude-package
 decx code class-context <class>          # Get class information
-decx code class-source <class>           # Get class source code (--smali for Smali)
+decx code class-source <class> [--first <n>] # Get class source code (--smali for Smali)
 decx code method-source <sig>            # Get method source (--smali for Smali)
 decx code method-context <sig>           # Get method signature, callers, and callees
 decx code method-cfg <sig>               # Get method control flow graph as DOT source

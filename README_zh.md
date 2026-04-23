@@ -77,11 +77,12 @@ Agent 驱动分析时，先用 CLI 创建会话，再让已安装技能接管具
 
 ```bash
 decx process open target.apk --name target
-decx code all-classes --first 50
+decx code classes --first 50
 decx code search-global "WebView" --max-results 20
 decx ard exported-components
 decx ard app-deeplinks
 decx process close target
+decx process close --port 25419
 ```
 
 典型技能顺序：
@@ -94,8 +95,8 @@ decx process close target
 
 | 需求 | 命令 |
 |---|---|
-| 会话管理 | `decx process open <file>`、`decx process list`、`decx process check`、`decx process close [name]` |
-| 代码分析 | `decx code all-classes`、`class-source`、`method-source`、`method-context`、`search-global`、`search-class`、`xref-method`、`xref-class`、`xref-field`、`implement`、`subclass` |
+| 会话管理 | `decx process open <file>`、`decx process list`、`decx process check`、`decx process close [name] [--port <port>]` |
+| 代码分析 | `decx code classes`、`class-source`、`method-source`、`method-context`、`search-global`、`search-class`、`xref-method`、`xref-class`、`xref-field`、`implement`、`subclass` |
 | APK 分析 | `decx ard app-manifest`、`main-activity`、`app-application`、`exported-components`、`app-deeplinks`、`app-receivers`、`get-aidl`、`all-resources`、`resource-file`、`strings` |
 | Framework 分析 | `decx ard framework collect`、`process <oem>`、`run`、`open [jar]`，以及 `system-service-impl <interface>` |
 | 设备辅助 | `decx ard system-services`、`decx ard perm-info <permission>` |
@@ -104,7 +105,9 @@ decx process close target
 注意：
 
 - 基于会话的 `code` 和 `ard` 命令支持 `--page <n>`，也可用 `-s, --session <name>` 或 `-P, --port <port>` 指向指定会话。
+- `decx code class-source` 支持用 `--first <n>` 只返回源码前 N 行。
 - `decx process open <file>` 会透传标准 `jadx-cli` 参数，并默认启用 `--show-bad-code`。
+- `decx ard all-resources` 支持用 `--include`、`--no-regex` 按文件名过滤。
 - `system-services` 和 `perm-info` 是 adb 命令，使用 `--serial` / `--adb-path`，不使用 `-P <port>`。
 - `decx ard framework run` 默认从已连接设备收集、处理、打包并打开最终 framework JAR；`process <oem>` 用于处理本地 framework dump。
 

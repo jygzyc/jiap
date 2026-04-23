@@ -112,12 +112,12 @@ describe("DECX API integration (Sieve APK)", () => {
     // ── CommonService ──────────────────────────────────────────────────
 
     describe("CommonService", () => {
-        // getAllClasses
-        describe("getAllClasses", () => {
+        // getClasses
+        describe("getClasses", () => {
             beforeAll(() => {
-                mockResponse("/api/decx/get_all_classes", {
+                mockResponse("/api/decx/get_classes", {
                     ok: true,
-                    kind: "all_classes",
+                    kind: "classes",
                     query: { includes: ["com.withsecure.example.sieve"] },
                     summary: { total: 6588, returned: 5, truncated: true },
                     items: [
@@ -133,11 +133,11 @@ describe("DECX API integration (Sieve APK)", () => {
             });
 
             it("returns success envelope with items array", async () => {
-                const res = await client.getAllClasses({
+                const res = await client.getClasses({
                     filter: { includes: [], excludes: [] },
                 });
                 expectSuccessEnvelope(res);
-                expect(res.kind).toBe("all_classes");
+                expect(res.kind).toBe("classes");
                 expectItemShape(res.items as unknown[]);
             });
         });
@@ -213,7 +213,7 @@ describe("DECX API integration (Sieve APK)", () => {
                     query: { target: "com.withsecure.example.sieve.activity.WelcomeActivity", smali: false },
                     summary: { total: 1, returned: 1, truncated: false },
                     items: [
-                        { id: "com.withsecure.example.sieve.activity.WelcomeActivity", kind: "code", title: "com.withsecure.example.sieve.activity.WelcomeActivity", content: "package com.withsecure.example.sieve.activity;\n\npublic class WelcomeActivity extends Activity { }", meta: { language: "java" } },
+                        { id: "com.withsecure.example.sieve.activity.WelcomeActivity", kind: "code", title: "com.withsecure.example.sieve.activity.WelcomeActivity", content: "package com.withsecure.example.sieve.activity;\n\npublic class WelcomeActivity extends Activity { }", meta: { language: "java", total_lines: 3, returned_lines: 3 } },
                     ],
                     page: { index: 1, size: 1, has_next: false },
                 });
@@ -221,7 +221,11 @@ describe("DECX API integration (Sieve APK)", () => {
             });
 
             it("returns success envelope with code item", async () => {
-                const res = await client.getClassSource("com.withsecure.example.sieve.activity.WelcomeActivity");
+                const res = await client.getClassSource(
+                    "com.withsecure.example.sieve.activity.WelcomeActivity",
+                    false,
+                    { filter: { first: 120 } },
+                );
                 expectSuccessEnvelope(res);
                 expect(res.kind).toBe("class_source");
                 const items = res.items as Record<string, unknown>[];
@@ -684,7 +688,9 @@ describe("DECX API integration (Sieve APK)", () => {
             });
 
             it("returns success envelope with resource items", async () => {
-                const res = await client.getAllResources();
+                const res = await client.getAllResources({
+                    filter: { includes: ["res/layout"], regex: false },
+                });
                 expectSuccessEnvelope(res);
                 expect(res.kind).toBe("all_resources");
             });

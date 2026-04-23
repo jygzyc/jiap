@@ -28,6 +28,8 @@ Default ceiling:
 - Keep exactly one active finding in context.
 - Re-verify the finding in DECX before coding.
 - Every `decx code` and `decx ard` command must include `-P <port>`.
+- If a command is missing, rejected, or uncertain, run the nearest `--help` command before retrying.
+- Before final response, close any DECX session used for PoC work with `decx process close <session-name>` or `decx process close --port <port>`.
 - If the DECX session is not open, tell the user to run:
 
 ```bash
@@ -101,6 +103,7 @@ PoC Progress
 - [ ] Register exploit and wire support
 - [ ] Optional compile
 - [ ] Optional deploy and runtime check
+- [ ] Close DECX session
 ```
 
 ### 1. Normalize One Finding
@@ -282,6 +285,16 @@ Runtime proof must name the exact observed effect, for example:
 - privileged Binder method accepted the call
 - victim WebView loaded attacker content and exposed bridge behavior
 - browser-clicked trigger launched the PoC helper and reached the verified target path
+
+### 10. Close DECX Session
+
+Always close the DECX session used for re-verification before the final response:
+
+```bash
+decx process close --port <port>
+```
+
+If the session was opened by name, close it by name instead.
 
 ## Final Output Contract
 
