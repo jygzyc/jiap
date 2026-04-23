@@ -36,7 +36,7 @@ If exploitation can only crash the service, do not report it.
    -> identify entry methods
 3. decx code class-source "<ServiceClass>" -P <port>
    -> inspect onStartCommand / onHandleIntent
-4. decx code search-class "<ServiceClass>" "exec|Runtime|ProcessBuilder|startActivity|sendBroadcast" --max-results 20 -P <port>
+4. decx code search-class "<ServiceClass>" "exec|Runtime|ProcessBuilder|startActivity|sendBroadcast" --limit 20 -P <port>
    -> locate all dangerous sink calls in one shot
 5. decx code method-context "<entryMethod>" -P <port>
    -> callees reveal all downstream dangerous sinks

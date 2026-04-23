@@ -174,9 +174,9 @@ class ContextService(override val decompiler: JadxDecompiler) : DecxServiceInter
             clazz.decompile()
             val code = (if (smali) clazz.smali else clazz.code) ?: ""
             val lines = code.lines()
-            val returnedLineCount = filter.first?.coerceAtMost(lines.size) ?: lines.size
-            val limitedCode = filter.first?.let { first ->
-                lines.take(first).joinToString("\n")
+            val returnedLineCount = filter.limit?.coerceAtMost(lines.size) ?: lines.size
+            val limitedCode = filter.limit?.let { limit ->
+                lines.take(limit).joinToString("\n")
             } ?: code
             val items = listOf(
                 AnalysisResultUtils.item(

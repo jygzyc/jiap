@@ -62,9 +62,9 @@ async def request_to_decx(
     description="List all decompiled classes. Retrieve complete class list from project.",
 )
 async def get_classes(
-    first: Optional[int] = Field(
+    limit: Optional[int] = Field(
         None,
-        description="Return only the first N classes after package filtering",
+        description="Limit returned classes after package filtering",
     ),
     include_packages: Optional[list[str]] = Field(
         None,
@@ -81,8 +81,8 @@ async def get_classes(
         "includes": include_packages or [],
         "excludes": exclude_packages or [],
     }
-    if first is not None:
-        filter_options["first"] = first
+    if limit is not None:
+        filter_options["limit"] = limit
     if not regex:
         filter_options["regex"] = False
     return await request_to_decx(
@@ -92,15 +92,15 @@ async def get_classes(
 
 @mcp.tool(
     name="get_class_source",
-    description="Get class source code. View Java or Smali decompiled class implementation, optionally limited to the first N lines.",
+    description="Get class source code. View Java or Smali decompiled class implementation, optionally limited to N lines.",
 )
 async def get_class_source(
     class_name: str = Field(
         description="Full class name (e.g., com.example.Myclass$Innerclass)"
     ),
-    first: Optional[int] = Field(
+    limit: Optional[int] = Field(
         None,
-        description="Return only the first N source lines",
+        description="Limit returned source lines",
     ),
     smali: bool = Field(
         False,
@@ -109,8 +109,8 @@ async def get_class_source(
     page: int = Field(1, description="Page number for pagination (default: 1)"),
 ) -> ToolResult:
     filter_options = {}
-    if first is not None:
-        filter_options["first"] = first
+    if limit is not None:
+        filter_options["limit"] = limit
     return await request_to_decx(
         "get_class_source",
         json_data={"cls": class_name, "smali": smali, "filter": filter_options},
@@ -138,13 +138,13 @@ async def search_method(
 async def search_class_key(
     class_name: str = Field(description="Full class name to grep"),
     key: str = Field(description="Regular expression to search within the class"),
-    max_results: int = Field(description="Maximum returned grep line results"),
+    limit: int = Field(description="Limit returned grep line results"),
     case_sensitive: bool = Field(False, description="Use case-sensitive matching"),
     regex: bool = Field(True, description="Treat key as a regular expression"),
     page: int = Field(1, description="Page number for pagination (default: 1)"),
 ) -> ToolResult:
     grep = {
-        "maxResults": max_results,
+        "limit": limit,
         "caseSensitive": case_sensitive,
         "regex": regex,
     }
@@ -162,11 +162,10 @@ async def search_class_key(
 )
 async def search_global_key(
     key: str = Field(description="Keyword to search globally"),
-    first: Optional[int] = Field(
+    limit: Optional[int] = Field(
         None,
-        description="Search only the first N candidates after package filtering",
+        description="Limit returned matching results",
     ),
-    max_results: int = Field(description="Maximum returned search results"),
     include_packages: Optional[list[str]] = Field(
         None,
         description="Only search classes and methods under these Java packages",
@@ -180,14 +179,13 @@ async def search_global_key(
     page: int = Field(1, description="Page number for pagination (default: 1)"),
 ) -> ToolResult:
     search = {
-        "maxResults": max_results,
         "includes": include_packages or [],
         "excludes": exclude_packages or [],
         "caseSensitive": case_sensitive,
         "regex": regex,
     }
-    if first is not None:
-        search["first"] = first
+    if limit is not None:
+        search["limit"] = limit
     payload = {
         "key": key,
         "search": search,
@@ -365,9 +363,9 @@ async def selected_class(
     description="Get AIDL interfaces. Supports package include/exclude filters.",
 )
 async def get_aidl(
-    first: Optional[int] = Field(
+    limit: Optional[int] = Field(
         None,
-        description="Return only the first N AIDL interfaces after package filtering",
+        description="Limit returned AIDL interfaces after package filtering",
     ),
     include_packages: Optional[list[str]] = Field(
         None,
@@ -384,8 +382,8 @@ async def get_aidl(
         "includes": include_packages or [],
         "excludes": exclude_packages or [],
     }
-    if first is not None:
-        filter_options["first"] = first
+    if limit is not None:
+        filter_options["limit"] = limit
     if not regex:
         filter_options["regex"] = False
     return await request_to_decx("get_aidl", json_data={"filter": filter_options}, page=page)
@@ -525,9 +523,9 @@ async def get_strings(
     description="Get dynamically registered BroadcastReceivers. Supports package include/exclude filters.",
 )
 async def get_dynamic_receivers(
-    first: Optional[int] = Field(
+    limit: Optional[int] = Field(
         None,
-        description="Search only the first N classes after package filtering",
+        description="Limit scanned classes after package filtering",
     ),
     include_packages: Optional[list[str]] = Field(
         None,
@@ -544,8 +542,8 @@ async def get_dynamic_receivers(
         "includes": include_packages or [],
         "excludes": exclude_packages or [],
     }
-    if first is not None:
-        filter_options["first"] = first
+    if limit is not None:
+        filter_options["limit"] = limit
     if not regex:
         filter_options["regex"] = False
     return await request_to_decx("get_dynamic_receivers", json_data={"filter": filter_options}, page=page)

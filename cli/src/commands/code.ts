@@ -10,7 +10,7 @@ function collectOption(value: string, previous: string[]): string[] {
 
 function addPackageFilterOptions(cmd: Command): Command {
   return cmd
-    .option("--first <n>", "Search only the first N candidates after package filtering")
+    .option("--limit <n>", "Limit returned results")
     .option("--include-package <name>", "Only search classes and methods in this package", collectOption, [])
     .option("--exclude-package <name>", "Exclude classes and methods in this package", collectOption, [])
     .option("--no-regex", "Treat filter values as literal text");
@@ -18,13 +18,12 @@ function addPackageFilterOptions(cmd: Command): Command {
 
 function addGlobalSearchOptions(cmd: Command): Command {
   return addPackageFilterOptions(cmd)
-    .requiredOption("--max-results <n>", "Maximum returned search results")
     .option("--case-sensitive", "Use case-sensitive matching");
 }
 
 function addClassGrepOptions(cmd: Command): Command {
   return cmd
-    .requiredOption("--max-results <n>", "Maximum returned grep results")
+    .requiredOption("--limit <n>", "Limit returned grep results")
     .option("--case-sensitive", "Use case-sensitive matching")
     .option("--no-regex", "Treat the keyword as literal text");
 }
@@ -32,7 +31,7 @@ function addClassGrepOptions(cmd: Command): Command {
 function parseClassFilterOptions(opts: Record<string, unknown>): ClassFilterOptions {
   return {
     filter: {
-      ...(opts.first ? { first: parseInt(String(opts.first), 10) } : {}),
+      ...(opts.limit ? { limit: parseInt(String(opts.limit), 10) } : {}),
       includes: Array.isArray(opts.includePackage) ? opts.includePackage.map(String) : [],
       excludes: Array.isArray(opts.excludePackage) ? opts.excludePackage.map(String) : [],
       ...(opts.regex === false ? { regex: false } : {}),
@@ -43,8 +42,7 @@ function parseClassFilterOptions(opts: Record<string, unknown>): ClassFilterOpti
 function parseGlobalSearchOptions(opts: Record<string, unknown>): GlobalSearchOptions {
   return {
     search: {
-      ...(opts.first ? { first: parseInt(String(opts.first), 10) } : {}),
-      maxResults: parseInt(String(opts.maxResults), 10),
+      ...(opts.limit ? { limit: parseInt(String(opts.limit), 10) } : {}),
       includes: Array.isArray(opts.includePackage) ? opts.includePackage.map(String) : [],
       excludes: Array.isArray(opts.excludePackage) ? opts.excludePackage.map(String) : [],
       caseSensitive: opts.caseSensitive === true,
@@ -56,7 +54,7 @@ function parseGlobalSearchOptions(opts: Record<string, unknown>): GlobalSearchOp
 function parseClassGrepOptions(opts: Record<string, unknown>): ClassGrepOptions {
   return {
     grep: {
-      maxResults: parseInt(String(opts.maxResults), 10),
+      limit: parseInt(String(opts.limit), 10),
       caseSensitive: opts.caseSensitive === true,
       regex: opts.regex !== false,
     },
@@ -66,7 +64,7 @@ function parseClassGrepOptions(opts: Record<string, unknown>): ClassGrepOptions 
 function parseSourceFilterOptions(opts: Record<string, unknown>): SourceFilterOptions {
   return {
     filter: {
-      ...(opts.first ? { first: parseInt(String(opts.first), 10) } : {}),
+      ...(opts.limit ? { limit: parseInt(String(opts.limit), 10) } : {}),
     },
   };
 }
@@ -110,7 +108,7 @@ export function makeCodeCommand(): Command {
   cmd
     .command("class-source <class>")
     .description("Get class source code")
-    .option("--first <n>", "Return only the first N source lines")
+    .option("--limit <n>", "Limit returned source lines")
     .option("--smali", "Output in smali format")
     .option("--page <n>", "Page number", String)
     .action(withErrorHandler(async (className: string, opts, command) => {

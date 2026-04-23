@@ -162,7 +162,7 @@ describe("DECX API integration (Sieve APK)", () => {
             it("returns success envelope with class items", async () => {
                 const res = await client.searchGlobalKey("Crypto", {
                     search: {
-                        maxResults: 20,
+                        limit: 20,
                         includes: [],
                         excludes: [],
                         caseSensitive: false,
@@ -224,7 +224,7 @@ describe("DECX API integration (Sieve APK)", () => {
                 const res = await client.getClassSource(
                     "com.withsecure.example.sieve.activity.WelcomeActivity",
                     false,
-                    { filter: { first: 120 } },
+                    { filter: { limit: 120 } },
                 );
                 expectSuccessEnvelope(res);
                 expect(res.kind).toBe("class_source");
@@ -281,7 +281,7 @@ describe("DECX API integration (Sieve APK)", () => {
             it("returns success envelope with grep line items", async () => {
                 const res = await client.searchClassKey("com.withsecure.example.sieve.service.CryptoService", "Crypto", {
                     grep: {
-                        maxResults: 20,
+                        limit: 20,
                         caseSensitive: false,
                         regex: true,
                     },

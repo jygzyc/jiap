@@ -176,7 +176,6 @@ class DecxApiImpl(
 
     private fun DecxFilter.forSourcePrefix(): DecxFilter {
         return copy(
-            maxResults = null,
             includes = emptyList(),
             excludes = emptyList(),
             caseSensitive = false,
@@ -186,8 +185,7 @@ class DecxApiImpl(
 
     private fun DecxFilter.forResourceNames(): DecxFilter {
         return copy(
-            first = null,
-            maxResults = null,
+            limit = null,
             excludes = emptyList(),
             caseSensitive = false
         )

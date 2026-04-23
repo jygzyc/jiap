@@ -22,12 +22,14 @@ class DecxRequestParams(private val payload: Map<String, Any>) {
 
     fun search(): DecxFilter {
         val search = payload.obj("search") ?: throw IllegalArgumentException("Missing required parameter: search")
-        return DecxFilter.from(search, requireMaxResults = true)
+        return DecxFilter.from(search)
     }
 
     fun grep(): DecxFilter {
         val grep = payload.obj("grep") ?: throw IllegalArgumentException("Missing required parameter: grep")
-        return DecxFilter.from(grep, requireMaxResults = true)
+        return DecxFilter.from(grep).also {
+            if (it.limit == null) throw IllegalArgumentException("Missing required parameter: grep.limit")
+        }
     }
 
     private fun Map<*, *>.obj(name: String): Map<*, *>? {

@@ -116,7 +116,7 @@ describe("code", () => {
   it("class-source has <class> argument", () => {
     const src = findCommand(cmd, ["class-source"])!;
     expect(src.registeredArguments.length).toBeGreaterThanOrEqual(1);
-    expect(hasFlag(src, "--first")).toBe(true);
+    expect(hasFlag(src, "--limit")).toBe(true);
   });
 
   it("method-source has <signature> argument", () => {

@@ -38,7 +38,7 @@ Ceiling:
 Default filter options for commands that support them (`classes`, `app-receivers`, `get-aidl`, `exported-components`, `search-global`, `search-class`):
 
 ```text
---first <n>                    return only the first N results
+--limit <n>                    return at most N results
 --include-package <pattern>    only include matching items (repeatable)
 --exclude-package <pattern>    exclude matching items (repeatable)
 --no-regex                     treat filter values as literal text

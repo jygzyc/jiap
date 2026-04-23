@@ -156,8 +156,8 @@ Prefer:
 Search commands:
 
 ```bash
-decx code search-global "<keyword>" --max-results <n> -P <port>
-decx code search-class "<class>" "<keyword>" --max-results <n> -P <port>
+decx code search-global "<keyword>" --limit <n> -P <port>
+decx code search-class "<class>" "<keyword>" --limit <n> -P <port>
 decx code search-method "<name>" -P <port>
 ```
 
@@ -186,9 +186,9 @@ Do not fan out into bulk repeated searches if `class-source` + `xref-*` can answ
 
 | Command | Purpose |
 |--------|---------|
-| `decx code classes -P <port>` | List classes (`--first`, `--include-package`, `--exclude-package`, `--no-regex`) |
+| `decx code classes -P <port>` | List classes (`--limit`, `--include-package`, `--exclude-package`, `--no-regex`) |
 | `decx code class-context "<class>" -P <port>` | Show class metadata (fields and methods) |
-| `decx code class-source "<class>" -P <port>` | Show class source (`--first`) |
+| `decx code class-source "<class>" -P <port>` | Show class source (`--limit`) |
 | `decx code class-source "<class>" --smali -P <port>` | Show class smali |
 | `decx code method-source "<signature>" -P <port>` | Show method source |
 | `decx code method-source "<signature>" --smali -P <port>` | Show method smali |
@@ -199,8 +199,8 @@ Do not fan out into bulk repeated searches if `class-source` + `xref-*` can answ
 | `decx code xref-field "<field>" -P <port>` | Show field reads and writes |
 | `decx code implement "<interface>" -P <port>` | List interface implementations |
 | `decx code subclass "<class>" -P <port>` | List subclasses |
-| `decx code search-global "<keyword>" --max-results <n> -P <port>` | Search all class bodies (`--first`, `--include-package`, `--exclude-package`, `--no-regex`, `--case-sensitive`) |
-| `decx code search-class "<class>" "<keyword>" --max-results <n> -P <port>` | Grep one class (`--no-regex`, `--case-sensitive`) |
+| `decx code search-global "<keyword>" --limit <n> -P <port>` | Search all class bodies (`--limit`, `--include-package`, `--exclude-package`, `--no-regex`, `--case-sensitive`) |
+| `decx code search-class "<class>" "<keyword>" --limit <n> -P <port>` | Grep one class (`--no-regex`, `--case-sensitive`) |
 | `decx code search-method "<name>" -P <port>` | Search method names |
 
 ### `ard`
@@ -212,8 +212,8 @@ Do not fan out into bulk repeated searches if `class-source` + `xref-*` can answ
 | `decx ard app-application -P <port>` | Show application class |
 | `decx ard exported-components -P <port>` | List exported components (`--type`, `--exclude-type`, `--no-regex`) |
 | `decx ard app-deeplinks -P <port>` | List deep links |
-| `decx ard app-receivers -P <port>` | List dynamic receivers (`--first`, `--include-package`, `--exclude-package`, `--no-regex`) |
-| `decx ard get-aidl -P <port>` | List AIDL interfaces (`--first`, `--include-package`, `--exclude-package`, `--no-regex`) |
+| `decx ard app-receivers -P <port>` | List dynamic receivers (`--limit`, `--include-package`, `--exclude-package`, `--no-regex`) |
+| `decx ard get-aidl -P <port>` | List AIDL interfaces (`--limit`, `--include-package`, `--exclude-package`, `--no-regex`) |
 | `decx ard system-service-impl "<interface>" -P <port>` | Resolve framework service implementation |
 | `decx ard system-services --serial <serial> [--grep <keyword>]` | List live Binder/system services as structured JSON |
 | `decx ard perm-info "<permission>" --serial <serial>` | Resolve one permission into a structured JSON object |
@@ -287,7 +287,7 @@ decx ard system-services --serial <serial> --grep activity
 
 ```bash
 decx code search-method "login" -P <port>
-decx code class-source "com.example.AuthManager" --first 120 -P <port>
+decx code class-source "com.example.AuthManager" --limit 120 -P <port>
 decx code xref-method "com.example.AuthManager.login(java.lang.String,java.lang.String):boolean" -P <port>
 decx code xref-field "com.example.AuthManager.mToken" -P <port>
 ```

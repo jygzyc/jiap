@@ -77,8 +77,8 @@ For agent-driven analysis, use the CLI to create a session and let the installed
 
 ```bash
 decx process open target.apk --name target
-decx code classes --first 50
-decx code search-global "WebView" --max-results 20
+decx code classes --limit 50
+decx code search-global "WebView" --limit 20
 decx ard exported-components
 decx ard app-deeplinks
 decx process close target
@@ -105,7 +105,7 @@ Useful command groups:
 Notes:
 
 - Session-backed `code` and `ard` commands support `--page <n>` and can target a session with `-s, --session <name>` or a port with `-P, --port <port>`.
-- `decx code class-source` supports `--first <n>` to return only the first N source lines.
+- `decx code class-source` supports `--limit <n>` to return at most N source lines.
 - `decx process open <file>` passes standard `jadx-cli` flags through and enables `--show-bad-code` by default.
 - `decx ard all-resources` supports file-name filtering with `--include` and `--no-regex`.
 - `system-services` and `perm-info` are adb-backed commands. They use `--serial` / `--adb-path`, not `-P <port>`.

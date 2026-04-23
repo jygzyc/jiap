@@ -33,7 +33,7 @@ If the attacker can only append irrelevant extras without changing behavior, rej
 1. decx code xref-method "android.app.PendingIntent.getActivity(android.content.Context,int,android.content.Intent,int):android.app.PendingIntent" -P <port>
 2. decx code xref-method "android.app.PendingIntent.getService(android.content.Context,int,android.content.Intent,int):android.app.PendingIntent" -P <port>
 3. decx code xref-method "android.app.PendingIntent.getBroadcast(android.content.Context,int,android.content.Intent,int):android.app.PendingIntent" -P <port>
-4. For each call site, decx code search-class "<Class>" "PendingIntent\.(getActivity|getService|getBroadcast|FLAG_MUTABLE)" --max-results 10 -P <port>
+4. For each call site, decx code search-class "<Class>" "PendingIntent\.(getActivity|getService|getBroadcast|FLAG_MUTABLE)" --limit 10 -P <port>
    -> find all PendingIntent creation patterns and flag usage in the class
 5. Inspect flags for FLAG_MUTABLE vs FLAG_IMMUTABLE
 6. Confirm which fields in the base Intent stay attacker-fillable

@@ -77,8 +77,8 @@ Agent 驱动分析时，先用 CLI 创建会话，再让已安装技能接管具
 
 ```bash
 decx process open target.apk --name target
-decx code classes --first 50
-decx code search-global "WebView" --max-results 20
+decx code classes --limit 50
+decx code search-global "WebView" --limit 20
 decx ard exported-components
 decx ard app-deeplinks
 decx process close target
@@ -105,7 +105,7 @@ decx process close --port 25419
 注意：
 
 - 基于会话的 `code` 和 `ard` 命令支持 `--page <n>`，也可用 `-s, --session <name>` 或 `-P, --port <port>` 指向指定会话。
-- `decx code class-source` 支持用 `--first <n>` 只返回源码前 N 行。
+- `decx code class-source` 支持用 `--limit <n>` 最多返回 N 行源码。
 - `decx process open <file>` 会透传标准 `jadx-cli` 参数，并默认启用 `--show-bad-code`。
 - `decx ard all-resources` 支持用 `--include`、`--no-regex` 按文件名过滤。
 - `system-services` 和 `perm-info` 是 adb 命令，使用 `--serial` / `--adb-path`，不使用 `-P <port>`。
