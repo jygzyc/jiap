@@ -1,6 +1,6 @@
 import { Command } from "commander";
-import { resolveClient } from "../core/client-helper.js";
-import type { ClassFilterOptions, ExportedComponentOptions } from "../core/client.js";
+import { resolveCommandClient } from "../core/client-helper.js";
+import type { ClassFilterOptions, ExportedComponentOptions, ResourceFilterOptions } from "../core/client.js";
 import { AdbClient, filterSystemServices } from "../android/adb.js";
 import { Formatter } from "../utils/formatter.js";
 import { withErrorHandler } from "../utils/errors.js";
@@ -60,6 +60,15 @@ function parseExportedComponentOptions(opts: Record<string, unknown>): ExportedC
   };
 }
 
+function parseResourceFilterOptions(opts: Record<string, unknown>): ResourceFilterOptions {
+  return {
+    filter: {
+      includes: Array.isArray(opts.include) ? opts.include.map(String) : [],
+      ...(opts.regex === false ? { regex: false } : {}),
+    },
+  };
+}
+
 export function makeArdCommand(): Command {
   const cmd = new Command("ard");
   cmd.description("Android Specific Analysis");
@@ -74,31 +83,31 @@ export function makeArdCommand(): Command {
     .command("app-manifest")
     .description("Get Android App AndroidManifest.xml")
     .option("--page <n>", "Page number", String)
-    .action(async (opts) => {
-      const { fmt, client } = resolveClient(opts);
+    .action(withErrorHandler(async (opts, command) => {
+      const { fmt, client } = resolveCommandClient(opts, command);
       const page = opts.page ? parseInt(opts.page) : 1;
       fmt.output(await client.getAppManifest(page));
-    });
+    }));
 
   cmd
     .command("main-activity")
     .description("Get main activity name")
     .option("--page <n>", "Page number", String)
-    .action(async (opts) => {
-      const { fmt, client } = resolveClient(opts);
+    .action(withErrorHandler(async (opts, command) => {
+      const { fmt, client } = resolveCommandClient(opts, command);
       const page = opts.page ? parseInt(opts.page) : 1;
       fmt.output(await client.getMainActivity(page));
-    });
+    }));
 
   cmd
     .command("app-application")
     .description("Get Application class name")
     .option("--page <n>", "Page number", String)
-    .action(async (opts) => {
-      const { fmt, client } = resolveClient(opts);
+    .action(withErrorHandler(async (opts, command) => {
+      const { fmt, client } = resolveCommandClient(opts, command);
       const page = opts.page ? parseInt(opts.page) : 1;
       fmt.output(await client.getApplication(page));
-    });
+    }));
 
   cmd
     .command("exported-components")
@@ -107,21 +116,21 @@ export function makeArdCommand(): Command {
     .option("--exclude-type <type>", "Exclude component type: activity, service, receiver, or provider", collectOption, [])
     .option("--no-regex", "Treat component type filters as literal text")
     .option("--page <n>", "Page number", String)
-    .action(async (opts) => {
-      const { fmt, client } = resolveClient(opts);
+    .action(withErrorHandler(async (opts, command) => {
+      const { fmt, client } = resolveCommandClient(opts, command);
       const page = opts.page ? parseInt(opts.page) : 1;
       fmt.output(await client.getExportedComponents(parseExportedComponentOptions(opts), page));
-    });
+    }));
 
   cmd
     .command("app-deeplinks")
     .description("List deep link schemes")
     .option("--page <n>", "Page number", String)
-    .action(async (opts) => {
-      const { fmt, client } = resolveClient(opts);
+    .action(withErrorHandler(async (opts, command) => {
+      const { fmt, client } = resolveCommandClient(opts, command);
       const page = opts.page ? parseInt(opts.page) : 1;
       fmt.output(await client.getDeepLinks(page));
-    });
+    }));
 
   addPackageFilterOptions(
     cmd
@@ -129,22 +138,22 @@ export function makeArdCommand(): Command {
       .description("List dynamic broadcast receivers")
       .option("--page <n>", "Page number", String)
   )
-    .action(async (opts) => {
-      const { fmt, client } = resolveClient(opts);
+    .action(withErrorHandler(async (opts, command) => {
+      const { fmt, client } = resolveCommandClient(opts, command);
       const page = opts.page ? parseInt(opts.page) : 1;
       const receivers = await client.getDynamicReceivers(parseClassFilterOptions(opts), page);
       fmt.output(receivers);
-    });
+    }));
 
   cmd
     .command("system-service-impl <interface>")
     .description("Find system service implementations")
     .option("--page <n>", "Page number", String)
-    .action(async (iface: string, opts) => {
-      const { fmt, client } = resolveClient(opts);
+    .action(withErrorHandler(async (iface: string, opts, command) => {
+      const { fmt, client } = resolveCommandClient(opts, command);
       const page = opts.page ? parseInt(opts.page) : 1;
       fmt.output(await client.getSystemServiceImpl(iface, page));
-    });
+    }));
 
   addAdbDeviceOptions(
     cmd
@@ -191,32 +200,34 @@ export function makeArdCommand(): Command {
   cmd
     .command("all-resources")
     .description("List all resource file names")
+    .option("--include <pattern>", "Only include resource file names matching this pattern", collectOption, [])
+    .option("--no-regex", "Treat resource file name filters as literal text")
     .option("--page <n>", "Page number", String)
-    .action(async (opts) => {
-      const { fmt, client } = resolveClient(opts);
+    .action(withErrorHandler(async (opts, command) => {
+      const { fmt, client } = resolveCommandClient(opts, command);
       const page = opts.page ? parseInt(opts.page) : 1;
-      fmt.output(await client.getAllResources(page));
-    });
+      fmt.output(await client.getAllResources(parseResourceFilterOptions(opts), page));
+    }));
 
   cmd
     .command("resource-file <res>")
     .description("Get resource file content by name")
     .option("--page <n>", "Page number", String)
-    .action(async (res: string, opts) => {
-      const { fmt, client } = resolveClient(opts);
+    .action(withErrorHandler(async (res: string, opts, command) => {
+      const { fmt, client } = resolveCommandClient(opts, command);
       const page = opts.page ? parseInt(opts.page) : 1;
       fmt.output(await client.getResourceFile(res, page));
-    });
+    }));
 
   cmd
     .command("strings")
     .description("Get strings.xml content from app resources")
     .option("--page <n>", "Page number", String)
-    .action(async (opts) => {
-      const { fmt, client } = resolveClient(opts);
+    .action(withErrorHandler(async (opts, command) => {
+      const { fmt, client } = resolveCommandClient(opts, command);
       const page = opts.page ? parseInt(opts.page) : 1;
       fmt.output(await client.getStrings(page));
-    });
+    }));
 
   addPackageFilterOptions(
     cmd
@@ -224,11 +235,11 @@ export function makeArdCommand(): Command {
       .description("Get AIDL interfaces")
       .option("--page <n>", "Page number", String)
   )
-    .action(async (opts) => {
-      const { fmt, client } = resolveClient(opts);
+    .action(withErrorHandler(async (opts, command) => {
+      const { fmt, client } = resolveCommandClient(opts, command);
       const page = opts.page ? parseInt(opts.page) : 1;
       fmt.output(await client.getAidlInterfaces(parseClassFilterOptions(opts), page));
-    });
+    }));
 
   const framework = cmd.command("framework").description("Collect and process Android framework files");
 

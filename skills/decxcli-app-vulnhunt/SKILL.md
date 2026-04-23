@@ -31,11 +31,11 @@ Ceiling:
 - Method signatures must use full form: `"package.Class.method(paramType):returnType"`
 - Never use `...` in signatures
 - Quote package names, classes, methods, and file paths
-- If uncertain, check `--help`
+- If a command is missing, rejected, or uncertain, run the nearest `--help` command before retrying
 
 ### Package Filtering
 
-Default filter options for commands that support them (`all-classes`, `app-receivers`, `get-aidl`, `exported-components`, `search-global`, `search-class`):
+Default filter options for commands that support them (`classes`, `app-receivers`, `get-aidl`, `exported-components`, `search-global`, `search-class`):
 
 ```text
 --first <n>                    return only the first N results

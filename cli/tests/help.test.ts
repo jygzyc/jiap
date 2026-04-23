@@ -101,7 +101,7 @@ describe("code", () => {
 
   it("registers 14 subcommands", () => {
     expect(getSubcommandNames(cmd)).toEqual([
-      "all-classes", "search-global", "class-context", "class-source",
+      "classes", "search-global", "class-context", "class-source",
       "method-source", "method-context", "method-cfg",
       "search-class", "search-method", "xref-method", "xref-class",
       "xref-field", "implement", "subclass",
@@ -116,6 +116,7 @@ describe("code", () => {
   it("class-source has <class> argument", () => {
     const src = findCommand(cmd, ["class-source"])!;
     expect(src.registeredArguments.length).toBeGreaterThanOrEqual(1);
+    expect(hasFlag(src, "--first")).toBe(true);
   });
 
   it("method-source has <signature> argument", () => {
@@ -177,6 +178,12 @@ describe("ard", () => {
   it("resource-file has <res> argument", () => {
     const rf = findCommand(cmd, ["resource-file"])!;
     expect(rf.registeredArguments.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("all-resources includes file name filter options", () => {
+    const allResources = findCommand(cmd, ["all-resources"])!;
+    expect(hasFlag(allResources, "--include")).toBe(true);
+    expect(hasFlag(allResources, "--no-regex")).toBe(true);
   });
 
   it("perm-info has <permission> argument and adb device options", () => {

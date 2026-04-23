@@ -36,10 +36,12 @@ class DecxApiImpl(
         else commonService.handleSearchGlobalKey(key, filter)
     }
 
-    override fun getClassSource(cls: String, smali: Boolean): DecxApiResult {
-        return if (cacheEnabled) cached("getClassSource", mapOf("cls" to cls, "smali" to smali)) {
-            contextService.handleGetClassSource(cls, smali)
-        } else contextService.handleGetClassSource(cls, smali)
+    override fun getClassSource(cls: String, smali: Boolean, filter: DecxFilter): DecxApiResult {
+        val sourceFilter = filter.forSourcePrefix()
+        val params = mapOf("cls" to cls, "smali" to smali) + sourceFilter.toQuery()
+        return if (cacheEnabled) cached("getClassSource", params) {
+            contextService.handleGetClassSource(cls, smali, sourceFilter)
+        } else contextService.handleGetClassSource(cls, smali, sourceFilter)
     }
 
     override fun searchClassKey(cls: String, key: String, filter: DecxFilter): DecxApiResult {
@@ -139,8 +141,11 @@ class DecxApiImpl(
         } else androidService.handleGetDynamicReceivers(filter)
     }
 
-    override fun getAllResources(): DecxApiResult {
-        return androidService.handleGetAllResources()
+    override fun getAllResources(filter: DecxFilter): DecxApiResult {
+        val resourceFilter = filter.forResourceNames()
+        return if (cacheEnabled) cached("getAllResources", resourceFilter.toQuery()) {
+            androidService.handleGetAllResources(resourceFilter)
+        } else androidService.handleGetAllResources(resourceFilter)
     }
 
     override fun getResourceFile(res: String): DecxApiResult {
@@ -168,6 +173,25 @@ class DecxApiImpl(
     }
 
     // ==================== Cache ====================
+
+    private fun DecxFilter.forSourcePrefix(): DecxFilter {
+        return copy(
+            maxResults = null,
+            includes = emptyList(),
+            excludes = emptyList(),
+            caseSensitive = false,
+            regex = true
+        )
+    }
+
+    private fun DecxFilter.forResourceNames(): DecxFilter {
+        return copy(
+            first = null,
+            maxResults = null,
+            excludes = emptyList(),
+            caseSensitive = false
+        )
+    }
 
     private fun cached(endpoint: String, params: Map<String, Any>, loader: () -> DecxApiResult): DecxApiResult {
         CacheUtils.get(endpoint, params)?.let {

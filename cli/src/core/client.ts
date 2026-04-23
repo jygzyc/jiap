@@ -27,6 +27,19 @@ export type ExportedComponentOptions = {
     regex?: boolean;
 };
 
+export type ResourceFilterOptions = {
+    filter: {
+        includes: string[];
+        regex?: boolean;
+    };
+};
+
+export type SourceFilterOptions = {
+    filter: {
+        first?: number;
+    };
+};
+
 export type GlobalSearchOptions = {
     search: {
         first?: number;
@@ -154,8 +167,8 @@ export class DecxClient {
 
     // ── CommonService ───────────────────────────────────────────────────────
 
-    async getAllClasses(options: ClassFilterOptions, page: number = 1): Promise<Record<string, unknown>> {
-        return this.request("POST", "/api/decx/get_all_classes", { ...options, page });
+    async getClasses(options: ClassFilterOptions, page: number = 1): Promise<Record<string, unknown>> {
+        return this.request("POST", "/api/decx/get_classes", { ...options, page });
     }
 
     async searchGlobalKey(key: string, options: GlobalSearchOptions, page: number = 1): Promise<Record<string, unknown>> {
@@ -166,8 +179,13 @@ export class DecxClient {
         return this.request("POST", "/api/decx/get_class_context", { cls, page });
     }
 
-    async getClassSource(cls: string, smali: boolean = false, page: number = 1): Promise<Record<string, unknown>> {
-        return this.request("POST", "/api/decx/get_class_source", { cls, smali, page });
+    async getClassSource(
+        cls: string,
+        smali: boolean = false,
+        options: SourceFilterOptions = { filter: {} },
+        page: number = 1
+    ): Promise<Record<string, unknown>> {
+        return this.request("POST", "/api/decx/get_class_source", { cls, smali, ...options, page });
     }
 
     async searchClassKey(cls: string, key: string, options: ClassGrepOptions, page: number = 1): Promise<Record<string, unknown>> {
@@ -242,8 +260,8 @@ export class DecxClient {
         return this.request("POST", "/api/decx/get_dynamic_receivers", { ...options, page });
     }
 
-    async getAllResources(page: number = 1): Promise<Record<string, unknown>> {
-        return this.request("POST", "/api/decx/get_all_resources", { page });
+    async getAllResources(options: ResourceFilterOptions = { filter: { includes: [] } }, page: number = 1): Promise<Record<string, unknown>> {
+        return this.request("POST", "/api/decx/get_all_resources", { ...options, page });
     }
 
     async getResourceFile(res: string, page: number = 1): Promise<Record<string, unknown>> {

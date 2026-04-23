@@ -37,7 +37,7 @@ Use this skill for static framework and Binder-service vulnerability hunting.
 - Method signatures must use the full format: `"package.Class.method(paramType):returnType"`
 - Never use `...` in signatures
 - Quote package names, class names, method signatures, interfaces, Binder names, and file paths
-- If a command is uncertain, check `--help` instead of guessing
+- If a command is missing, rejected, or uncertain, run the nearest `--help` command before retrying
 
 ### Context, Persistence, And Output
 

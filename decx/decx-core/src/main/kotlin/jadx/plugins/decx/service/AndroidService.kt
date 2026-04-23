@@ -289,7 +289,7 @@ class AndroidService(override val decompiler: JadxDecompiler) : DecxServiceInter
                     id = (comp["name"] as String),
                     kind = ItemKind.SYMBOL,
                     title = "Exported $compType: ${comp["name"]}",
-                    content = "exported $compType ${comp["name"]}",
+                    content = "${comp["name"]}",
                     meta = comp
                 )
             }
@@ -393,10 +393,13 @@ class AndroidService(override val decompiler: JadxDecompiler) : DecxServiceInter
     }
 
     /** Returns the available Android resource file inventory. */
-    fun handleGetAllResources(): DecxApiResult {
+    fun handleGetAllResources(filter: DecxFilter): DecxApiResult {
+        val query = filter.toQuery()
         return try {
             val resources = decompiler.resources
-                ?: return DecxApiResult.fail( AnalysisResultUtils.error(DecxKind.ALL_RESOURCES, emptyMap(), DecxError.RESOURCE_NOT_FOUND))
+                ?: return DecxApiResult.fail(AnalysisResultUtils.error(DecxKind.ALL_RESOURCES, query, DecxError.RESOURCE_NOT_FOUND))
+            val compiled = filter.compile()
+                ?: return DecxApiResult.fail(AnalysisResultUtils.error(DecxKind.ALL_RESOURCES, query, DecxError.INVALID_PARAMETER, "invalid filter regex"))
             val fileNames = mutableListOf<String>()
             for (resFile in resources) {
                 try {
@@ -411,9 +414,11 @@ class AndroidService(override val decompiler: JadxDecompiler) : DecxServiceInter
                 }
             }
             if (fileNames.isEmpty()) {
-                return DecxApiResult.fail( AnalysisResultUtils.error(DecxKind.ALL_RESOURCES, emptyMap(), DecxError.RESOURCE_NOT_FOUND))
+                return DecxApiResult.fail(AnalysisResultUtils.error(DecxKind.ALL_RESOURCES, query, DecxError.RESOURCE_NOT_FOUND))
             }
-            val items = fileNames.map { name ->
+            val filteredFileNames = fileNames
+                .filter { name -> compiled.matches(name) }
+            val items = filteredFileNames.map { name ->
                 AnalysisResultUtils.item(
                     id = name,
                     kind = ItemKind.SYMBOL,
@@ -421,9 +426,9 @@ class AndroidService(override val decompiler: JadxDecompiler) : DecxServiceInter
                     content = name
                 )
             }
-            DecxApiResult.ok(AnalysisResultUtils.success(DecxKind.ALL_RESOURCES, items = items))
+            DecxApiResult.ok(AnalysisResultUtils.success(DecxKind.ALL_RESOURCES, query, items))
         } catch (e: Exception) {
-            DecxApiResult.fail( AnalysisResultUtils.error(DecxKind.ALL_RESOURCES, emptyMap(), DecxError.SERVER_INTERNAL_ERROR, e.message ?: "unknown"))
+            DecxApiResult.fail(AnalysisResultUtils.error(DecxKind.ALL_RESOURCES, query, DecxError.SERVER_INTERNAL_ERROR, e.message ?: "unknown"))
         }
     }
 

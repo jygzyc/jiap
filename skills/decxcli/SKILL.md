@@ -29,7 +29,7 @@ Scope:
 - Quote package names, class names, method signatures, file paths, and resource paths
 - Method signatures must use the full format: `"package.Class.method(paramType1,paramType2):returnType"`
 - Never use `...` in signatures
-- If a command is uncertain, check `--help` instead of guessing
+- If a command is missing, rejected, or uncertain, run the nearest `--help` command before retrying
 
 ### Session Rules
 
@@ -37,7 +37,7 @@ Scope:
 - Reuse the same session for related work instead of reopening the same target repeatedly
 - Do not close the session automatically if downstream work is likely to continue in `decxcli-app-vulnhunt`, `decxcli-framework-vulnhunt`, or `decxcli-poc`
 - If you opened a session only for a one-off lookup and no follow-up work is needed, close it before finishing
-- `process close` and `process list` do not take `-P <port>` in the current CLI surface; do not invent unsupported flags
+- `process close` can close by name or `--port <port>`; `process list` does not take `-P <port>`
 
 ### Output Rules
 
@@ -186,9 +186,9 @@ Do not fan out into bulk repeated searches if `class-source` + `xref-*` can answ
 
 | Command | Purpose |
 |--------|---------|
-| `decx code all-classes -P <port>` | List classes (`--first`, `--include-package`, `--exclude-package`, `--no-regex`) |
+| `decx code classes -P <port>` | List classes (`--first`, `--include-package`, `--exclude-package`, `--no-regex`) |
 | `decx code class-context "<class>" -P <port>` | Show class metadata (fields and methods) |
-| `decx code class-source "<class>" -P <port>` | Show class source |
+| `decx code class-source "<class>" -P <port>` | Show class source (`--first`) |
 | `decx code class-source "<class>" --smali -P <port>` | Show class smali |
 | `decx code method-source "<signature>" -P <port>` | Show method source |
 | `decx code method-source "<signature>" --smali -P <port>` | Show method smali |
@@ -217,7 +217,7 @@ Do not fan out into bulk repeated searches if `class-source` + `xref-*` can answ
 | `decx ard system-service-impl "<interface>" -P <port>` | Resolve framework service implementation |
 | `decx ard system-services --serial <serial> [--grep <keyword>]` | List live Binder/system services as structured JSON |
 | `decx ard perm-info "<permission>" --serial <serial>` | Resolve one permission into a structured JSON object |
-| `decx ard all-resources -P <port>` | List resource file names |
+| `decx ard all-resources -P <port>` | List resource file names (`--include`, `--no-regex`) |
 | `decx ard resource-file "<res>" -P <port>` | Read one resource file |
 | `decx ard strings -P <port>` | Read `strings.xml` |
 
@@ -279,7 +279,7 @@ Resource path:
 decx ard app-manifest -P <port>
 decx ard exported-components -P <port>
 decx ard app-deeplinks -P <port>
-decx code all-classes -P <port>
+decx code classes -P <port>
 decx ard system-services --serial <serial> --grep activity
 ```
 
@@ -287,7 +287,7 @@ decx ard system-services --serial <serial> --grep activity
 
 ```bash
 decx code search-method "login" -P <port>
-decx code class-source "com.example.AuthManager" -P <port>
+decx code class-source "com.example.AuthManager" --first 120 -P <port>
 decx code xref-method "com.example.AuthManager.login(java.lang.String,java.lang.String):boolean" -P <port>
 decx code xref-field "com.example.AuthManager.mToken" -P <port>
 ```
@@ -305,7 +305,7 @@ decx ard perm-info "android.permission.DUMP" --serial <serial>
 ### Inspect Resources
 
 ```bash
-decx ard all-resources -P <port>
+decx ard all-resources --include "res/xml" -P <port>
 decx ard resource-file "res/xml/file_paths.xml" -P <port>
 decx ard strings -P <port>
 ```

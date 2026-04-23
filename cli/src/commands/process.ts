@@ -199,8 +199,9 @@ export function makeProcessCommand(): Command {
   // close
   cmd
     .command("close [name]")
-    .description("Stop DECX server by session name")
+    .description("Stop DECX server by session name or port")
     .option("-a, --all", "Kill all processes")
+    .option("-P, --port <port>", "Server port")
     .action(async (name: string | undefined, opts) => {
       const fmt = new Formatter();
       try {
@@ -210,6 +211,9 @@ export function makeProcessCommand(): Command {
       const cleaned = mgr.cleanupDead();
 
       if (opts.all) {
+        if (name || opts.port) {
+          throw new ProcessError("Cannot combine --all with session name or --port");
+        }
         const sessions = mgr.listAliveSessions();
         const killed: string[] = [], dead: string[] = [];
         for (const s of sessions) {
@@ -222,16 +226,32 @@ export function makeProcessCommand(): Command {
         return;
       }
 
+      if (name && opts.port) {
+        throw new ProcessError("Cannot specify both session name and --port");
+      }
+
       if (!name) {
-        const alive = mgr.listAliveSessions();
-        if (alive.length === 1) {
-          name = alive[0].name;
+        if (opts.port) {
+          const port = parseInt(opts.port);
+          if (Number.isNaN(port)) {
+            throw new ProcessError(`Invalid port: ${opts.port}`);
+          }
+          const session = mgr.listAliveSessions().find((s) => s.port === port);
+          if (!session) {
+            throw new ProcessError(`Session not found on port: ${port}`);
+          }
+          name = session.name;
         } else {
-          throw new ProcessError(
-            alive.length === 0
-              ? "No running sessions"
-              : "Specify session name or use --all"
-          );
+          const alive = mgr.listAliveSessions();
+          if (alive.length === 1) {
+            name = alive[0].name;
+          } else {
+            throw new ProcessError(
+              alive.length === 0
+                ? "No running sessions"
+                : "Specify session name, --port, or use --all"
+            );
+          }
         }
       }
 

@@ -1,6 +1,7 @@
 import { Command } from "commander";
-import { resolveClient } from "../core/client-helper.js";
-import type { ClassFilterOptions, ClassGrepOptions, GlobalSearchOptions } from "../core/client.js";
+import { resolveCommandClient } from "../core/client-helper.js";
+import type { ClassFilterOptions, ClassGrepOptions, GlobalSearchOptions, SourceFilterOptions } from "../core/client.js";
+import { withErrorHandler } from "../utils/errors.js";
 
 function collectOption(value: string, previous: string[]): string[] {
   previous.push(value);
@@ -62,6 +63,14 @@ function parseClassGrepOptions(opts: Record<string, unknown>): ClassGrepOptions 
   };
 }
 
+function parseSourceFilterOptions(opts: Record<string, unknown>): SourceFilterOptions {
+  return {
+    filter: {
+      ...(opts.first ? { first: parseInt(String(opts.first), 10) } : {}),
+    },
+  };
+}
+
 export function makeCodeCommand(): Command {
   const cmd = new Command("code");
   cmd.description("Common Code Analysis");
@@ -70,144 +79,145 @@ export function makeCodeCommand(): Command {
     .option("-s, --session <name>", "Target session by name")
     .option("-P, --port <port>", "Server port");
 
-  addPackageFilterOptions(cmd.command("all-classes"))
-    .description("Get all classes")
+  addPackageFilterOptions(cmd.command("classes"))
+    .description("Get classes")
     .option("--page <n>", "Page number", String)
-    .action(async (opts) => {
-      const { fmt, client } = resolveClient(opts);
+    .action(withErrorHandler(async (opts, command) => {
+      const { fmt, client } = resolveCommandClient(opts, command);
       const page = opts.page ? parseInt(opts.page) : 1;
-      fmt.output(await client.getAllClasses(parseClassFilterOptions(opts), page));
-    });
+      fmt.output(await client.getClasses(parseClassFilterOptions(opts), page));
+    }));
 
   addGlobalSearchOptions(cmd.command("search-global <keyword>"))
     .description("Search classes, methods, and resources")
     .option("--page <n>", "Page number", String)
-    .action(async (keyword: string, opts) => {
-      const { fmt, client } = resolveClient(opts);
+    .action(withErrorHandler(async (keyword: string, opts, command) => {
+      const { fmt, client } = resolveCommandClient(opts, command);
       const page = opts.page ? parseInt(opts.page) : 1;
       fmt.output(await client.searchGlobalKey(keyword, parseGlobalSearchOptions(opts), page));
-    });
+    }));
 
   cmd
     .command("class-context <class>")
     .description("Get class context with methods and fields")
     .option("--page <n>", "Page number", String)
-    .action(async (className: string, opts) => {
-      const { fmt, client } = resolveClient(opts);
+    .action(withErrorHandler(async (className: string, opts, command) => {
+      const { fmt, client } = resolveCommandClient(opts, command);
       const page = opts.page ? parseInt(opts.page) : 1;
       fmt.output(await client.getClassContext(className, page));
-    });
+    }));
 
   cmd
     .command("class-source <class>")
     .description("Get class source code")
+    .option("--first <n>", "Return only the first N source lines")
     .option("--smali", "Output in smali format")
     .option("--page <n>", "Page number", String)
-    .action(async (className: string, opts) => {
-      const { fmt, client } = resolveClient(opts);
+    .action(withErrorHandler(async (className: string, opts, command) => {
+      const { fmt, client } = resolveCommandClient(opts, command);
       const page = opts.page ? parseInt(opts.page) : 1;
-      fmt.output(await client.getClassSource(className, opts.smali ?? false, page));
-    });
+      fmt.output(await client.getClassSource(className, opts.smali ?? false, parseSourceFilterOptions(opts), page));
+    }));
 
   cmd
     .command("method-source <signature>")
     .description("Get method source")
     .option("--smali", "Output in smali format")
     .option("--page <n>", "Page number", String)
-    .action(async (sig: string, opts) => {
-      const { fmt, client } = resolveClient(opts);
+    .action(withErrorHandler(async (sig: string, opts, command) => {
+      const { fmt, client } = resolveCommandClient(opts, command);
       const page = opts.page ? parseInt(opts.page) : 1;
       fmt.output(await client.getMethodSource(sig, opts.smali ?? false, page));
-    });
+    }));
 
   cmd
     .command("method-context <signature>")
     .description("Get method context with signature, callers, and callees")
     .option("--page <n>", "Page number", String)
-    .action(async (sig: string, opts) => {
-      const { fmt, client } = resolveClient(opts);
+    .action(withErrorHandler(async (sig: string, opts, command) => {
+      const { fmt, client } = resolveCommandClient(opts, command);
       const page = opts.page ? parseInt(opts.page) : 1;
       fmt.output(await client.getMethodContext(sig, page));
-    });
+    }));
 
   cmd
     .command("method-cfg <signature>")
     .description("Get method control flow graph")
     .option("--page <n>", "Page number", String)
-    .action(async (sig: string, opts) => {
-      const { fmt, client } = resolveClient(opts);
+    .action(withErrorHandler(async (sig: string, opts, command) => {
+      const { fmt, client } = resolveCommandClient(opts, command);
       const page = opts.page ? parseInt(opts.page) : 1;
       fmt.output(await client.getMethodCfg(sig, page));
-    });
+    }));
 
   addClassGrepOptions(cmd.command("search-class <class> <pattern>"))
     .description("Grep in one class and return matching lines with method signatures")
     .option("--page <n>", "Page number", String)
-    .action(async (className: string, keyword: string, opts) => {
-      const { fmt, client } = resolveClient(opts);
+    .action(withErrorHandler(async (className: string, keyword: string, opts, command) => {
+      const { fmt, client } = resolveCommandClient(opts, command);
       const page = opts.page ? parseInt(opts.page) : 1;
       fmt.output(await client.searchClassKey(className, keyword, parseClassGrepOptions(opts), page));
-    });
+    }));
 
   cmd
     .command("search-method <name>")
     .description("Find methods by name")
     .option("--page <n>", "Page number", String)
-    .action(async (name: string, opts) => {
-      const { fmt, client } = resolveClient(opts);
+    .action(withErrorHandler(async (name: string, opts, command) => {
+      const { fmt, client } = resolveCommandClient(opts, command);
       const page = opts.page ? parseInt(opts.page) : 1;
       fmt.output(await client.searchMethod(name, page));
-    });
+    }));
 
   cmd
     .command("xref-method <signature>")
     .description("Find method callers")
     .option("--page <n>", "Page number", String)
-    .action(async (sig: string, opts) => {
-      const { fmt, client } = resolveClient(opts);
+    .action(withErrorHandler(async (sig: string, opts, command) => {
+      const { fmt, client } = resolveCommandClient(opts, command);
       const page = opts.page ? parseInt(opts.page) : 1;
       fmt.output(await client.getMethodXref(sig, page));
-    });
+    }));
 
   cmd
     .command("xref-class <class>")
     .description("Find class usages")
     .option("--page <n>", "Page number", String)
-    .action(async (className: string, opts) => {
-      const { fmt, client } = resolveClient(opts);
+    .action(withErrorHandler(async (className: string, opts, command) => {
+      const { fmt, client } = resolveCommandClient(opts, command);
       const page = opts.page ? parseInt(opts.page) : 1;
       fmt.output(await client.getClassXref(className, page));
-    });
+    }));
 
   cmd
     .command("xref-field <field>")
     .description("Find field usages")
     .option("--page <n>", "Page number", String)
-    .action(async (fieldName: string, opts) => {
-      const { fmt, client } = resolveClient(opts);
+    .action(withErrorHandler(async (fieldName: string, opts, command) => {
+      const { fmt, client } = resolveCommandClient(opts, command);
       const page = opts.page ? parseInt(opts.page) : 1;
       fmt.output(await client.getFieldXref(fieldName, page));
-    });
+    }));
 
   cmd
     .command("implement <interface>")
     .description("Find implementations")
     .option("--page <n>", "Page number", String)
-    .action(async (iface: string, opts) => {
-      const { fmt, client } = resolveClient(opts);
+    .action(withErrorHandler(async (iface: string, opts, command) => {
+      const { fmt, client } = resolveCommandClient(opts, command);
       const page = opts.page ? parseInt(opts.page) : 1;
       fmt.output(await client.getImplement(iface, page));
-    });
+    }));
 
   cmd
     .command("subclass <class>")
     .description("Find subclasses")
     .option("--page <n>", "Page number", String)
-    .action(async (className: string, opts) => {
-      const { fmt, client } = resolveClient(opts);
+    .action(withErrorHandler(async (className: string, opts, command) => {
+      const { fmt, client } = resolveCommandClient(opts, command);
       const page = opts.page ? parseInt(opts.page) : 1;
       fmt.output(await client.getSubClasses(className, page));
-    });
+    }));
 
   return cmd;
 }

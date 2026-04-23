@@ -12,7 +12,7 @@ interface DecxApi {
     fun searchGlobalKey(key: String, filter: DecxFilter): DecxApiResult
     fun searchClassKey(cls: String, key: String, filter: DecxFilter): DecxApiResult
     fun searchMethod(mth: String): DecxApiResult
-    fun getClassSource(cls: String, smali: Boolean): DecxApiResult
+    fun getClassSource(cls: String, smali: Boolean, filter: DecxFilter): DecxApiResult
     fun getMethodSource(mth: String, smali: Boolean): DecxApiResult
 
     // ==================== Context Service ====================
@@ -35,7 +35,7 @@ interface DecxApi {
     fun getExportedComponents(filter: DecxFilter): DecxApiResult
     fun getDeepLinks(): DecxApiResult
     fun getDynamicReceivers(filter: DecxFilter): DecxApiResult
-    fun getAllResources(): DecxApiResult
+    fun getAllResources(filter: DecxFilter): DecxApiResult
     fun getResourceFile(res: String): DecxApiResult
     fun getStrings(): DecxApiResult
     fun getSystemServiceImpl(iface: String): DecxApiResult
