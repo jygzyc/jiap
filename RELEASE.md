@@ -1,27 +1,27 @@
-# DECX v3.0.0
+# DECX v3.1.0
 
-DECX v3.0.0 is a major release with a unified server API response format, new filter and search capabilities, service consolidation, and updated CLI commands and documentation.
+DECX v3.1.0 adds resource and source filtering, session management improvements, and unified CLI error handling.
 
 ### Changes
 
-- Server: unified response format. All API endpoints now return `{ ok, kind, query, summary, items[], page }` replacing the old `{ success, data: { type, count, ...-list } }` envelope.
+- CLI: `all-classes` renamed to `classes` across all commands, API endpoints, MCP server, and skill files.
 
-- Server: new `DecxError` enum with descriptive codes (`INTERNAL_ERROR`, `CLASS_NOT_FOUND`, `METHOD_NOT_FOUND`, etc.) and HTTP status codes, replacing the old `E001`-`E005` error codes.
+- CLI: `class-source` now supports `--first <n>` to return only the first N source lines, reducing output for large classes.
 
-- Server: new routing system with `DecxRoutes`, `DecxRequestParams` typed extractors, and `DecxFilter` (regex/literal includes/excludes with `first`/`maxResults` limits), replacing manual `when` dispatch.
+- CLI: `all-resources` now supports `--include <pattern> [--no-regex]` for file-name filtering.
 
-- Server: service consolidation — `AndroidAppService` + `AndroidFrameworkService` merged into `AndroidService`; new `ContextService` for xref/inheritance; `VulnMiningService` removed.
+- CLI: `process close` now supports `--port <port>` to stop a session by port number instead of name.
 
-- Server: new endpoints — `get_class_context`, `get_method_context` (callers + callees), `get_method_cfg` (control flow graph as DOT), `search_global_key` (cross-class search with filter).
+- CLI: unified error handling — all command actions wrapped with `withErrorHandler` for consistent error output.
 
-- Server: `DecxApiResult.fail()` factory method for error results; `DecxFilter` with `Compiled` matcher for server-side filtering.
+- CLI: new `resolveCommandClient` helper that merges global options from parent commands, fixing option resolution in subcommands.
 
-- CLI: new commands — `search-global <keyword> --max-results <n>`, `method-context <signature>`, `method-cfg <signature>`.
+- Server: `get_all_classes` endpoint renamed to `get_classes`.
 
-- CLI: `class-info` renamed to `class-context`; `search-class` now takes `<class> <pattern> --max-results <n>`.
+- Server: `get_class_source` accepts `first` filter parameter for source truncation.
 
-- CLI: typed filter options (`--first`, `--include-package`, `--exclude-package`, `--no-regex`) on `all-classes`, `app-receivers`, `get-aidl`, `exported-components`, `search-global`, `search-class`.
+- Server: `get_all_resources` accepts `includes` and `regex` filter parameters for resource filtering.
 
-- CLI: all filter-bearing commands support regex matching by default with `--no-regex` for literal text.
+- MCP server: updated to match renamed and filtered endpoints.
 
-- Docs: updated error codes to `DecxError` enum; fixed all command references across README.md, cli/README.md, and all SKILL files; added package filtering recommendations to vulnhunt skill.
+- Docs: updated all README files, cli/README.md, and skill SKILL.md files to reflect new commands and options.
