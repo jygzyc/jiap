@@ -50,8 +50,7 @@ class CommonService(override val decompiler: JadxDecompiler) : DecxServiceInterf
                 ?: return DecxApiResult.fail(AnalysisResultUtils.error(DecxKind.SEARCH_GLOBAL, query, DecxError.INVALID_PARAMETER, "invalid filter regex"))
             val classes = decompiler.classesWithInners
                 .filter { clazz -> filters.matches(clazz.fullName) }
-                .let { classNames -> filter.limit(classNames) }
-            val items = classes.mapNotNull { clazz ->
+            val matches = classes.mapNotNull { clazz ->
                 try {
                     clazz.decompile()
                     val code = clazz.code ?: ""
@@ -68,7 +67,8 @@ class CommonService(override val decompiler: JadxDecompiler) : DecxServiceInterf
                 } catch (_: Exception) {
                     null
                 }
-            }.take(filter.maxResults ?: 0)
+            }
+            val items = filter.limit(matches)
             DecxApiResult.ok(AnalysisResultUtils.success(DecxKind.SEARCH_GLOBAL, query, items))
         } catch (e: Exception) {
             DecxApiResult.fail(AnalysisResultUtils.error(DecxKind.SEARCH_GLOBAL, query, DecxError.SERVER_INTERNAL_ERROR, e.message ?: "unknown"))
@@ -86,8 +86,8 @@ class CommonService(override val decompiler: JadxDecompiler) : DecxServiceInterf
                 ?: return DecxApiResult.fail(AnalysisResultUtils.error(DecxKind.SEARCH_CLASS, query, DecxError.INVALID_PARAMETER, "invalid regex: $key"))
             val clazz = decompiler.searchJavaClassOrItsParentByOrigFullName(cls)
                 ?: return DecxApiResult.fail(AnalysisResultUtils.error(DecxKind.SEARCH_CLASS, query, DecxError.CLASS_NOT_FOUND, cls))
-            val maxResults = filter.maxResults ?: 0
-            if (maxResults <= 0) {
+            val limit = filter.limit ?: 0
+            if (limit <= 0) {
                 return DecxApiResult.ok(AnalysisResultUtils.success(DecxKind.SEARCH_CLASS, query, emptyList()))
             }
             clazz.decompile()
@@ -106,7 +106,7 @@ class CommonService(override val decompiler: JadxDecompiler) : DecxServiceInterf
                             "line" to index + 1
                         )
                     )
-                    if (items.size >= maxResults) {
+                    if (items.size >= limit) {
                         return DecxApiResult.ok(AnalysisResultUtils.success(DecxKind.SEARCH_CLASS, query, items))
                     }
                 }

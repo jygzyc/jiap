@@ -35,7 +35,7 @@ function collectOption(value: string, previous: string[]): string[] {
 
 function addPackageFilterOptions(cmd: Command): Command {
   return cmd
-    .option("--first <n>", "Return only the first N candidates after package filtering")
+    .option("--limit <n>", "Limit returned results")
     .option("--include-package <name>", "Only include items in this package", collectOption, [])
     .option("--exclude-package <name>", "Exclude items in this package", collectOption, [])
     .option("--no-regex", "Treat filter values as literal text");
@@ -44,7 +44,7 @@ function addPackageFilterOptions(cmd: Command): Command {
 function parseClassFilterOptions(opts: Record<string, unknown>): ClassFilterOptions {
   return {
     filter: {
-      ...(opts.first ? { first: parseInt(String(opts.first), 10) } : {}),
+      ...(opts.limit ? { limit: parseInt(String(opts.limit), 10) } : {}),
       includes: Array.isArray(opts.includePackage) ? opts.includePackage.map(String) : [],
       excludes: Array.isArray(opts.excludePackage) ? opts.excludePackage.map(String) : [],
       ...(opts.regex === false ? { regex: false } : {}),

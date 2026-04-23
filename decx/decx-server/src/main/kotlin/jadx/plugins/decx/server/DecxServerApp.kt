@@ -174,7 +174,7 @@ Examples:
 
 API Endpoints:
   POST /api/decx/get_classes        Get classes (params: filter)
-  POST /api/decx/get_class_source       Get class source (params: cls, smali, filter.first)
+  POST /api/decx/get_class_source       Get class source (params: cls, smali, filter.limit)
   POST /api/decx/get_method_source      Get method source (params: mth, smali)
   POST /api/decx/search_global_key      Search globally (params: key, search)
   POST /api/decx/search_class_key       Grep one class (params: cls, key, grep)

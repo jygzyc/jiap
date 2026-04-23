@@ -14,7 +14,7 @@ export type FetchFn = typeof globalThis.fetch;
 
 export type ClassFilterOptions = {
     filter: {
-        first?: number;
+        limit?: number;
         includes: string[];
         excludes: string[];
         regex?: boolean;
@@ -36,14 +36,13 @@ export type ResourceFilterOptions = {
 
 export type SourceFilterOptions = {
     filter: {
-        first?: number;
+        limit?: number;
     };
 };
 
 export type GlobalSearchOptions = {
     search: {
-        first?: number;
-        maxResults: number;
+        limit?: number;
         includes: string[];
         excludes: string[];
         caseSensitive: boolean;
@@ -53,7 +52,7 @@ export type GlobalSearchOptions = {
 
 export type ClassGrepOptions = {
     grep: {
-        maxResults: number;
+        limit: number;
         caseSensitive: boolean;
         regex: boolean;
     };

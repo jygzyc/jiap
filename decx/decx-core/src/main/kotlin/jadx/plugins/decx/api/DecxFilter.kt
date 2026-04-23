@@ -3,8 +3,7 @@ package jadx.plugins.decx.api
 import java.util.regex.PatternSyntaxException
 
 data class DecxFilter(
-    val first: Int? = null,
-    val maxResults: Int? = null,
+    val limit: Int? = null,
     val includes: List<String> = emptyList(),
     val excludes: List<String> = emptyList(),
     val caseSensitive: Boolean = false,
@@ -12,8 +11,7 @@ data class DecxFilter(
 ) {
     fun toQuery(): Map<String, Any> {
         return linkedMapOf<String, Any>().apply {
-            first?.let { put("first", it) }
-            maxResults?.let { put("maxResults", it) }
+            limit?.let { put("limit", it) }
             if (includes.isNotEmpty()) put("includes", includes)
             if (excludes.isNotEmpty()) put("excludes", excludes)
             if (caseSensitive) put("caseSensitive", true)
@@ -29,7 +27,7 @@ data class DecxFilter(
     }
 
     fun <T> limit(items: List<T>): List<T> {
-        return first?.let { items.take(it) } ?: items
+        return limit?.let { items.take(it) } ?: items
     }
 
     private fun matcher(pattern: String): Matcher? {
@@ -71,17 +69,11 @@ data class DecxFilter(
 
     companion object {
         fun from(
-            source: Map<*, *>?,
-            requireMaxResults: Boolean = false
+            source: Map<*, *>?
         ): DecxFilter {
             if (source == null) return DecxFilter()
-            val maxResults = source.int("maxResults")?.coerceAtLeast(0)
-            if (requireMaxResults && maxResults == null) {
-                throw IllegalArgumentException("Missing required parameter: maxResults")
-            }
             return DecxFilter(
-                first = source.int("first")?.coerceAtLeast(0),
-                maxResults = maxResults,
+                limit = source.int("limit")?.coerceAtLeast(0),
                 includes = source.strings("includes"),
                 excludes = source.strings("excludes"),
                 caseSensitive = source.boolean("caseSensitive") ?: false,

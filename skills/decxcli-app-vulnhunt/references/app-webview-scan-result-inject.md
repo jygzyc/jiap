@@ -30,7 +30,7 @@ If the result only opens a harmless external browser page with no trusted-app pr
 ## Attack Flow
 
 ```text
-1. decx code search-global "WebView" --max-results 50 -P <port>
+1. decx code search-global "WebView" --limit 50 -P <port>
 2. decx code search-method "onActivityResult" -P <port>
 3. Inspect ActivityResultLauncher callbacks and scanner SDK handlers
 4. Trace scan-result strings into:

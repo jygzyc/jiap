@@ -31,7 +31,7 @@ Visible impact must be concrete, such as:
 1. decx ard system-service-impl "<Interface>" -P <port>
 2. decx code class-context "<ServiceImpl>" -P <port>
    -> quick overview of all Binder-exposed methods
-3. decx code search-class "<ServiceImpl>" "enforceCallingPermission|checkCallingPermission|enforceCallingOrSelfPermission" --max-results 50 -P <port>
+3. decx code search-class "<ServiceImpl>" "enforceCallingPermission|checkCallingPermission|enforceCallingOrSelfPermission" --limit 50 -P <port>
    -> map enforcement locations vs privileged operations
 4. decx code class-source "<ServiceImpl>" -P <port>
 5. Match each Binder method against its privileged action

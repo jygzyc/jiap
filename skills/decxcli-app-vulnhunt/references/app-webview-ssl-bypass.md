@@ -27,7 +27,7 @@ Visible impact must be concrete, such as:
 ## Attack Flow
 
 ```text
-1. decx code search-global "onReceivedSslError" --max-results 50 -P <port>
+1. decx code search-global "onReceivedSslError" --limit 50 -P <port>
 2. decx code class-source "<WebViewClientImpl>" -P <port>
 3. Inspect onReceivedSslError()
 4. Confirm whether handler.proceed() is called unconditionally
