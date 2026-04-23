@@ -1,0 +1,24 @@
+{
+  "name": "decx",
+  "description": "DECX Android analysis workflows for skills, agents, and hooks",
+  "version": "3.2.0",
+  "author": {
+    "name": "Yves",
+    "email": "jyg.zyc@outlook.com"
+  },
+  "homepage": "https://github.com/jygzyc/decx",
+  "repository": "https://github.com/jygzyc/decx",
+  "license": "GPL-3.0",
+  "keywords": [
+    "android",
+    "security",
+    "decompiler",
+    "jadx",
+    "analysis",
+    "vulnerability",
+    "poc",
+    "mcp",
+    "agents",
+    "skills"
+  ]
+}
