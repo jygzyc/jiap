@@ -1,0 +1,733 @@
+[
+  {
+    "case": "access_paths",
+    "issue_count": 16,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "AccessPaths.java"
+    ]
+  },
+  {
+    "case": "activity_lifecycle",
+    "issue_count": 1,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "BaseActivity.java",
+      "BaseActivityWithDefaultSink.java",
+      "MainActivity.java",
+      "MainActivity2.java",
+      "MainActivityWithBaseImpl.java",
+      "MainActivityWithOverriddenImpl.java"
+    ]
+  },
+  {
+    "case": "activity_lifecycle_graph",
+    "issue_count": 2,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "BaseActivityWithDefaultSink.java",
+      "MainActivity.java",
+      "MainActivity2.java",
+      "MainActivityWithBaseImpl.java",
+      "MainActivityWithOverriddenImpl.java"
+    ]
+  },
+  {
+    "case": "add_features_to_arguments",
+    "issue_count": 4,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "Flow.java"
+    ]
+  },
+  {
+    "case": "add_features_to_arguments_builder_pattern",
+    "issue_count": 3,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "Test.java"
+    ]
+  },
+  {
+    "case": "add_features_to_check_cast",
+    "issue_count": 5,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "AddFeatureToCheckCast.java"
+    ]
+  },
+  {
+    "case": "alias_on_propagation",
+    "issue_count": 1,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "NestedClassesJava.java"
+    ]
+  },
+  {
+    "case": "aliasing",
+    "issue_count": 54,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "AliasingJava.java",
+      "AliasingObjects.java"
+    ]
+  },
+  {
+    "case": "android_location_api",
+    "issue_count": 1,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "ActivityUsingAndroidLocationManager.java"
+    ]
+  },
+  {
+    "case": "annotation_feature",
+    "issue_count": 5,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "AnnotationFeature.java"
+    ]
+  },
+  {
+    "case": "approximate_override_models",
+    "issue_count": 0,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "A.java",
+      "B.java",
+      "Base.java",
+      "Dict.java",
+      "Flow.java",
+      "Interface.java"
+    ]
+  },
+  {
+    "case": "array_allocation",
+    "issue_count": 5,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "ArrayAllocation.java"
+    ]
+  },
+  {
+    "case": "array_allocation_unused_kind",
+    "issue_count": 0,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "ArrayAllocation.java"
+    ]
+  },
+  {
+    "case": "artificial_calls",
+    "issue_count": 1,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "RunnableFlows.java"
+    ]
+  },
+  {
+    "case": "attach_to",
+    "issue_count": 0,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "Flow.java"
+    ]
+  },
+  {
+    "case": "broadening",
+    "issue_count": 3,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "Flow.java"
+    ]
+  },
+  {
+    "case": "builder_pattern",
+    "issue_count": 11,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "Test.java"
+    ]
+  },
+  {
+    "case": "builder_pattern_collapse",
+    "issue_count": 29,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "Test.java"
+    ]
+  },
+  {
+    "case": "call_chain",
+    "issue_count": 1,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "CallChain.java"
+    ]
+  },
+  {
+    "case": "check_cast_types",
+    "issue_count": 6,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "JavaCheckCast.java"
+    ]
+  },
+  {
+    "case": "class_intervals",
+    "issue_count": 9,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "Basic.java",
+      "ClassIntervalDetails.java",
+      "IntervalsForPropagations.java",
+      "PropagateIntervals.java"
+    ]
+  },
+  {
+    "case": "collapse_depth",
+    "issue_count": 5,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "Flow.java",
+      "Tree.java"
+    ]
+  },
+  {
+    "case": "combinatory_ports",
+    "issue_count": 0,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "Flow.java"
+    ]
+  },
+  {
+    "case": "containers",
+    "issue_count": 1,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "Test.java"
+    ]
+  },
+  {
+    "case": "crtex_consumer",
+    "issue_count": 1,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "Consumer.java"
+    ]
+  },
+  {
+    "case": "crtex_producer",
+    "issue_count": 1,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "Crtex.java"
+    ]
+  },
+  {
+    "case": "declared_and_inferred_taint",
+    "issue_count": 3,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "DeclaredAndInferredTaint.java"
+    ]
+  },
+  {
+    "case": "deeplink",
+    "issue_count": 1,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "AppLinksUtil.java",
+      "CustomUriIntentMapper.java",
+      "ExternalLinkUriIntentBuilder.java",
+      "FBLinks.java",
+      "Fb4aUriIntentMapper.java",
+      "IntentHandlerUtil.java",
+      "IntentResolver.java",
+      "IntentUriHandler.java",
+      "LegacyUriMap.java",
+      "StaticUriIntentMapper.java",
+      "UriIntentBuilder.java"
+    ]
+  },
+  {
+    "case": "delegating_override_provider",
+    "issue_count": 1,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "AbstractContentProvider.java",
+      "CallableContentProvider.java"
+    ]
+  },
+  {
+    "case": "exploitability_rule",
+    "issue_count": 15,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "ExploitabilityRule.java"
+    ]
+  },
+  {
+    "case": "field_sink_propagation",
+    "issue_count": 1,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "Flow.java"
+    ]
+  },
+  {
+    "case": "field_sink_propagation_overrides",
+    "issue_count": 2,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "Flow.java"
+    ]
+  },
+  {
+    "case": "field_sinks",
+    "issue_count": 7,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "ChildClass.java",
+      "Flow.java",
+      "TaintedFieldClass.java"
+    ]
+  },
+  {
+    "case": "field_sources",
+    "issue_count": 24,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "ChildClass.java",
+      "ExtendedTests.java",
+      "TaintedFieldClass.java",
+      "TestClass.java"
+    ]
+  },
+  {
+    "case": "field_tito",
+    "issue_count": 1,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "MainActivity.java"
+    ]
+  },
+  {
+    "case": "field_tito_fp",
+    "issue_count": 1,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "MainActivity.java"
+    ]
+  },
+  {
+    "case": "flow_through_field",
+    "issue_count": 2,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "OfferRedirectToWebActivity.java",
+      "OfferRenderingUtils.java"
+    ]
+  },
+  {
+    "case": "flow_through_interface_call",
+    "issue_count": 1,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "Flow.java"
+    ]
+  },
+  {
+    "case": "flow_through_virtual_call",
+    "issue_count": 1,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "Flow.java"
+    ]
+  },
+  {
+    "case": "fragment_lifecycle",
+    "issue_count": 3,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "BaseFragment.java",
+      "ChildFragment.java",
+      "SimpleFragment.java"
+    ]
+  },
+  {
+    "case": "independent_propagation",
+    "issue_count": 1,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "Flow.java"
+    ]
+  },
+  {
+    "case": "inline_getters",
+    "issue_count": 3,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "Flow.java"
+    ]
+  },
+  {
+    "case": "intent_routing",
+    "issue_count": 3,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "IntentRouter.java",
+      "IntentRouterAndTarget.java",
+      "IntentTarget.java"
+    ]
+  },
+  {
+    "case": "invalid_models",
+    "issue_count": 1,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "Test.java"
+    ]
+  },
+  {
+    "case": "invalid_path_broadening",
+    "issue_count": 0,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "InvalidPathBroadening.java"
+    ]
+  },
+  {
+    "case": "literal_source",
+    "issue_count": 8,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "RegexSource.java"
+    ]
+  },
+  {
+    "case": "logging_url",
+    "issue_count": 2,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "SimpleLogging.java",
+      "UrlHandlerActivity.java"
+    ]
+  },
+  {
+    "case": "may_always_features",
+    "issue_count": 1,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "Flow.java"
+    ]
+  },
+  {
+    "case": "multi_sources",
+    "issue_count": 5,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "MockObjectWithThisPropagation.java",
+      "MultiSources.java",
+      "MultiSourcesSingleArg.java"
+    ]
+  },
+  {
+    "case": "multiple_kinds_per_callee",
+    "issue_count": 1,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "Flow.java"
+    ]
+  },
+  {
+    "case": "no_collapse_on_propagation",
+    "issue_count": 1,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "MainActivity.java"
+    ]
+  },
+  {
+    "case": "obscure_with_models",
+    "issue_count": 0,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "Flow.java"
+    ]
+  },
+  {
+    "case": "overwrite_artificial_source_field",
+    "issue_count": 0,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "Flow.java"
+    ]
+  },
+  {
+    "case": "parameter_type_overrides",
+    "issue_count": 3,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "RunnableFlows.java"
+    ]
+  },
+  {
+    "case": "propagate_implicit_this",
+    "issue_count": 1,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "Flow.java"
+    ]
+  },
+  {
+    "case": "propagation_collapse",
+    "issue_count": 1,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "Flow.java"
+    ]
+  },
+  {
+    "case": "propagation_via_arg",
+    "issue_count": 12,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "propagateViaArg.java"
+    ]
+  },
+  {
+    "case": "propagation_via_obscure",
+    "issue_count": 1,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "Flow.java"
+    ]
+  },
+  {
+    "case": "return_sink",
+    "issue_count": 5,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "Flow.java"
+    ]
+  },
+  {
+    "case": "sanitizers",
+    "issue_count": 12,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "GlobalSanitizers.java",
+      "KindSpecificSanitizers.java",
+      "PartialSinkSanitizers.java",
+      "PortSanitizers.java"
+    ]
+  },
+  {
+    "case": "shims",
+    "issue_count": 27,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "ReflectionShims.java",
+      "ReturnToShims.java",
+      "Shims.java",
+      "ShimsWithArgumentGenerations.java",
+      "WithParameterOverrides.java"
+    ]
+  },
+  {
+    "case": "simple_flows",
+    "issue_count": 6,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "DirectFlow.java",
+      "DirectFlowWithSanitizer.java",
+      "DirectOpenRedirectFlow.java",
+      "ExternalDirectFlow.java",
+      "FlowWithHops.java",
+      "InheritanceFlows.java"
+    ]
+  },
+  {
+    "case": "sink_grouping",
+    "issue_count": 2,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "Activity.java"
+    ]
+  },
+  {
+    "case": "strong_update",
+    "issue_count": 2,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "Flow.java"
+    ]
+  },
+  {
+    "case": "subkinds",
+    "issue_count": 15,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "Subkinds.java"
+    ]
+  },
+  {
+    "case": "super_delegate_flow",
+    "issue_count": 1,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "FacebookWebViewClient.java",
+      "InsecureWebViewClient.java",
+      "SecureWebViewClient.java",
+      "SinkWebViewClient.java",
+      "SourceSinkWebViewClient.java",
+      "SourceWebViewClient.java"
+    ]
+  },
+  {
+    "case": "taint_transforms",
+    "issue_count": 42,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "ExtraTraces.java",
+      "SanitizeTransforms.java",
+      "SanitizeTransformsPropagationToSameMemoryLocation.java",
+      "TaintTransforms.java"
+    ]
+  },
+  {
+    "case": "tainted_return",
+    "issue_count": 1,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "Configerator.java",
+      "Instantiate.java",
+      "ZeroRatingConnectionConfigOverrides.java"
+    ]
+  },
+  {
+    "case": "thread",
+    "issue_count": 1,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "RunnableActivity.java"
+    ]
+  },
+  {
+    "case": "uri_builder_pattern",
+    "issue_count": 3,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "Test.java"
+    ]
+  },
+  {
+    "case": "user_features_propagation",
+    "issue_count": 0,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "UserFeaturesPropagation.java"
+    ]
+  },
+  {
+    "case": "varargs",
+    "issue_count": 2,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "Test.java"
+    ]
+  },
+  {
+    "case": "via_type_of",
+    "issue_count": 3,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "RecorderActivity.java"
+    ]
+  },
+  {
+    "case": "via_value_of",
+    "issue_count": 12,
+    "has_models": true,
+    "has_rules": true,
+    "java_files": [
+      "ViaValueOf.java"
+    ]
+  }
+]

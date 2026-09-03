@@ -1,0 +1,162 @@
+[
+  {
+    "method": "Lcom/facebook/marianatrench/integrationtests/TaintTransforms;.getNewSource:()Ljava/lang/Object;",
+    "generations": [
+      {
+        "kind": "NewSource",
+        "port": "Return"
+      }
+    ]
+  },
+  {
+    "method": "Lcom/facebook/marianatrench/integrationtests/Origin;.source:()Ljava/lang/Object;",
+    "generations": [
+      {
+        "kind": "Source",
+        "port": "Return"
+      }
+    ]
+  },
+  {
+    "method": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "sinks": [
+      {
+        "kind": "Sink",
+        "port": "Argument(0)"
+      }
+    ]
+  },
+  {
+    "method": "Lcom/facebook/marianatrench/integrationtests/SanitizeTransforms;.sourceA:()Ljava/lang/Object;",
+    "generations": [
+      {
+        "kind": "A",
+        "port": "Return"
+      }
+    ]
+  },
+  {
+    "method": "Lcom/facebook/marianatrench/integrationtests/SanitizeTransforms;.sinkB:(Ljava/lang/Object;)V",
+    "sinks": [
+      {
+        "kind": "B",
+        "port": "Argument(0)"
+      }
+    ]
+  },
+  {
+    "method": "Lcom/facebook/marianatrench/integrationtests/SanitizeTransforms;.sanitizeSourceA:(Ljava/lang/Object;)Ljava/lang/Object;",
+    "sanitizers": [
+      {
+        "sanitize": "propagations",
+        "port": "Argument(0)",
+        "kinds": [
+          {
+            "kind": "Source[A]"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "method": "Lcom/facebook/marianatrench/integrationtests/SanitizeTransforms;.sanitizeSinkB:(Ljava/lang/Object;)Ljava/lang/Object;",
+    "sanitizers": [
+      {
+        "sanitize": "propagations",
+        "port": "Argument(0)",
+        "kinds": [
+          {
+            "kind": "Sink[B]"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "method": "Lcom/facebook/marianatrench/integrationtests/SanitizeTransforms;.transformX:(Ljava/lang/Object;)Ljava/lang/Object;",
+    "freeze": [
+      "propagation"
+    ],
+    "propagation": [
+      {
+        "input": "Argument(0)",
+        "output": "Return",
+        "transforms": [
+          "TransformX"
+        ]
+      }
+    ]
+  },
+  {
+    "method": "Lcom/facebook/marianatrench/integrationtests/SanitizeTransforms;.transformY:(Ljava/lang/Object;)Ljava/lang/Object;",
+    "freeze": [
+      "propagation"
+    ],
+    "propagation": [
+      {
+        "input": "Argument(0)",
+        "output": "Return",
+        "transforms": [
+          "TransformY"
+        ]
+      }
+    ]
+  },
+  {
+    "method": "Lcom/facebook/marianatrench/integrationtests/SanitizeTransforms;.transformZ:(Ljava/lang/Object;)Ljava/lang/Object;",
+    "freeze": [
+      "propagation"
+    ],
+    "propagation": [
+      {
+        "input": "Argument(0)",
+        "output": "Return",
+        "transforms": [
+          "TransformZ"
+        ]
+      }
+    ]
+  },
+  {
+    "method": "Lcom/facebook/marianatrench/integrationtests/SanitizeTransforms;.transformXwithSanitizeA:(Ljava/lang/Object;)Ljava/lang/Object;",
+    "sanitizers": [
+      {
+        "sanitize": "propagations",
+        "port": "Argument(0)",
+        "kinds": [
+          {
+            "kind": "Source[A]"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "method": "Lcom/facebook/marianatrench/integrationtests/SanitizeTransforms;.transformXSanitizeAwithSanitizeA:(Ljava/lang/Object;)Ljava/lang/Object;",
+    "sanitizers": [
+      {
+        "sanitize": "propagations",
+        "port": "Argument(0)",
+        "kinds": [
+          {
+            "kind": "Source[A]"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "method": "Lcom/facebook/marianatrench/integrationtests/SanitizeTransforms;.sanitizeSourceA:(Lcom/facebook/marianatrench/integrationtests/SanitizeTransforms;)Ljava/lang/Object;",
+    "sanitizers": [
+      {
+        "sanitize": "propagations",
+        "port": "Argument(0)",
+        "kinds": [
+          {
+            "kind": "Source[A]"
+          }
+        ]
+      }
+    ]
+  }
+]

@@ -1,0 +1,146 @@
+[
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/GlobalSanitizers;.toSanitizedKindSink:(Ljava/lang/Object;)V",
+    "path": "GlobalSanitizers.java",
+    "line": 61,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 3,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/GlobalSanitizers;.toArraySink:([Ljava/lang/Object;)V",
+    "path": "GlobalSanitizers.java",
+    "line": 62,
+    "source_kinds": [
+      "SourceB"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/GlobalSanitizers;.toSink:(Ljava/lang/Object;)V",
+    "path": "GlobalSanitizers.java",
+    "line": 73,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 4,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/KindSpecificSanitizers;.sinkRCE:(Ljava/lang/Object;)V",
+    "path": "KindSpecificSanitizers.java",
+    "line": 46,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "SinkRCE"
+    ]
+  },
+  {
+    "rule": 4,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/KindSpecificSanitizers;.sinkRCE:(Ljava/lang/Object;)V",
+    "path": "KindSpecificSanitizers.java",
+    "line": 52,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "SinkRCE"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "KindSpecificSanitizers.java",
+    "line": 33,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 5,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/KindSpecificSanitizers;.sinkSSRF:(Ljava/lang/Object;)V",
+    "path": "KindSpecificSanitizers.java",
+    "line": 40,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "SinkSSRF"
+    ]
+  },
+  {
+    "rule": 6,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/PartialSinkSanitizers;.triggeredPartialSinkForSourceA:(Ljava/lang/Object;)V",
+    "path": "PartialSinkSanitizers.java",
+    "line": 44,
+    "source_kinds": [
+      "SourceA"
+    ],
+    "sink_kinds": [
+      "PartialSink"
+    ]
+  },
+  {
+    "rule": 6,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/PartialSinkSanitizers;.triggeredPartialSinkForSourceB:(Ljava/lang/Object;)V",
+    "path": "PartialSinkSanitizers.java",
+    "line": 48,
+    "source_kinds": [
+      "SourceB"
+    ],
+    "sink_kinds": [
+      "PartialSink"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/PortSanitizers;.sanitizedSinkPortAndKind:(Ljava/lang/Object;Ljava/lang/Object;)V",
+    "path": "PortSanitizers.java",
+    "line": 33,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 2,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/PortSanitizers;.sanitizedSinkPortAndKind:(Ljava/lang/Object;Ljava/lang/Object;)V",
+    "path": "PortSanitizers.java",
+    "line": 33,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "SinkB"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "PortSanitizers.java",
+    "line": 36,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  }
+]

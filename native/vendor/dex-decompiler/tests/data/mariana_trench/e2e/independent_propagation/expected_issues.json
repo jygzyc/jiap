@@ -1,0 +1,14 @@
+[
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "Flow.java",
+    "line": 40,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  }
+]

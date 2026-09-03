@@ -1,0 +1,194 @@
+[
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AccessPaths.java",
+    "line": 42,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 2,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/AccessPaths;.sinkIndex:(Lcom/facebook/marianatrench/integrationtests/Dictionary;Ljava/lang/String;)V",
+    "path": "AccessPaths.java",
+    "line": 136,
+    "source_kinds": [
+      "DifferentSource"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/AccessPaths;.sinkIndex:(Lcom/facebook/marianatrench/integrationtests/Dictionary;Ljava/lang/String;)V",
+    "path": "AccessPaths.java",
+    "line": 135,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/AccessPaths;.sinkIndex:(Lcom/facebook/marianatrench/integrationtests/Dictionary;Ljava/lang/String;)V",
+    "path": "AccessPaths.java",
+    "line": 137,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 2,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/AccessPaths;.sinkIndex:(Lcom/facebook/marianatrench/integrationtests/Dictionary;Ljava/lang/String;)V",
+    "path": "AccessPaths.java",
+    "line": 137,
+    "source_kinds": [
+      "DifferentSource"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 2,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/AccessPaths;.sinkIndexWrapper:(Lcom/facebook/marianatrench/integrationtests/Dictionary;)V",
+    "path": "AccessPaths.java",
+    "line": 146,
+    "source_kinds": [
+      "DifferentSource"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 2,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AccessPaths.java",
+    "line": 73,
+    "source_kinds": [
+      "DifferentSource"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 2,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AccessPaths.java",
+    "line": 95,
+    "source_kinds": [
+      "DifferentSource"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AccessPaths.java",
+    "line": 96,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AccessPaths.java",
+    "line": 97,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 2,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AccessPaths.java",
+    "line": 97,
+    "source_kinds": [
+      "DifferentSource"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AccessPaths.java",
+    "line": 86,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 2,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AccessPaths.java",
+    "line": 86,
+    "source_kinds": [
+      "DifferentSource"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/AccessPaths;.indexAccessToSink:(Lcom/facebook/marianatrench/integrationtests/Dictionary;)V",
+    "path": "AccessPaths.java",
+    "line": 125,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/AccessPaths;.indexAccessToSink:(Lcom/facebook/marianatrench/integrationtests/Dictionary;)V",
+    "path": "AccessPaths.java",
+    "line": 112,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AccessPaths.java",
+    "line": 103,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  }
+]

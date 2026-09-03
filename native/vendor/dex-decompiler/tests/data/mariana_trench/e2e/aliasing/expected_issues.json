@@ -1,0 +1,650 @@
+[
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AliasingJava.java",
+    "line": 172,
+    "source_kinds": [
+      "Source1"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 2,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AliasingJava.java",
+    "line": 172,
+    "source_kinds": [
+      "Source2"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AliasingJava.java",
+    "line": 177,
+    "source_kinds": [
+      "Source1"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 2,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AliasingJava.java",
+    "line": 177,
+    "source_kinds": [
+      "Source2"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 3,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AliasingJava.java",
+    "line": 177,
+    "source_kinds": [
+      "Source3"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AliasingJava.java",
+    "line": 188,
+    "source_kinds": [
+      "Source1"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 2,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AliasingJava.java",
+    "line": 188,
+    "source_kinds": [
+      "Source2"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 3,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AliasingJava.java",
+    "line": 188,
+    "source_kinds": [
+      "Source3"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 3,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AliasingJava.java",
+    "line": 229,
+    "source_kinds": [
+      "Source3"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 2,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AliasingJava.java",
+    "line": 224,
+    "source_kinds": [
+      "Source2"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AliasingJava.java",
+    "line": 234,
+    "source_kinds": [
+      "Source1"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 3,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AliasingJava.java",
+    "line": 234,
+    "source_kinds": [
+      "Source3"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 4,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AliasingJava.java",
+    "line": 280,
+    "source_kinds": [
+      "Source4"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 4,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AliasingJava.java",
+    "line": 310,
+    "source_kinds": [
+      "Source4"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 4,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AliasingJava.java",
+    "line": 262,
+    "source_kinds": [
+      "Source4"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 4,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AliasingJava.java",
+    "line": 293,
+    "source_kinds": [
+      "Source4"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 4,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AliasingJava.java",
+    "line": 245,
+    "source_kinds": [
+      "Source4"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AliasingJava.java",
+    "line": 249,
+    "source_kinds": [
+      "Source1"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 4,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AliasingJava.java",
+    "line": 249,
+    "source_kinds": [
+      "Source4"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AliasingJava.java",
+    "line": 51,
+    "source_kinds": [
+      "Source1"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 2,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AliasingJava.java",
+    "line": 51,
+    "source_kinds": [
+      "Source2"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AliasingJava.java",
+    "line": 97,
+    "source_kinds": [
+      "Source1"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 2,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AliasingJava.java",
+    "line": 97,
+    "source_kinds": [
+      "Source2"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 3,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AliasingJava.java",
+    "line": 111,
+    "source_kinds": [
+      "Source3"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 3,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AliasingJava.java",
+    "line": 146,
+    "source_kinds": [
+      "Source3"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AliasingJava.java",
+    "line": 151,
+    "source_kinds": [
+      "Source1"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 2,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AliasingJava.java",
+    "line": 151,
+    "source_kinds": [
+      "Source2"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 3,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AliasingJava.java",
+    "line": 153,
+    "source_kinds": [
+      "Source3"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AliasingKotlin.kt",
+    "line": 176,
+    "source_kinds": [
+      "Source1"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AliasingKotlin.kt",
+    "line": 161,
+    "source_kinds": [
+      "Source1"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 2,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AliasingKotlin.kt",
+    "line": 161,
+    "source_kinds": [
+      "Source2"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AliasingKotlin.kt",
+    "line": 167,
+    "source_kinds": [
+      "Source1"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 2,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AliasingKotlin.kt",
+    "line": 167,
+    "source_kinds": [
+      "Source2"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AliasingKotlin.kt",
+    "line": 171,
+    "source_kinds": [
+      "Source1"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 2,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AliasingKotlin.kt",
+    "line": 171,
+    "source_kinds": [
+      "Source2"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AliasingKotlin.kt",
+    "line": 178,
+    "source_kinds": [
+      "Source1"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 2,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AliasingKotlin.kt",
+    "line": 178,
+    "source_kinds": [
+      "Source2"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AliasingKotlin.kt",
+    "line": 204,
+    "source_kinds": [
+      "Source1"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 2,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AliasingKotlin.kt",
+    "line": 207,
+    "source_kinds": [
+      "Source2"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AliasingKotlin.kt",
+    "line": 126,
+    "source_kinds": [
+      "Source1"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 2,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AliasingKotlin.kt",
+    "line": 126,
+    "source_kinds": [
+      "Source2"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AliasingKotlin.kt",
+    "line": 132,
+    "source_kinds": [
+      "Source1"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 2,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AliasingKotlin.kt",
+    "line": 132,
+    "source_kinds": [
+      "Source2"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AliasingKotlin.kt",
+    "line": 136,
+    "source_kinds": [
+      "Source1"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 2,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AliasingKotlin.kt",
+    "line": 136,
+    "source_kinds": [
+      "Source2"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AliasingKotlin.kt",
+    "line": 141,
+    "source_kinds": [
+      "Source1"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AliasingKotlin.kt",
+    "line": 143,
+    "source_kinds": [
+      "Source1"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 2,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AliasingKotlin.kt",
+    "line": 143,
+    "source_kinds": [
+      "Source2"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AliasingKotlin.kt",
+    "line": 76,
+    "source_kinds": [
+      "Source1"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AliasingKotlin.kt",
+    "line": 95,
+    "source_kinds": [
+      "Source1"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 3,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AliasingKotlin.kt",
+    "line": 99,
+    "source_kinds": [
+      "Source3"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 5,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "KotlinScopeFunctions.kt",
+    "line": 52,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 5,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "KotlinScopeFunctions.kt",
+    "line": 37,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 5,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "KotlinScopeFunctions.kt",
+    "line": 73,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  }
+]

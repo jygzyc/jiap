@@ -1,0 +1,14 @@
+[
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/NestedClassesJava$FirstLevel;.firstLevelSinkOnTopLevelMember:()V",
+    "path": "NestedClassesJava.java",
+    "line": 83,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  }
+]

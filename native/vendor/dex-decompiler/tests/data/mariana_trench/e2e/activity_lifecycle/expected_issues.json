@@ -1,0 +1,14 @@
+[
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/BaseActivity;.onStart:()V",
+    "path": "__SYNTHETIC:",
+    "line": 0,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  }
+]

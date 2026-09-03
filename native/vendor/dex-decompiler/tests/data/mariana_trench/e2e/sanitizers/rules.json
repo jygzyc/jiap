@@ -1,0 +1,73 @@
+[
+  {
+    "name": "Flow1",
+    "code": 1,
+    "description": "",
+    "sources": [
+      "Source"
+    ],
+    "sinks": [
+      "Sink"
+    ]
+  },
+  {
+    "name": "Flow2",
+    "code": 2,
+    "description": "",
+    "sources": [
+      "Source"
+    ],
+    "sinks": [
+      "SinkB"
+    ]
+  },
+  {
+    "name": "Flow3",
+    "code": 3,
+    "description": "",
+    "sources": [
+      "SourceB"
+    ],
+    "sinks": [
+      "Sink"
+    ]
+  },
+  {
+    "name": "FlowRCE",
+    "code": 4,
+    "description": "",
+    "sources": [
+      "Source"
+    ],
+    "sinks": [
+      "SinkRCE"
+    ]
+  },
+  {
+    "name": "FlowSSRF",
+    "code": 5,
+    "description": "",
+    "sources": [
+      "Source"
+    ],
+    "sinks": [
+      "SinkSSRF"
+    ]
+  },
+  {
+    "name": "FlowMultiSource",
+    "code": 6,
+    "description": "Test multi source rule",
+    "multi_sources": {
+      "arg0": [
+        "SourceA"
+      ],
+      "arg1": [
+        "SourceB"
+      ]
+    },
+    "partial_sinks": [
+      "PartialSink"
+    ]
+  }
+]

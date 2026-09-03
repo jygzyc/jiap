@@ -1,0 +1,58 @@
+[
+  {
+    "field": "Lcom/facebook/marianatrench/integrationtests/TaintedFieldClass;.field:Ljava/lang/Object;",
+    "sources": [
+      {
+        "kind": "FieldSource"
+      }
+    ]
+  },
+  {
+    "field": "Lcom/facebook/marianatrench/integrationtests/TaintedFieldClass;.staticField:Ljava/lang/Object;",
+    "sources": [
+      {
+        "kind": "FieldSource"
+      }
+    ]
+  },
+  {
+    "field": "Lcom/facebook/marianatrench/integrationtests/ChildClass;.shadowedField:Ljava/lang/Object;",
+    "sources": [
+      {
+        "kind": "FieldSource"
+      }
+    ]
+  },
+  {
+    "field": "Lcom/facebook/marianatrench/integrationtests/TaintedFieldClass;.staticFinalField:Ljava/lang/Object;",
+    "sources": [
+      {
+        "kind": "FieldSource"
+      }
+    ]
+  },
+  {
+    "field": "Lcom/facebook/marianatrench/integrationtests/TaintedFieldClass;.finalStringField:Ljava/lang/String;",
+    "sources": [
+      {
+        "kind": "FieldSource"
+      }
+    ]
+  },
+  {
+    "field": "Lcom/facebook/marianatrench/integrationtests/TaintedFieldClass;.staticStringField:Ljava/lang/String;",
+    "sources": [
+      {
+        "kind": "FieldSource"
+      }
+    ]
+  },
+  {
+    "field": "Lcom/facebook/marianatrench/integrationtests/TaintedFieldClass;.staticFinalStringField:Ljava/lang/String;",
+    "sources": [
+      {
+        "kind": "FieldSource"
+      }
+    ]
+  }
+]

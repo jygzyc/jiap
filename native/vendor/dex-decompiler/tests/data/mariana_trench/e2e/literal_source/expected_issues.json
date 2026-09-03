@@ -1,0 +1,98 @@
+[
+  {
+    "rule": 2,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "RegexSource.java",
+    "line": 92,
+    "source_kinds": [
+      "GoogleAPIKey"
+    ],
+    "sink_kinds": [
+      "Logging"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/RegexSource;.sink:(Ljava/lang/String;Ljava/lang/String;)V",
+    "path": "RegexSource.java",
+    "line": 28,
+    "source_kinds": [
+      "AttackerControlledInput"
+    ],
+    "sink_kinds": [
+      "TestSink"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Ljava/text/MessageFormat;.format:(Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/String;",
+    "path": "RegexSource.java",
+    "line": 85,
+    "source_kinds": [
+      "AttackerControlledInput"
+    ],
+    "sink_kinds": [
+      "TestSink"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Ljava/lang/StringBuilder;.append:(Ljava/lang/String;)Ljava/lang/StringBuilder;",
+    "path": "RegexSource.java",
+    "line": 70,
+    "source_kinds": [
+      "Regex"
+    ],
+    "sink_kinds": [
+      "TestSink"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Ljava/lang/StringBuilder;.append:(Ljava/lang/String;)Ljava/lang/StringBuilder;",
+    "path": "RegexSource.java",
+    "line": 61,
+    "source_kinds": [
+      "AttackerControlledInput"
+    ],
+    "sink_kinds": [
+      "TestSink"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Ljava/lang/StringBuilder;.append:(Ljava/lang/String;)Ljava/lang/StringBuilder;",
+    "path": "RegexSource.java",
+    "line": 52,
+    "source_kinds": [
+      "Regex"
+    ],
+    "sink_kinds": [
+      "TestSink"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Ljava/lang/StringBuilder;.append:(Ljava/lang/String;)Ljava/lang/StringBuilder;",
+    "path": "RegexSource.java",
+    "line": 43,
+    "source_kinds": [
+      "AttackerControlledInput"
+    ],
+    "sink_kinds": [
+      "TestSink"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Ljava/lang/String;.format:(Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/String;",
+    "path": "RegexSource.java",
+    "line": 78,
+    "source_kinds": [
+      "AttackerControlledInput"
+    ],
+    "sink_kinds": [
+      "TestSink"
+    ]
+  }
+]

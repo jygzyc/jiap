@@ -1,0 +1,62 @@
+[
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/AddFeatureToCheckCast;.toSink:(Ljava/lang/String;)V",
+    "path": "AddFeatureToCheckCast.java",
+    "line": 35,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 2,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/AddFeatureToCheckCast;.arrayAllocate:(I)V",
+    "path": "AddFeatureToCheckCast.java",
+    "line": 40,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "ArrayAllocation"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/AddFeatureToCheckCast;.sink:(Ljava/lang/String;)V",
+    "path": "AddFeatureToCheckCast.java",
+    "line": 16,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "AddFeatureToCheckCast.java",
+    "line": 25,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 2,
+    "callee": "Lcom/mariana_trench/artificial/ArrayAllocation;.allocateArray:(I)V",
+    "path": "AddFeatureToCheckCast.java",
+    "line": 30,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "ArrayAllocation"
+    ]
+  }
+]

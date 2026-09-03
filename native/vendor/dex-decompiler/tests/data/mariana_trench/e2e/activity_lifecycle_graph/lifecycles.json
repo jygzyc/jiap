@@ -1,0 +1,89 @@
+[
+  {
+    "base_class_name": "Landroid/app/Activity;",
+    "method_name": "activity_lifecycle_wrapper",
+    "control_flow_graph": {
+      "entry": {
+        "instructions": [
+          {
+            "method_name": "<init>",
+            "return_type": "V",
+            "argument_types": []
+          }
+        ],
+        "successors": [
+          "onCreate"
+        ]
+      },
+      "onCreate": {
+        "instructions": [
+          {
+            "method_name": "onCreate",
+            "return_type": "V",
+            "argument_types": [
+              "Landroid/os/Bundle;"
+            ]
+          }
+        ],
+        "successors": [
+          "exit"
+        ]
+      },
+      "exit": {
+        "instructions": [
+          {
+            "method_name": "onStart",
+            "return_type": "V",
+            "argument_types": []
+          }
+        ],
+        "successors": [
+          "onCreate"
+        ]
+      }
+    }
+  },
+  {
+    "base_class_name": "Lcom/facebook/marianatrench/integrationtests/BaseActivityWithDefaultSink;",
+    "method_name": "base_activity_default_sink_lifecycle_wrapper",
+    "control_flow_graph": {
+      "entry": {
+        "instructions": [
+          {
+            "method_name": "<init>",
+            "return_type": "V",
+            "argument_types": []
+          }
+        ],
+        "successors": [
+          "onStart"
+        ]
+      },
+      "onStart": {
+        "instructions": [
+          {
+            "method_name": "onStart",
+            "return_type": "V",
+            "argument_types": [],
+            "skip_base_implementation": true
+          }
+        ],
+        "successors": [
+          "exit"
+        ]
+      },
+      "exit": {
+        "instructions": [
+          {
+            "method_name": "onStop",
+            "return_type": "V",
+            "argument_types": []
+          }
+        ],
+        "successors": [
+          "onStart"
+        ]
+      }
+    }
+  }
+]

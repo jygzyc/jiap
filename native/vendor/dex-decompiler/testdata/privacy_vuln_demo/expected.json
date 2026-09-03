@@ -1,0 +1,447 @@
+{
+  "package": "com.androguard.demohunt",
+  "application": "com.androguard.demohunt.MainActivity",
+  "notes": [
+    "Every listed flow is intra-procedural: source invoke and sink invoke live in the named method.",
+    "leakDeviceIdThroughCipher is DeviceId \u2192 String.getBytes \u2192 Cipher.doFinal \u2192 Base64 \u2192 Writer.write.",
+    "Embedded default_config() already models Cipher.doFinal / Base64.encodeToString, but NOT getBytes. configuration/default_taint.json has neither Cipher TITO.",
+    "The cipher_tito test merges AndroHunt-style Cipher.doFinal / Cipher.update (arg1\u2192return) plus getBytes (this\u2192return).",
+    "needs_extra_pii flows need catalog source kinds (PhoneNumber, Contacts, \u2026) and dest sinks (ClipboardWrite, SharedPrefsWrite, CookieWrite) merged in extra_pii_kinds_and_dest_sinks.",
+    "hardcoded_secrets_review is invoke-based (FileOutputStream / body writes), not a string hunter.",
+    "deeplink_webview_js_bridge and exported_receiver_intent_redirect are DEX-level retags of the JS-bridge+getDataString and onReceive-nested-Intent patterns; manifest export is AndroHunt-side.",
+    "PrivacyLayers: helper / field-URL / builder / SDK-wrapper / extra-hop / cipher-then-helper.",
+    "hop/cipher flows may attach to HttpSink.post or AnalyticsWrapper.log when summaries fire.",
+    "needs_interproc documents a 1-hop that the solver may miss; lock false when summaries already see param taint.",
+    "1-hop summaries: leakDeviceIdViaHelper / ViaLocalHelper / ViaBaseConcat / ViaFieldHop have no intra-proc last hop."
+  ],
+  "flows": [
+    {
+      "method": "leakDeviceIdToLog",
+      "source_kind": "DeviceId",
+      "sink_kind": "Logging",
+      "rule_code": 10,
+      "needs_cipher_tito": false,
+      "needs_extra_pii": false
+    },
+    {
+      "method": "leakDeviceIdToFirstParty",
+      "source_kind": "DeviceId",
+      "sink_kind": "Network",
+      "rule_code": 10,
+      "needs_cipher_tito": false,
+      "needs_extra_pii": false,
+      "dest": "https://api.demohunt.androguard.com/v1/id"
+    },
+    {
+      "method": "leakLocationToFirebase",
+      "source_kind": "Location",
+      "sink_kind": "Network",
+      "rule_code": 10,
+      "needs_cipher_tito": false,
+      "needs_extra_pii": false,
+      "dest": "https://app-analytics.firebase.google.com/log",
+      "dest_haystack": [
+        "FirebaseAnalytics",
+        "logEvent"
+      ]
+    },
+    {
+      "method": "leakClipboardToLog",
+      "source_kind": "Clipboard",
+      "sink_kind": "Logging",
+      "rule_code": 10,
+      "needs_cipher_tito": false,
+      "needs_extra_pii": false
+    },
+    {
+      "method": "leakDeviceIdThroughCipher",
+      "source_kind": "DeviceId",
+      "sink_kind": "Network",
+      "rule_code": 10,
+      "needs_cipher_tito": true,
+      "needs_extra_pii": false,
+      "dest": "https://api.demohunt.androguard.com/v1/enc"
+    },
+    {
+      "method": "execFromExtra",
+      "source_kind": "ActivityUserInput",
+      "sink_kind": "CodeExecution",
+      "rule_code": 1,
+      "needs_cipher_tito": false,
+      "needs_extra_pii": false
+    },
+    {
+      "method": "sqlFromExtra",
+      "source_kind": "ActivityUserInput",
+      "sink_kind": "SQLQuery",
+      "rule_code": 4,
+      "needs_cipher_tito": false,
+      "needs_extra_pii": false
+    },
+    {
+      "method": "webviewFromExtra",
+      "source_kind": "ActivityUserInput",
+      "sink_kind": "ExecuteJavascript",
+      "rule_code": 5,
+      "needs_cipher_tito": false,
+      "needs_extra_pii": false
+    },
+    {
+      "method": "launchFromExtra",
+      "source_kind": "ActivityUserInput",
+      "sink_kind": "LaunchingComponent",
+      "rule_code": 3,
+      "needs_cipher_tito": false,
+      "needs_extra_pii": false
+    },
+    {
+      "method": "networkFromExtra",
+      "source_kind": "ActivityUserInput",
+      "sink_kind": "Network",
+      "rule_code": 11,
+      "needs_cipher_tito": false,
+      "needs_extra_pii": false
+    },
+    {
+      "method": "fileWriteFromExtra",
+      "source_kind": "ActivityUserInput",
+      "sink_kind": "FileWrite",
+      "rule_code": 12,
+      "needs_cipher_tito": false,
+      "needs_extra_pii": false
+    },
+    {
+      "method": "leakDeviceIdToAppsFlyer",
+      "source_kind": "DeviceId",
+      "sink_kind": "Network",
+      "rule_code": 10,
+      "needs_cipher_tito": false,
+      "needs_extra_pii": false,
+      "dest": "https://t.appsflyer.com",
+      "dest_haystack": [
+        "AppsFlyerLib",
+        "logEvent"
+      ]
+    },
+    {
+      "method": "leakDeviceIdToCrashlytics",
+      "source_kind": "DeviceId",
+      "sink_kind": "Logging",
+      "rule_code": 10,
+      "needs_cipher_tito": false,
+      "needs_extra_pii": false,
+      "dest_haystack": [
+        "FirebaseCrashlytics",
+        "log"
+      ]
+    },
+    {
+      "method": "leakEditTextToNetwork",
+      "source_kind": "UserInput",
+      "sink_kind": "Network",
+      "rule_code": 11,
+      "needs_cipher_tito": false,
+      "needs_extra_pii": false,
+      "dest": "https://api.demohunt.androguard.com/v1/input"
+    },
+    {
+      "method": "leakPhoneToNetwork",
+      "source_kind": "PhoneNumber",
+      "sink_kind": "Network",
+      "rule_code": 91001,
+      "needs_cipher_tito": false,
+      "needs_extra_pii": true,
+      "dest": "https://api.demohunt.androguard.com/v1/phone"
+    },
+    {
+      "method": "leakContactsToNetwork",
+      "source_kind": "Contacts",
+      "sink_kind": "Network",
+      "rule_code": 91001,
+      "needs_cipher_tito": false,
+      "needs_extra_pii": true,
+      "dest": "https://api.demohunt.androguard.com/v1/contacts"
+    },
+    {
+      "method": "leakSmsToLog",
+      "source_kind": "Sms",
+      "sink_kind": "Logging",
+      "rule_code": 91002,
+      "needs_cipher_tito": false,
+      "needs_extra_pii": true
+    },
+    {
+      "method": "leakAccountsToNetwork",
+      "source_kind": "Account",
+      "sink_kind": "Network",
+      "rule_code": 91001,
+      "needs_cipher_tito": false,
+      "needs_extra_pii": true,
+      "dest": "https://api.demohunt.androguard.com/v1/accounts"
+    },
+    {
+      "method": "leakAdvertisingIdToFirebase",
+      "source_kind": "AdvertisingId",
+      "sink_kind": "Network",
+      "rule_code": 91001,
+      "needs_cipher_tito": false,
+      "needs_extra_pii": true,
+      "dest": "https://app-analytics.firebase.google.com/log"
+    },
+    {
+      "method": "leakMediaToNetwork",
+      "source_kind": "Media",
+      "sink_kind": "Network",
+      "rule_code": 91001,
+      "needs_cipher_tito": false,
+      "needs_extra_pii": true,
+      "dest": "https://api.demohunt.androguard.com/v1/media"
+    },
+    {
+      "method": "leakCalendarToLog",
+      "source_kind": "Calendar",
+      "sink_kind": "Logging",
+      "rule_code": 91002,
+      "needs_cipher_tito": false,
+      "needs_extra_pii": true
+    },
+    {
+      "method": "leakEmailToNetwork",
+      "source_kind": "Email",
+      "sink_kind": "Network",
+      "rule_code": 91001,
+      "needs_cipher_tito": false,
+      "needs_extra_pii": true,
+      "dest": "https://api.demohunt.androguard.com/v1/email"
+    },
+    {
+      "method": "leakDeviceIdToClipboard",
+      "source_kind": "DeviceId",
+      "sink_kind": "ClipboardWrite",
+      "rule_code": 91003,
+      "needs_cipher_tito": false,
+      "needs_extra_pii": true
+    },
+    {
+      "method": "leakDeviceIdToSharedPrefs",
+      "source_kind": "DeviceId",
+      "sink_kind": "SharedPrefsWrite",
+      "rule_code": 91003,
+      "needs_cipher_tito": false,
+      "needs_extra_pii": true
+    },
+    {
+      "method": "leakDeviceIdToCookie",
+      "source_kind": "DeviceId",
+      "sink_kind": "CookieWrite",
+      "rule_code": 91003,
+      "needs_cipher_tito": false,
+      "needs_extra_pii": true
+    },
+    {
+      "method": "leakDeviceIdViaIntent",
+      "source_kind": "DeviceId",
+      "sink_kind": "LaunchingComponent",
+      "rule_code": 91003,
+      "needs_cipher_tito": false,
+      "needs_extra_pii": true
+    },
+    {
+      "method": "leakLocationViaBroadcast",
+      "source_kind": "Location",
+      "sink_kind": "LaunchingComponent",
+      "rule_code": 91003,
+      "needs_cipher_tito": false,
+      "needs_extra_pii": true
+    },
+    {
+      "method": "leakDeviceIdViaHelper",
+      "source_kind": "DeviceId",
+      "sink_kind": "Network",
+      "rule_code": 10,
+      "needs_cipher_tito": false,
+      "needs_extra_pii": false,
+      "needs_interproc": false,
+      "dest": "https://api.demohunt.androguard.com/v1/hop",
+      "callable_any_of": [
+        "leakDeviceIdViaHelper",
+        "HttpSink",
+        "sendHop",
+        "leakDeviceIdViaLocalHelper"
+      ]
+    },
+    {
+      "method": "leakDeviceIdViaFieldUrl",
+      "source_kind": "DeviceId",
+      "sink_kind": "Network",
+      "rule_code": 10,
+      "needs_cipher_tito": false,
+      "needs_extra_pii": false,
+      "needs_interproc": false,
+      "dest": "https://api.demohunt.androguard.com/v1/field"
+    },
+    {
+      "method": "leakDeviceIdCipherThenHelper",
+      "source_kind": "DeviceId",
+      "sink_kind": "Network",
+      "rule_code": 10,
+      "needs_cipher_tito": true,
+      "needs_extra_pii": false,
+      "needs_interproc": false,
+      "dest": "https://api.demohunt.androguard.com/v1/cipherhop",
+      "callable_any_of": [
+        "leakDeviceIdCipherThenHelper",
+        "HttpSink",
+        "sendHop"
+      ]
+    },
+    {
+      "method": "leakLocationViaExtraHop",
+      "source_kind": "Location",
+      "sink_kind": "Logging",
+      "rule_code": 10,
+      "needs_cipher_tito": false,
+      "needs_extra_pii": false,
+      "needs_interproc": false,
+      "callable_any_of": [
+        "leakLocationViaExtraHop",
+        "forwardLocation"
+      ]
+    },
+    {
+      "method": "leakDeviceIdViaBuilder",
+      "source_kind": "DeviceId",
+      "sink_kind": "Network",
+      "rule_code": 10,
+      "needs_cipher_tito": false,
+      "needs_extra_pii": false,
+      "needs_interproc": false,
+      "dest": "https://api.demohunt.androguard.com/v1/builder",
+      "callable_any_of": [
+        "leakDeviceIdViaBuilder",
+        "HttpSink",
+        "sendHop"
+      ]
+    },
+    {
+      "method": "leakDeviceIdViaSdkWrapper",
+      "source_kind": "DeviceId",
+      "sink_kind": "Network",
+      "rule_code": 10,
+      "needs_cipher_tito": false,
+      "needs_extra_pii": false,
+      "needs_interproc": false,
+      "dest": "https://app-analytics.firebase.google.com/log",
+      "dest_haystack": [
+        "FirebaseAnalytics",
+        "logEvent"
+      ],
+      "callable_any_of": [
+        "leakDeviceIdViaSdkWrapper",
+        "AnalyticsWrapper"
+      ]
+    },
+    {
+      "method": "leakDeviceIdViaLocalHelper",
+      "source_kind": "DeviceId",
+      "sink_kind": "Network",
+      "rule_code": 10,
+      "needs_cipher_tito": false,
+      "needs_extra_pii": false,
+      "needs_interproc": false,
+      "dest": "https://api.demohunt.androguard.com/v1/localhop",
+      "callable_any_of": [
+        "leakDeviceIdViaLocalHelper",
+        "sendHop",
+        "HttpSink"
+      ]
+    },
+    {
+      "method": "leakDeviceIdViaBaseConcat",
+      "source_kind": "DeviceId",
+      "sink_kind": "Network",
+      "rule_code": 10,
+      "needs_cipher_tito": false,
+      "needs_extra_pii": false,
+      "needs_interproc": false,
+      "dest": "https://api.demohunt.androguard.com/v1/concat",
+      "callable_any_of": [
+        "leakDeviceIdViaBaseConcat",
+        "HttpSink"
+      ]
+    },
+    {
+      "method": "leakDeviceIdViaFieldHop",
+      "source_kind": "DeviceId",
+      "sink_kind": "Network",
+      "rule_code": 10,
+      "needs_cipher_tito": false,
+      "needs_extra_pii": false,
+      "needs_interproc": false,
+      "dest": "https://api.demohunt.androguard.com/v1/fieldhop",
+      "callable_any_of": [
+        "leakDeviceIdViaFieldHop",
+        "sendStored",
+        "HttpSink"
+      ]
+    }
+  ],
+  "detectors": {
+    "required": [
+      "ssl_trust_all",
+      "weak_crypto",
+      "world_readable_storage",
+      "intent_spoofing",
+      "intent_redirect_nested",
+      "intent_redirect_grant_smuggle",
+      "ipc_intent_validation",
+      "rce_dynamic_loading",
+      "rce_process_exec",
+      "insecure_logging",
+      "sql_injection",
+      "provider_sql_injection",
+      "webview_unsafe_url",
+      "webview_javascript_interface",
+      "webview_file_access",
+      "webview_js_bridge_user_url",
+      "webview_cookie_exfil",
+      "webview_weak_host_check",
+      "webview_resource_response_file",
+      "custom_tabs_intent_url",
+      "deeplink_webview_js_bridge",
+      "exported_receiver_intent_redirect",
+      "broadcast_intent_redirect",
+      "command_receiver",
+      "credential_broadcast",
+      "sensitive_broadcast",
+      "sticky_ordered_broadcast",
+      "implicit_intent_launch",
+      "implicit_intent_sensitive",
+      "uri_permission_grant_flow",
+      "uri_permission_result_forward",
+      "uri_permission_setresult_passthrough",
+      "path_traversal",
+      "provider_path_traversal",
+      "zip_slip",
+      "logcat_external_storage",
+      "unsafe_deserialization",
+      "pinning_bypass",
+      "reflection_rce",
+      "rce_package_context",
+      "sqlcipher_hardcoded_passphrase",
+      "biometric_without_crypto",
+      "keystore_no_user_auth",
+      "tracker_fingerprint_api",
+      "pick_file_theft",
+      "hardcoded_secrets_review"
+    ],
+    "webview_any_of": [
+      "webview_unsafe_url",
+      "webview_javascript_interface",
+      "webview_file_access",
+      "webview_js_bridge_user_url",
+      "webview_cookie_exfil"
+    ],
+    "optional": []
+  }
+}

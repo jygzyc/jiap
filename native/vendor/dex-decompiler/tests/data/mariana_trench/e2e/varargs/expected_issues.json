@@ -1,0 +1,26 @@
+[
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Test;.log:([Ljava/lang/String;)V",
+    "path": "Test.java",
+    "line": 19,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Test;.log:([Ljava/lang/String;)V",
+    "path": "Test.java",
+    "line": 26,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  }
+]

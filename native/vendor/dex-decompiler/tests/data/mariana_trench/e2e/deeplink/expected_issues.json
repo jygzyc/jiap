@@ -1,0 +1,14 @@
+[
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/IntentHandlerUtil;.launchNextActivity:(Landroid/content/Context;Landroid/content/Intent;)V",
+    "path": "IntentUriHandler.java",
+    "line": 23,
+    "source_kinds": [
+      "ExternalUserInput"
+    ],
+    "sink_kinds": [
+      "LaunchingComponent"
+    ]
+  }
+]

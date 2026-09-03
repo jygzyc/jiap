@@ -1,0 +1,497 @@
+# General Android Semgrep rules for dex-decompiler native scanning.
+#
+# Patterns are Semgrep-style Java. The native engine also uses `native:` hints
+# (source_sink / invoke / method_invoke) so matching works on DEX via SSA/value-flow
+# without requiring a full Java AST.
+
+rules:
+  - id: android.webview.loadurl-from-intent
+    message: >-
+      WebView.loadUrl() receives a URL derived from an Intent extra or Uri.
+      If the host Activity is exported or deep-linked, an attacker controls
+      the URL loaded into an authenticated WebView.
+    severity: WARNING
+    languages: [java]
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $WV.loadUrl((String) $INTENT.getStringExtra(...));
+          - pattern: |
+              $WV.loadUrl($INTENT.getData().toString());
+          - pattern: |
+              $WV.loadUrl($INTENT.getData().getQueryParameter(...));
+    metadata:
+      vuln_class: webview
+      chain_tag: deeplink_to_webview
+    native:
+      kind: source_sink
+      sources:
+        - getStringExtra
+        - getData
+        - getDataString
+        - getQueryParameter
+        - getIntent
+      sinks:
+        - loadUrl
+
+  - id: android.webview.js-interface-added
+    message: >-
+      addJavascriptInterface is called. If the WebView later loads attacker
+      controlled URLs (deep link, redirect, untrusted HTML), this is RCE.
+    severity: WARNING
+    languages: [java]
+    pattern: $WV.addJavascriptInterface($OBJ, $NAME);
+    metadata:
+      vuln_class: webview
+      chain_tag: js_bridge
+    native:
+      kind: invoke
+      methods:
+        - addJavascriptInterface
+
+  - id: android.intent.redirect
+    message: >-
+      Activity extracts a Parcelable/Intent from an incoming Intent and starts
+      it. Classic intent redirection; attacker reaches non-exported components.
+    severity: ERROR
+    languages: [java]
+    pattern-either:
+      - pattern: |
+          $I = (Intent) getIntent().getParcelableExtra(...);
+          ...
+          startActivity($I);
+      - pattern: |
+          $I = getIntent().getParcelableExtra(..., Intent.class);
+          ...
+          startActivity($I);
+    metadata:
+      vuln_class: ipc
+      chain_tag: intent_redirect
+    native:
+      kind: source_sink
+      sources:
+        - getParcelableExtra
+        - getParcelableArrayExtra
+        - getParcelableArrayListExtra
+      sinks:
+        - startActivity
+        - startActivityForResult
+        - startService
+        - startForegroundService
+        - bindService
+        - sendBroadcast
+
+  - id: android.intent.redirect-grant-flags
+    message: >-
+      Nested Intent from extras reaches addFlags/setFlags/setClipData. Combined
+      with FLAG_GRANT_* this smuggles URI permissions to attackers (provider /
+      FileProvider access).
+    severity: ERROR
+    languages: [java]
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $I = (Intent) getIntent().getParcelableExtra(...);
+              ...
+              $I.addFlags(...);
+          - pattern: |
+              $I = getIntent().getParcelableExtra(..., Intent.class);
+              ...
+              $I.setFlags(...);
+    metadata:
+      vuln_class: ipc
+      chain_tag: intent_redirect_grant
+    native:
+      kind: source_sink
+      sources:
+        - getParcelableExtra
+        - getParcelableArrayExtra
+        - getParcelableArrayListExtra
+      sinks:
+        - addFlags
+        - setFlags
+        - setClipData
+        - grantUriPermission
+
+  - id: android.ssl.bypass-handler-proceed
+    message: >-
+      WebViewClient.onReceivedSslError calls handler.proceed() unconditionally.
+      Silently accepts invalid TLS certs; network traffic can be MITMed.
+    severity: ERROR
+    languages: [java]
+    pattern: |
+      public void onReceivedSslError(WebView $V, SslErrorHandler $H, SslError $E) {
+        ...
+        $H.proceed();
+        ...
+      }
+    metadata:
+      vuln_class: network
+    native:
+      kind: method_invoke
+      method_name: onReceivedSslError
+      methods:
+        - proceed
+
+  # --- Curated high-signal extras (careful expand; not full MASTG) ---
+
+  - id: android.pendingintent.get-creation
+    message: >-
+      PendingIntent.get* creation site. Review FLAG_IMMUTABLE and whether the base
+      Intent leaves action/data/component unset (PITracker-style).
+    severity: INFO
+    languages: [java]
+    pattern-either:
+      - pattern: PendingIntent.getActivity(...)
+      - pattern: PendingIntent.getBroadcast(...)
+      - pattern: PendingIntent.getService(...)
+      - pattern: PendingIntent.getForegroundService(...)
+    metadata:
+      vuln_class: ipc
+      chain_tag: pending_intent
+    native:
+      kind: invoke
+      methods:
+        - PendingIntent.getActivity
+        - PendingIntent.getBroadcast
+        - PendingIntent.getService
+        - PendingIntent.getForegroundService
+
+  - id: android.ssl.check-server-trusted
+    message: >-
+      Custom TrustManager.checkServerTrusted present. Ensure it validates the chain
+      and throws CertificateException on failure (trust-all bypass risk).
+    severity: WARNING
+    languages: [java]
+    pattern: |
+      public void checkServerTrusted(...) {
+        ...
+      }
+    metadata:
+      vuln_class: network
+    native:
+      kind: invoke
+      methods:
+        - checkServerTrusted
+
+  - id: android.deserialization.read-object
+    message: >-
+      ObjectInputStream.readObject / similar deserialization. Prefer JSON with an
+      explicit schema when input is untrusted.
+    severity: ERROR
+    languages: [java]
+    pattern: $IN.readObject();
+    metadata:
+      vuln_class: ipc
+    native:
+      kind: invoke
+      methods:
+        - readObject
+        - ObjectInputStream.readObject
+
+  - id: android.crypto.secret-key-spec
+    message: >-
+      SecretKeySpec constructed in app code. Confirm key material is not hardcoded.
+    severity: WARNING
+    languages: [java]
+    pattern: new SecretKeySpec(...);
+    metadata:
+      vuln_class: storage
+    native:
+      kind: invoke
+      methods:
+        - SecretKeySpec.<init>
+
+  - id: android.webview.file-access-from-file-urls
+    message: >-
+      WebView allows file:// access from file URLs, enabling local file theft when
+      combined with attacker-controlled content.
+    severity: ERROR
+    languages: [java]
+    pattern-either:
+      - pattern: $S.setAllowFileAccessFromFileURLs(true);
+      - pattern: $S.setAllowUniversalAccessFromFileURLs(true);
+    metadata:
+      vuln_class: webview
+    native:
+      kind: invoke
+      methods:
+        - setAllowFileAccessFromFileURLs
+        - setAllowUniversalAccessFromFileURLs
+
+  - id: android.rce.dex-class-loader
+    message: >-
+      Dynamic DEX loading (DexClassLoader / PathClassLoader / InMemoryDexClassLoader).
+      Untrusted paths can lead to code execution.
+    severity: ERROR
+    languages: [java]
+    pattern-either:
+      - pattern: new DexClassLoader(...);
+      - pattern: new PathClassLoader(...);
+      - pattern: new InMemoryDexClassLoader(...);
+    metadata:
+      vuln_class: native
+    native:
+      kind: invoke
+      methods:
+        - DexClassLoader.<init>
+        - PathClassLoader.<init>
+        - InMemoryDexClassLoader.<init>
+
+  - id: android.webview.cookie-with-intent-url
+    message: >-
+      CookieManager is used in the same method as Intent-driven WebView navigation.
+      Attackers who control the loaded URL can steal session cookies (TikTok CVE-2022-28799).
+    severity: ERROR
+    languages: [java]
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $WV.loadUrl($URL);
+              ...
+              CookieManager.getInstance().getCookie(...);
+          - pattern: |
+              CookieManager.getInstance().setCookie(...);
+              ...
+              $WV.loadUrl($URL);
+    metadata:
+      vuln_class: webview
+      chain_tag: webview_cookie_exfil
+      cwe: CWE-201
+    native:
+      kind: source_sink
+      sources:
+        - getStringExtra
+        - getData
+        - getDataString
+        - getQueryParameter
+      sinks:
+        - CookieManager.getCookie
+        - CookieManager.setCookie
+        - android.webkit.CookieManager.getCookie
+        - android.webkit.CookieManager.setCookie
+
+  - id: android.zip.slip
+    message: >-
+      ZipEntry.getName() is used to build a File / FileOutputStream path without
+      getCanonicalPath containment checks (ZipSlip). Crafted ../ entries can
+      overwrite files outside the extract directory.
+    severity: ERROR
+    languages: [java]
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $N = $E.getName();
+              ...
+              new File($DIR, $N);
+          - pattern: |
+              new File($DIR, $E.getName());
+          - pattern: |
+              new FileOutputStream(new File($DIR, $E.getName()));
+    metadata:
+      vuln_class: storage
+      chain_tag: zip_slip
+      cwe: CWE-22
+    native:
+      kind: source_sink
+      sources:
+        - ZipEntry.getName
+        - ZipArchiveEntry.getName
+      sinks:
+        - File.<init>
+        - FileOutputStream.<init>
+        - FileUtils.copy
+
+  - id: android.intent.parse-uri
+    message: >-
+      Intent.parseUri result is launched. intent:// URLs can reach non-exported
+      components from WebView or deeplinks.
+    severity: ERROR
+    languages: [java]
+    patterns:
+      - pattern-either:
+          - pattern: |
+              startActivity(Intent.parseUri(...));
+          - pattern: |
+              $I = Intent.parseUri(...);
+              ...
+              startActivity($I);
+    metadata:
+      vuln_class: ipc
+      cwe: CWE-926
+    native:
+      kind: source_sink
+      sources:
+        - parseUri
+        - Intent.parseUri
+      sinks:
+        - startActivity
+        - startActivityForResult
+        - startService
+
+  - id: android.customtabs.intent-url
+    message: >-
+      CustomTabsIntent.launchUrl receives a URL derived from Intent extras or
+      Uri data. Attackers can open phishing/OAuth pages in an app-branded session.
+    severity: WARNING
+    languages: [java]
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $CT.launchUrl($CTX, Uri.parse($INTENT.getStringExtra(...)));
+          - pattern: |
+              $CT.launchUrl($CTX, $INTENT.getData());
+    metadata:
+      vuln_class: network
+      chain_tag: custom_tabs_intent_url
+      cwe: CWE-939
+    native:
+      kind: source_sink
+      sources:
+        - getStringExtra
+        - getData
+        - getDataString
+        - getQueryParameter
+      sinks:
+        - CustomTabsIntent.launchUrl
+        - launchUrl
+
+  - id: android.broadcast.intent-redirect
+    message: >-
+      BroadcastReceiver extracts a Parcelable Intent from extras and starts it.
+      install_complete / PACKAGE_ADDED style broadcasts become confused-deputy
+      redirects (Samsung Galaxy Store AppLinker).
+    severity: ERROR
+    languages: [java]
+    patterns:
+      - pattern-either:
+          - pattern: |
+              public void onReceive(...) {
+                ...
+                $I = (Intent) $INTENT.getParcelableExtra(...);
+                ...
+                startActivity($I);
+              }
+          - pattern: |
+              $I = $INTENT.getParcelableExtra(..., Intent.class);
+              ...
+              startActivity($I);
+    metadata:
+      vuln_class: ipc
+      chain_tag: broadcast_intent_redirect
+      cwe: CWE-926
+    native:
+      kind: source_sink
+      sources:
+        - getParcelableExtra
+        - getParcelableArrayExtra
+        - getParcelableArrayListExtra
+      sinks:
+        - startActivity
+        - startActivityForResult
+        - startService
+        - startForegroundService
+        - bindService
+
+  - id: android.broadcast.sensitive-extras
+    message: >-
+      sendBroadcast may carry sensitive extras (IMSI/token/phone). Implicit
+      broadcasts are readable by any registered receiver.
+    severity: WARNING
+    languages: [java]
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $I.putExtra("imsi", $V);
+              ...
+              sendBroadcast($I);
+          - pattern: |
+              $I.putExtra(..., $TOKEN);
+              ...
+              sendBroadcast($I);
+    metadata:
+      vuln_class: ipc
+      chain_tag: sensitive_broadcast
+      cwe: CWE-925
+    native:
+      kind: source_sink
+      sources:
+        - getSubscriberId
+        - getImei
+        - getDeviceId
+        - getLine1Number
+        - getAuthToken
+        - getAccessToken
+        - getToken
+        - getPassword
+        - getStringExtra
+      sinks:
+        - sendBroadcast
+        - sendOrderedBroadcast
+        - sendStickyBroadcast
+
+  - id: android.receiver.command-sink
+    message: >-
+      BroadcastReceiver.onReceive invokes a dangerous side-effect API. If the
+      receiver is exported, any app can trigger it (FactoryCamera-style).
+    severity: ERROR
+    languages: [java]
+    patterns:
+      - pattern-either:
+          - pattern: |
+              public void onReceive(...) {
+                ...
+                Runtime.getRuntime().exec(...);
+              }
+          - pattern: |
+              public void onReceive(...) {
+                ...
+                $PM.setComponentEnabledSetting(...);
+              }
+    metadata:
+      vuln_class: ipc
+      chain_tag: command_receiver
+      cwe: CWE-925
+    native:
+      kind: invoke
+      methods:
+        - Runtime.exec
+        - ProcessBuilder.start
+        - setComponentEnabledSetting
+        - MediaRecorder.start
+        - Camera.open
+        - openFileOutput
+        - grantUriPermission
+        - installPackage
+
+  - id: android.sql.provider-injection
+    message: >-
+      ContentProvider query path builds SQL from Uri/Intent input without bind
+      args (Samsung Billing IAPService-style SQLi).
+    severity: ERROR
+    languages: [java]
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $DB.rawQuery($SQL + $URI.getQueryParameter(...), ...);
+          - pattern: |
+              $DB.rawQuery($URI.getLastPathSegment(), ...);
+          - pattern: |
+              $DB.execSQL($SQL + $INPUT);
+    metadata:
+      vuln_class: storage
+      chain_tag: provider_sql_injection
+      cwe: CWE-89
+    native:
+      kind: source_sink
+      sources:
+        - getStringExtra
+        - getQueryParameter
+        - getLastPathSegment
+        - getPathSegments
+        - getDataString
+        - getPath
+      sinks:
+        - rawQuery
+        - execSQL
+        - compileStatement

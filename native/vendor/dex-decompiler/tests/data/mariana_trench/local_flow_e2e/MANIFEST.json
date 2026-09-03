@@ -1,0 +1,72 @@
+[
+  {
+    "case": "branching",
+    "files": [
+      "Branching.java",
+      "expected_output.json"
+    ]
+  },
+  {
+    "case": "builder_pattern",
+    "files": [
+      "BuilderPattern.java",
+      "expected_output.json"
+    ]
+  },
+  {
+    "case": "constructor",
+    "files": [
+      "Constructor.java",
+      "expected_output.json"
+    ]
+  },
+  {
+    "case": "field_access",
+    "files": [
+      "FieldAccess.java",
+      "expected_output.json"
+    ]
+  },
+  {
+    "case": "identity",
+    "files": [
+      "Identity.java",
+      "expected_output.json"
+    ]
+  },
+  {
+    "case": "kotlin_lambda",
+    "files": [
+      "KotlinLambda.kt",
+      "expected_output.json"
+    ]
+  },
+  {
+    "case": "loops",
+    "files": [
+      "Loops.java",
+      "expected_output.json"
+    ]
+  },
+  {
+    "case": "recursion",
+    "files": [
+      "Recursion.java",
+      "expected_output.json"
+    ]
+  },
+  {
+    "case": "throw_flow",
+    "files": [
+      "ThrowFlow.java",
+      "expected_output.json"
+    ]
+  },
+  {
+    "case": "virtual_dispatch",
+    "files": [
+      "VirtualDispatch.java",
+      "expected_output.json"
+    ]
+  }
+]

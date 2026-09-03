@@ -1,0 +1,38 @@
+[
+  {
+    "rule": 1,
+    "callee": "Landroid/app/Activity;.startActivity:(Landroid/content/Intent;)V",
+    "path": "IntentRouter.java",
+    "line": 74,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/IntentRouter;.objectTaintUnknown:(Ljava/lang/String;Landroid/content/Context;)V",
+    "path": "IntentRouter.java",
+    "line": 56,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Landroid/app/Activity;.startActivity:(Landroid/content/Intent;)V",
+    "path": "IntentRouter.java",
+    "line": 21,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  }
+]

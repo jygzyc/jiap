@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.androguard.demohunt">
+
+    <uses-sdk
+        android:minSdkVersion="24"
+        android:targetSdkVersion="28" />
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <uses-permission android:name="android.permission.READ_SMS" />
+    <uses-permission android:name="android.permission.GET_ACCOUNTS" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.READ_CALENDAR" />
+
+    <application
+        android:label="AndroHunt Privacy Vuln Demo"
+        android:debuggable="true"
+        android:allowBackup="true"
+        android:usesCleartextTraffic="true">
+        <activity
+            android:name="com.androguard.demohunt.MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <activity
+            android:name="com.androguard.demohunt.DeeplinkActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="https"
+                    android:host="demohunt.androguard.com" />
+            </intent-filter>
+        </activity>
+        <activity
+            android:name="com.androguard.demohunt.LynxDeepLinkActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="demohunt"
+                    android:host="lynx" />
+            </intent-filter>
+        </activity>
+        <activity
+            android:name="com.androguard.demohunt.ResultPassthroughActivity"
+            android:exported="true" />
+        <activity
+            android:name="com.androguard.demohunt.TaskAffinityActivity"
+            android:exported="true"
+            android:taskAffinity="com.evil.phish"
+            android:allowTaskReparenting="true" />
+        <receiver
+            android:name="com.androguard.demohunt.CmdReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.androguard.demohunt.CMD" />
+            </intent-filter>
+        </receiver>
+        <receiver
+            android:name="com.androguard.demohunt.RedirectReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.androguard.demohunt.REDIRECT" />
+            </intent-filter>
+        </receiver>
+        <provider
+            android:name="com.androguard.demohunt.DemoProvider"
+            android:authorities="com.androguard.demohunt.provider"
+            android:exported="true"
+            android:grantUriPermissions="true" />
+    </application>
+</manifest>

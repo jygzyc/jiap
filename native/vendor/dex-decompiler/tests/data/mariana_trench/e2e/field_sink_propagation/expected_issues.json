@@ -1,0 +1,14 @@
+[
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Flow;.toSinkWithFieldHop:(Lcom/facebook/marianatrench/integrationtests/Flow$Event;)V",
+    "path": "Flow.java",
+    "line": 26,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  }
+]

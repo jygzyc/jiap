@@ -1,0 +1,60 @@
+{
+  "model_generators": [
+    {
+      "find": "methods",
+      "where": [
+        {
+          "constraint": "signature_pattern",
+          "pattern": ".*;\\.transferTaint.*"
+        }
+      ],
+      "model": {
+        "propagation": [
+          {
+            "input": "Argument(3)",
+            "output": "Argument(1)"
+          }
+        ]
+      }
+    },
+    {
+      "find": "methods",
+      "where": [
+        {
+          "constraint": "signature_pattern",
+          "pattern": ".*;\\.sourceViaType.*"
+        }
+      ],
+      "model": {
+        "generations": [
+          {
+            "kind": "Source",
+            "port": "Return",
+            "via_type_of": [
+              {
+                "port": "Argument(1)"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "find": "methods",
+      "where": [
+        {
+          "constraint": "signature_pattern",
+          "pattern": ".*;\\.sinkNonExistent.*"
+        }
+      ],
+      "model": {
+        "sinks": [
+          {
+            "kind": "Sink",
+            "port": "Argument(2)"
+          }
+        ]
+      }
+    }
+  ]
+}

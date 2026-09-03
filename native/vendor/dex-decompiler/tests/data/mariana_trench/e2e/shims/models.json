@@ -1,0 +1,65 @@
+[
+  {
+    "method": "Lcom/facebook/marianatrench/integrationtests/Origin;.source:()Ljava/lang/Object;",
+    "generations": [
+      {
+        "kind": "Source",
+        "port": "Return"
+      }
+    ]
+  },
+  {
+    "method": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "sinks": [
+      {
+        "kind": "Sink",
+        "port": "Argument(0)"
+      }
+    ]
+  },
+  {
+    "method": "Landroid/os/Bundle;.putString:(Ljava/lang/String;Ljava/lang/String;)V",
+    "propagation": [
+      {
+        "input": "Argument(2)",
+        "output": "Argument(0)"
+      }
+    ]
+  },
+  {
+    "method": "Lcom/facebook/marianatrench/integrationtests/ShimsWithArgumentGenerations;.sourceOnArgument0:(Ljava/lang/Object;)V",
+    "generations": [
+      {
+        "kind": "Source",
+        "port": "Argument(0)"
+      }
+    ]
+  },
+  {
+    "method": "Lcom/facebook/marianatrench/integrationtests/ShimsWithArgumentGenerations;.sourceOnArgument1:(ILjava/lang/Object;)V",
+    "generations": [
+      {
+        "kind": "Source",
+        "port": "Argument(1)"
+      }
+    ]
+  },
+  {
+    "method": "Lcom/facebook/marianatrench/integrationtests/StringBuilder;.append:(Ljava/lang/Object;)Lcom/facebook/marianatrench/integrationtests/StringBuilder;",
+    "modes": [
+      "skip-analysis"
+    ],
+    "propagation": [
+      {
+        "input": "Argument(1)",
+        "output": "Argument(0)"
+      }
+    ]
+  },
+  {
+    "method": "Lcom/facebook/marianatrench/integrationtests/StringBuilder;.append:(Ljava/lang/Class;)Lcom/facebook/marianatrench/integrationtests/StringBuilder;",
+    "modes": [
+      "skip-analysis"
+    ]
+  }
+]

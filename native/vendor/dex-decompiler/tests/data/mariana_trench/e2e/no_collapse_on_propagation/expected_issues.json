@@ -1,0 +1,14 @@
+[
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/MainActivity$ModalActivityLauncher;.mArgumentFlowsToSink:()V",
+    "path": "MainActivity.java",
+    "line": 34,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  }
+]

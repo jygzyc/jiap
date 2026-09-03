@@ -1,0 +1,37 @@
+[workspace]
+resolver = "2"
+members = [
+    "vendor/dex-parser/dexparser-rs",
+    "vendor/dex-bytecode/dex-bytecode",
+    "vendor/dex-decompiler",
+    "crates/decx-core",
+    "crates/decx-server",
+    "crates/decx-cli",
+]
+
+# dex-decompiler's git deps (dex-parser / dex-bytecode) are patched to the
+# vendored copies above. cargo only honors [patch] in the workspace root, so
+# the patch table was moved here from vendor/dex-decompiler/Cargo.toml.
+[patch."https://github.com/androguard/dex-parser"]
+dex-parser = { path = "vendor/dex-parser/dexparser-rs" }
+
+[patch."https://github.com/androguard/dex-bytecode.git"]
+dex-bytecode = { path = "vendor/dex-bytecode/dex-bytecode" }
+
+[workspace.package]
+edition = "2021"
+license = "Apache-2.0"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+thiserror = "2"
+regex = "1"
+rayon = "1.10"
+
+# Max-performance release profile for the native engine.
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1

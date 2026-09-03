@@ -1,0 +1,26 @@
+[
+  {
+    "rule": 1,
+    "callee": "Lcom/instagram/url/UrlHandlerActivity;.handleIntent:(Landroid/content/Intent;)V",
+    "path": "UrlHandlerActivity.java",
+    "line": 23,
+    "source_kinds": [
+      "ExternalUserInput"
+    ],
+    "sink_kinds": [
+      "Logging"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/instagram/common/analytics/intf/AnalyticsEvent;.addExtra:(Ljava/lang/String;Ljava/lang/String;)Lcom/instagram/common/analytics/intf/AnalyticsEvent;",
+    "path": "SimpleLogging.java",
+    "line": 23,
+    "source_kinds": [
+      "ExternalUserInput"
+    ],
+    "sink_kinds": [
+      "Logging"
+    ]
+  }
+]

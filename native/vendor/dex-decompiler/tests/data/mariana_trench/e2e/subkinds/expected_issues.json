@@ -1,0 +1,182 @@
+[
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "Subkinds.java",
+    "line": 40,
+    "source_kinds": [
+      "SourceKind"
+    ],
+    "sink_kinds": [
+      "SinkKind"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Subkinds;.sinkA:(Ljava/lang/Object;)V",
+    "path": "Subkinds.java",
+    "line": 64,
+    "source_kinds": [
+      "SourceKind"
+    ],
+    "sink_kinds": [
+      "SinkKind"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Subkinds;.sinkB:(Ljava/lang/Object;)V",
+    "path": "Subkinds.java",
+    "line": 246,
+    "source_kinds": [
+      "SourceKind"
+    ],
+    "sink_kinds": [
+      "SinkKind"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Subkinds;.propagateSubkindAAndSinkAB:(Ljava/lang/Object;)V",
+    "path": "Subkinds.java",
+    "line": 285,
+    "source_kinds": [
+      "SourceKind"
+    ],
+    "sink_kinds": [
+      "SinkKind"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Subkinds;.sinkB:(Ljava/lang/Object;)V",
+    "path": "Subkinds.java",
+    "line": 269,
+    "source_kinds": [
+      "SourceKind"
+    ],
+    "sink_kinds": [
+      "SinkKind"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Subkinds;.toSanitizedSinkSubkindA:(Ljava/lang/Object;)V",
+    "path": "Subkinds.java",
+    "line": 224,
+    "source_kinds": [
+      "SourceKind"
+    ],
+    "sink_kinds": [
+      "SinkKind"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Subkinds;.sinkA:(Ljava/lang/Object;)V",
+    "path": "Subkinds.java",
+    "line": 56,
+    "source_kinds": [
+      "SourceKind"
+    ],
+    "sink_kinds": [
+      "SinkKind"
+    ]
+  },
+  {
+    "rule": 2,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Subkinds;.sinkA:(Ljava/lang/Object;)V",
+    "path": "Subkinds.java",
+    "line": 82,
+    "source_kinds": [
+      "SourceKind"
+    ],
+    "sink_kinds": [
+      "SinkKind"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "Subkinds.java",
+    "line": 207,
+    "source_kinds": [
+      "SourceKind"
+    ],
+    "sink_kinds": [
+      "SinkKind"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "Subkinds.java",
+    "line": 48,
+    "source_kinds": [
+      "SourceKind"
+    ],
+    "sink_kinds": [
+      "SinkKind"
+    ]
+  },
+  {
+    "rule": 2,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "Subkinds.java",
+    "line": 73,
+    "source_kinds": [
+      "SourceKind(A)"
+    ],
+    "sink_kinds": [
+      "SinkKind"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Subkinds;.sinkAAndB:(Ljava/lang/Object;Ljava/lang/Object;)V",
+    "path": "Subkinds.java",
+    "line": 114,
+    "source_kinds": [
+      "SourceKind"
+    ],
+    "sink_kinds": [
+      "SinkKind"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Subkinds;.sinkA:(Ljava/lang/Object;)V",
+    "path": "Subkinds.java",
+    "line": 103,
+    "source_kinds": [
+      "SourceKind"
+    ],
+    "sink_kinds": [
+      "SinkKind"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Subkinds;.sinkB:(Ljava/lang/Object;)V",
+    "path": "Subkinds.java",
+    "line": 104,
+    "source_kinds": [
+      "SourceKind"
+    ],
+    "sink_kinds": [
+      "SinkKind"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "Subkinds.java",
+    "line": 95,
+    "source_kinds": [
+      "SourceKind"
+    ],
+    "sink_kinds": [
+      "SinkKind"
+    ]
+  }
+]

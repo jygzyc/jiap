@@ -1,0 +1,74 @@
+[
+  {
+    "rule": 2,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/JavaCheckCast;.shimmed:(Lcom/facebook/marianatrench/integrationtests/JavaCheckCast$Base;Ljava/lang/Object;)V",
+    "path": "JavaCheckCast.java",
+    "line": 62,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 2,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/JavaCheckCast;.shimmed:(Lcom/facebook/marianatrench/integrationtests/JavaCheckCast$Base;Ljava/lang/Object;)V",
+    "path": "JavaCheckCast.java",
+    "line": 40,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 2,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/JavaCheckCast;.shimmed:(Lcom/facebook/marianatrench/integrationtests/JavaCheckCast$Base;Ljava/lang/Object;)V",
+    "path": "JavaCheckCast.java",
+    "line": 57,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 2,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/KotlinCheckCast;.shimmed:(Lcom/facebook/marianatrench/integrationtests/KotlinCheckCast$Base;Ljava/lang/Object;)V",
+    "path": "KotlinCheckCast.kt",
+    "line": 63,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 2,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/KotlinCheckCast;.shimmed:(Lcom/facebook/marianatrench/integrationtests/KotlinCheckCast$Base;Ljava/lang/Object;)V",
+    "path": "KotlinCheckCast.kt",
+    "line": 38,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 2,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/KotlinCheckCast;.shimmed:(Lcom/facebook/marianatrench/integrationtests/KotlinCheckCast$Base;Ljava/lang/Object;)V",
+    "path": "KotlinCheckCast.kt",
+    "line": 58,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  }
+]

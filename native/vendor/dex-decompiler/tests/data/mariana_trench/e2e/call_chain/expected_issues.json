@@ -1,0 +1,14 @@
+[
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/CallChainService;.hop1:()V",
+    "path": "CallChain.java",
+    "line": 26,
+    "source_kinds": [
+      "CallChainOrigin"
+    ],
+    "sink_kinds": [
+      "CallChainSink"
+    ]
+  }
+]

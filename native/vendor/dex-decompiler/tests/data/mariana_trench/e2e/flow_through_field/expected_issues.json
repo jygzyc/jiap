@@ -1,0 +1,26 @@
+[
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/OfferRedirectToWebActivity;.navigateToBrowser:()V",
+    "path": "OfferRedirectToWebActivity.java",
+    "line": 32,
+    "source_kinds": [
+      "ExternalUserInput"
+    ],
+    "sink_kinds": [
+      "LaunchingComponent"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/OfferRenderingUtils;.navigateToStoreURL:(Landroid/content/Context;Ljava/lang/String;)V",
+    "path": "OfferRedirectToWebActivity.java",
+    "line": 30,
+    "source_kinds": [
+      "ExternalUserInput"
+    ],
+    "sink_kinds": [
+      "LaunchingComponent"
+    ]
+  }
+]

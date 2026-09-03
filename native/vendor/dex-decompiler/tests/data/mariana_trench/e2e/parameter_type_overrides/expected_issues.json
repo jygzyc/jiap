@@ -1,0 +1,38 @@
+[
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/RunnableFlows;.runRunnable:(Lcom/facebook/marianatrench/integrationtests/RunnableWithArgument;Ljava/lang/Object;)V[0: Lcom/facebook/marianatrench/integrationtests/RunnableFlows$2;]",
+    "path": "RunnableFlows.java",
+    "line": 30,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/RunnableFlows;.runRunnable:(Lcom/facebook/marianatrench/integrationtests/RunnableWithArgument;Ljava/lang/Object;)V",
+    "path": "RunnableFlows.java",
+    "line": 42,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "RunnableFlows.java",
+    "line": 50,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  }
+]

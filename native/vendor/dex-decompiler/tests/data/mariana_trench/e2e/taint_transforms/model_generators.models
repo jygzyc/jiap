@@ -1,0 +1,268 @@
+{
+  "model_generators": [
+    {
+      "find": "methods",
+      "where": [
+        {
+          "constraint": "signature_match",
+          "parent": "Lcom/facebook/marianatrench/integrationtests/TaintTransforms;",
+          "name": "transformT1"
+        }
+      ],
+      "model": {
+        "propagation": [
+          {
+            "input": "Argument(0)",
+            "output": "Return",
+            "transforms": [
+              "T1"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "find": "methods",
+      "where": [
+        {
+          "constraint": "signature_match",
+          "parent": "Lcom/facebook/marianatrench/integrationtests/TaintTransforms;",
+          "name": "transformT1T2"
+        }
+      ],
+      "model": {
+        "freeze": [
+          "propagation"
+        ],
+        "propagation": [
+          {
+            "input": "Argument(0)",
+            "output": "Return",
+            "transforms": [
+              "T1",
+              "T2"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "find": "methods",
+      "where": [
+        {
+          "constraint": "signature_match",
+          "parent": "Lcom/facebook/marianatrench/integrationtests/TaintTransforms;",
+          "name": "transformT2"
+        }
+      ],
+      "model": {
+        "freeze": [
+          "propagation"
+        ],
+        "propagation": [
+          {
+            "input": "Argument(0)",
+            "output": "Return",
+            "transforms": [
+              "T2"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "find": "methods",
+      "where": [
+        {
+          "constraint": "signature_match",
+          "parent": "Lcom/facebook/marianatrench/integrationtests/TaintTransforms;",
+          "name": "transformT3WithSource"
+        }
+      ],
+      "model": {
+        "freeze": [
+          "propagation"
+        ],
+        "propagation": [
+          {
+            "input": "Argument(0)",
+            "output": "Return",
+            "transforms": [
+              "T3"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "find": "methods",
+      "where": [
+        {
+          "constraint": "signature_match",
+          "parent": "Lcom/facebook/marianatrench/integrationtests/TaintTransforms;",
+          "name": "transformUnused"
+        }
+      ],
+      "model": {
+        "propagation": [
+          {
+            "input": "Argument(0)",
+            "output": "Return",
+            "transforms": [
+              "Unused"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "find": "methods",
+      "where": [
+        {
+          "constraint": "signature_match",
+          "parent": "Lcom/facebook/marianatrench/integrationtests/TaintTransforms;",
+          "name": "transformForAllParameters"
+        }
+      ],
+      "model": {
+        "freeze": [
+          "propagation"
+        ],
+        "for_all_parameters": [
+          {
+            "variable": "x",
+            "where": [
+              {
+                "constraint": "name",
+                "pattern": "Ljava/lang/Object;"
+              }
+            ],
+            "propagation": [
+              {
+                "input": "Argument(x)",
+                "output": "Return",
+                "transforms": [
+                  "T1"
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "find": "methods",
+      "where": [
+        {
+          "constraint": "signature_match",
+          "parent": "Lcom/facebook/marianatrench/integrationtests/TaintTransforms;",
+          "name": "transformT3"
+        }
+      ],
+      "model": {
+        "freeze": [
+          "propagation"
+        ],
+        "propagation": [
+          {
+            "input": "Argument(0)",
+            "output": "Return",
+            "transforms": [
+              "T3"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "find": "methods",
+      "where": [
+        {
+          "constraint": "signature_pattern",
+          "pattern": "Lcom/facebook/marianatrench/integrationtests/SanitizeTransforms;.sanitizeAAllArgsRet.*"
+        }
+      ],
+      "model": {
+        "for_all_parameters": [
+          {
+            "variable": "x",
+            "where": [],
+            "sanitizers": [
+              {
+                "sanitize": "propagations",
+                "port": "Argument(x)",
+                "kinds": [
+                  {
+                    "kind": "Source[A]"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "find": "methods",
+      "where": [
+        {
+          "constraint": "signature_match",
+          "parent": "Lcom/facebook/marianatrench/integrationtests/SanitizeTransformsPropagationToSameMemoryLocation$Builder;",
+          "name": "<init>"
+        }
+      ],
+      "model": {
+        "sources": [
+          {
+            "kind": "Builder",
+            "port": "Argument(0)"
+          }
+        ]
+      }
+    },
+    {
+      "find": "methods",
+      "where": [
+        {
+          "constraint": "signature_match",
+          "parent": "Lcom/facebook/marianatrench/integrationtests/SanitizeTransformsPropagationToSameMemoryLocation$Builder;",
+          "name": "build"
+        }
+      ],
+      "model": {
+        "sinks": [
+          {
+            "kind": "Build",
+            "port": "Argument(0)"
+          }
+        ]
+      }
+    },
+    {
+      "find": "methods",
+      "where": [
+        {
+          "constraint": "signature_match",
+          "parent": "Lcom/facebook/marianatrench/integrationtests/SanitizeTransformsPropagationToSameMemoryLocation$Builder;",
+          "name": "aliasThisOnInvoke"
+        }
+      ],
+      "model": {
+        "modes": [
+          "alias-memory-location-on-invoke"
+        ],
+        "sanitizers": [
+          {
+            "sanitize": "propagations",
+            "kinds": [
+              {
+                "kind": "Sink[Build]"
+              }
+            ],
+            "port": "Argument(0)"
+          }
+        ]
+      }
+    }
+  ]
+}

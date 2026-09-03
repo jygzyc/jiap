@@ -1,0 +1,14 @@
+[
+  {
+    "rule": 1,
+    "callee": "Landroid/util/Log;.e:(Ljava/lang/String;Ljava/lang/String;)I",
+    "path": "ActivityUsingAndroidLocationManager.java",
+    "line": 29,
+    "source_kinds": [
+      "UserGeoLocation"
+    ],
+    "sink_kinds": [
+      "Logging"
+    ]
+  }
+]

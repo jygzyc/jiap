@@ -1,0 +1,26 @@
+[
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Flow;.toSinkCollapsedPort:(Lcom/facebook/marianatrench/integrationtests/Flow$IrrelevantField;)V",
+    "path": "Flow.java",
+    "line": 62,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Flow;.toSinkCollapsedPort2:(Lcom/facebook/marianatrench/integrationtests/Flow$IrrelevantField;)V",
+    "path": "Flow.java",
+    "line": 89,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  }
+]

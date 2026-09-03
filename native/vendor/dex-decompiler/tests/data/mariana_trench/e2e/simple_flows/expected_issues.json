@@ -1,0 +1,74 @@
+[
+  {
+    "rule": 1,
+    "callee": "Landroid/app/Activity;.startActivity:(Landroid/content/Intent;)V",
+    "path": "DirectFlow.java",
+    "line": 19,
+    "source_kinds": [
+      "ExternalUserInput"
+    ],
+    "sink_kinds": [
+      "LaunchingComponent"
+    ]
+  },
+  {
+    "rule": 2,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "DirectFlowWithSanitizer.java",
+    "line": 14,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/content/SecureContextHelper;.startFacebookActivity:(Landroid/content/Intent;Landroid/content/Context;)V",
+    "path": "DirectOpenRedirectFlow.java",
+    "line": 58,
+    "source_kinds": [
+      "ExternalUserInput"
+    ],
+    "sink_kinds": [
+      "LaunchingComponent"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Landroid/app/Activity;.startActivity:(Landroid/content/Intent;)V",
+    "path": "ExternalDirectFlow.java",
+    "line": 17,
+    "source_kinds": [
+      "ExternalUserInput"
+    ],
+    "sink_kinds": [
+      "LaunchingComponent"
+    ]
+  },
+  {
+    "rule": 2,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/FlowWithHops;.toSinkWithHop:(Ljava/lang/Object;)V",
+    "path": "FlowWithHops.java",
+    "line": 29,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Landroid/app/Activity;.startActivity:(Landroid/content/Intent;)V",
+    "path": "InheritanceFlows.java",
+    "line": 19,
+    "source_kinds": [
+      "ExternalUserInput"
+    ],
+    "sink_kinds": [
+      "LaunchingComponent"
+    ]
+  }
+]

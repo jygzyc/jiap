@@ -1,0 +1,14 @@
+[
+  {
+    "rule": 1,
+    "callee": "Ljava/lang/Thread;.<init>:(Ljava/lang/Runnable;)V[0: Lcom/facebook/marianatrench/integrationtests/RunnableActivity$1;]",
+    "path": "RunnableActivity.java",
+    "line": 23,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  }
+]

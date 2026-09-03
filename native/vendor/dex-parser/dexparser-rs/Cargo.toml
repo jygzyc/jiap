@@ -1,0 +1,30 @@
+[package]
+name = "dex-parser"
+version = "0.1.0"
+edition = "2021"
+description = "DEX file format parser for Android (pure Rust)"
+license = "Apache-2.0"
+readme = "../README.md"
+keywords = ["android", "dex", "parser", "androguard"]
+authors = ["anthony <ping@42.bzh>"]
+
+[dependencies]
+thiserror = "1.0"
+clap = { version = "4", features = ["derive"] }
+dex-bytecode = { git = "https://github.com/androguard/dex-bytecode.git", optional = true }
+
+[[bin]]
+name = "dexparser"
+path = "src/bin/dexparser.rs"
+
+[[bin]]
+name = "dexparse-dir"
+path = "src/bin/dexparse_dir.rs"
+
+[features]
+default = []
+disasm = ["dep:dex-bytecode"]
+
+[dev-dependencies]
+# optional: for tests with minimal DEX bytes
+# none required for now

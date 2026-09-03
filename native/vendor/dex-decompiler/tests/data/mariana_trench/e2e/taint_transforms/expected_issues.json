@@ -1,0 +1,506 @@
+[
+  {
+    "rule": 7,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/ExtraTraces;.hopToSink1:(Ljava/lang/Object;)V",
+    "path": "ExtraTraces.java",
+    "line": 94,
+    "source_kinds": [
+      "NewSource"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 10,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/SanitizeTransforms;.transformXSinkB:(Ljava/lang/Object;)V",
+    "path": "SanitizeTransforms.java",
+    "line": 254,
+    "source_kinds": [
+      "A"
+    ],
+    "sink_kinds": [
+      "B"
+    ]
+  },
+  {
+    "rule": 10,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/SanitizeTransforms;.sinkB:(Ljava/lang/Object;)V",
+    "path": "SanitizeTransforms.java",
+    "line": 249,
+    "source_kinds": [
+      "A"
+    ],
+    "sink_kinds": [
+      "B"
+    ]
+  },
+  {
+    "rule": 10,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/SanitizeTransforms;.sinkB:(Ljava/lang/Object;)V",
+    "path": "SanitizeTransforms.java",
+    "line": 266,
+    "source_kinds": [
+      "A"
+    ],
+    "sink_kinds": [
+      "B"
+    ]
+  },
+  {
+    "rule": 10,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/SanitizeTransforms;.sinkB:(Ljava/lang/Object;)V",
+    "path": "SanitizeTransforms.java",
+    "line": 231,
+    "source_kinds": [
+      "A"
+    ],
+    "sink_kinds": [
+      "B"
+    ]
+  },
+  {
+    "rule": 10,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/SanitizeTransforms;.sinkB:(Ljava/lang/Object;)V",
+    "path": "SanitizeTransforms.java",
+    "line": 243,
+    "source_kinds": [
+      "A"
+    ],
+    "sink_kinds": [
+      "B"
+    ]
+  },
+  {
+    "rule": 9,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/SanitizeTransforms;.sinkB:(Ljava/lang/Object;)V",
+    "path": "SanitizeTransforms.java",
+    "line": 285,
+    "source_kinds": [
+      "A"
+    ],
+    "sink_kinds": [
+      "B"
+    ]
+  },
+  {
+    "rule": 10,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/SanitizeTransforms;.sinkB:(Ljava/lang/Object;)V",
+    "path": "SanitizeTransforms.java",
+    "line": 285,
+    "source_kinds": [
+      "A"
+    ],
+    "sink_kinds": [
+      "B"
+    ]
+  },
+  {
+    "rule": 10,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/SanitizeTransforms;.transformXSanitizeASinkB:(Ljava/lang/Object;)V",
+    "path": "SanitizeTransforms.java",
+    "line": 116,
+    "source_kinds": [
+      "A"
+    ],
+    "sink_kinds": [
+      "B"
+    ]
+  },
+  {
+    "rule": 10,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/SanitizeTransforms;.sinkB:(Ljava/lang/Object;)V",
+    "path": "SanitizeTransforms.java",
+    "line": 89,
+    "source_kinds": [
+      "A"
+    ],
+    "sink_kinds": [
+      "B"
+    ]
+  },
+  {
+    "rule": 10,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/SanitizeTransforms;.sanitizeASinkB:(Ljava/lang/Object;)V",
+    "path": "SanitizeTransforms.java",
+    "line": 100,
+    "source_kinds": [
+      "A"
+    ],
+    "sink_kinds": [
+      "B"
+    ]
+  },
+  {
+    "rule": 10,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/SanitizeTransforms;.sinkB:(Ljava/lang/Object;)V",
+    "path": "SanitizeTransforms.java",
+    "line": 77,
+    "source_kinds": [
+      "A"
+    ],
+    "sink_kinds": [
+      "B"
+    ]
+  },
+  {
+    "rule": 11,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/SanitizeTransforms;.sinkB:(Ljava/lang/Object;)V",
+    "path": "SanitizeTransforms.java",
+    "line": 421,
+    "source_kinds": [
+      "A"
+    ],
+    "sink_kinds": [
+      "B"
+    ]
+  },
+  {
+    "rule": 11,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/SanitizeTransforms;.sinkB:(Ljava/lang/Object;)V",
+    "path": "SanitizeTransforms.java",
+    "line": 398,
+    "source_kinds": [
+      "A"
+    ],
+    "sink_kinds": [
+      "B"
+    ]
+  },
+  {
+    "rule": 10,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/SanitizeTransforms;.sanitizeASinkB:(Ljava/lang/Object;)V",
+    "path": "SanitizeTransforms.java",
+    "line": 105,
+    "source_kinds": [
+      "A"
+    ],
+    "sink_kinds": [
+      "B"
+    ]
+  },
+  {
+    "rule": 12,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/SanitizeTransforms;.sanitizeAToYToZToB:(Ljava/lang/Object;)V",
+    "path": "SanitizeTransforms.java",
+    "line": 181,
+    "source_kinds": [
+      "A"
+    ],
+    "sink_kinds": [
+      "B"
+    ]
+  },
+  {
+    "rule": 9,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/SanitizeTransforms;.sinkB:(Ljava/lang/Object;)V",
+    "path": "SanitizeTransformsPropagationToSameMemoryLocation.java",
+    "line": 81,
+    "source_kinds": [
+      "A"
+    ],
+    "sink_kinds": [
+      "B"
+    ]
+  },
+  {
+    "rule": 13,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/SanitizeTransformsPropagationToSameMemoryLocation$Builder;.build:()Lcom/facebook/marianatrench/integrationtests/SanitizeTransformsPropagationToSameMemoryLocation;",
+    "path": "SanitizeTransformsPropagationToSameMemoryLocation.java",
+    "line": 51,
+    "source_kinds": [
+      "Builder"
+    ],
+    "sink_kinds": [
+      "Build"
+    ]
+  },
+  {
+    "rule": 5,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/TaintTransforms;.sinkWithTransformT2:(Ljava/lang/Object;)V",
+    "path": "TaintTransforms.java",
+    "line": 285,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "TaintTransforms.java",
+    "line": 219,
+    "source_kinds": [
+      "NewSource"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 4,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "TaintTransforms.java",
+    "line": 219,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 3,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/TaintTransforms;.sinkWithTransformsT1T2:(Ljava/lang/Object;)V",
+    "path": "TaintTransforms.java",
+    "line": 255,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 5,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/TaintTransforms;.sinkWithTransformsT1T2:(Ljava/lang/Object;)V",
+    "path": "TaintTransforms.java",
+    "line": 255,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 3,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/TaintTransforms;.hopSinkWithTransformsT1T2:(Ljava/lang/Object;)V",
+    "path": "TaintTransforms.java",
+    "line": 263,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 5,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/TaintTransforms;.hopSinkWithTransformsT1T2:(Ljava/lang/Object;)V",
+    "path": "TaintTransforms.java",
+    "line": 263,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 3,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "TaintTransforms.java",
+    "line": 239,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 5,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "TaintTransforms.java",
+    "line": 239,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 3,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "TaintTransforms.java",
+    "line": 247,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 5,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "TaintTransforms.java",
+    "line": 247,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 3,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/TaintTransforms;.sinkWithTransformT2:(Ljava/lang/Object;)V",
+    "path": "TaintTransforms.java",
+    "line": 271,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 5,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/TaintTransforms;.sinkWithTransformT2:(Ljava/lang/Object;)V",
+    "path": "TaintTransforms.java",
+    "line": 271,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "TaintTransforms.java",
+    "line": 231,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 2,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "TaintTransforms.java",
+    "line": 231,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 8,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "TaintTransforms.java",
+    "line": 316,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/TaintTransforms;.sinkWithTransformT1:(Ljava/lang/Object;)V",
+    "path": "TaintTransforms.java",
+    "line": 200,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 2,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/TaintTransforms;.sinkWithTransformT1:(Ljava/lang/Object;)V",
+    "path": "TaintTransforms.java",
+    "line": 200,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "TaintTransforms.java",
+    "line": 193,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 2,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "TaintTransforms.java",
+    "line": 193,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 8,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "path": "TaintTransforms.java",
+    "line": 308,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 6,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/TaintTransforms;.hopSinkWithTransformsT1T2:(Ljava/lang/Object;)V",
+    "path": "TaintTransforms.java",
+    "line": 278,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/TaintTransforms;.sinkWithoutTransformUnused:(Ljava/lang/Object;)V",
+    "path": "TaintTransforms.java",
+    "line": 299,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  },
+  {
+    "rule": 2,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/TaintTransforms;.sinkWithoutTransformUnused:(Ljava/lang/Object;)V",
+    "path": "TaintTransforms.java",
+    "line": 299,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "Sink"
+    ]
+  }
+]

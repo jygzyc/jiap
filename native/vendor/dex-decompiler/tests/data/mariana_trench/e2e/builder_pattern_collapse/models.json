@@ -1,0 +1,68 @@
+[
+  {
+    "method": "Lcom/facebook/marianatrench/integrationtests/Origin;.source:()Ljava/lang/Object;",
+    "generations": [
+      {
+        "kind": "Source",
+        "port": "Return"
+      }
+    ]
+  },
+  {
+    "method": "Lcom/facebook/marianatrench/integrationtests/Test;.differentSource:()Ljava/lang/Object;",
+    "generations": [
+      {
+        "kind": "DifferentSource",
+        "port": "Return"
+      }
+    ]
+  },
+  {
+    "method": "Lcom/facebook/marianatrench/integrationtests/Origin;.sink:(Ljava/lang/Object;)V",
+    "sinks": [
+      {
+        "kind": "Sink",
+        "port": "Argument(0)"
+      }
+    ]
+  },
+  {
+    "method": "Lcom/facebook/marianatrench/integrationtests/Test;.differentSink:(Ljava/lang/Object;)V",
+    "sinks": [
+      {
+        "kind": "DifferentSink",
+        "port": "Argument(0)"
+      }
+    ]
+  },
+  {
+    "method": "Lcom/facebook/marianatrench/integrationtests/Test;.noCollapseOnApproximateBuildUsingFields:()Lcom/facebook/marianatrench/integrationtests/Test;",
+    "modes": [
+      "no-collapse-on-approximate"
+    ]
+  },
+  {
+    "method": "Lcom/facebook/marianatrench/integrationtests/Test;.noCollapseOnApproximateBuildUsingThis:()Lcom/facebook/marianatrench/integrationtests/Test;",
+    "modes": [
+      "no-collapse-on-approximate"
+    ]
+  },
+  {
+    "method": "Lcom/facebook/marianatrench/integrationtests/Test;.<init>:(Lcom/facebook/marianatrench/integrationtests/Test$Builder;)V",
+    "global_config_overrides": {
+      "max_model_width": 4
+    }
+  },
+  {
+    "method": "Lcom/facebook/marianatrench/integrationtests/Test;.withSources:()Lcom/facebook/marianatrench/integrationtests/Test;",
+    "global_config_overrides": {
+      "max_model_width": 3
+    }
+  },
+  {
+    "method": "Lcom/facebook/marianatrench/integrationtests/Test;.sinkFields:(Lcom/facebook/marianatrench/integrationtests/Test;)V",
+    "global_config_overrides": {
+      "max_model_width": 3
+    }
+  }
+]

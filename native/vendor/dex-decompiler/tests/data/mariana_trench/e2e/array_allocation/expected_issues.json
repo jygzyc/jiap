@@ -1,0 +1,62 @@
+[
+  {
+    "rule": 1,
+    "callee": "Lcom/mariana_trench/artificial/ArrayAllocation;.allocateArray:(I)V",
+    "path": "ArrayAllocation.java",
+    "line": 13,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "ArrayAllocation"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/facebook/marianatrench/integrationtests/ArrayAllocation;.allocateArray:(I)V",
+    "path": "ArrayAllocation.java",
+    "line": 60,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "ArrayAllocation"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/mariana_trench/artificial/ArrayAllocation;.allocateArray:(I)V",
+    "path": "ArrayAllocation.java",
+    "line": 18,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "ArrayAllocation"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/mariana_trench/artificial/ArrayAllocation;.allocateArray:(I)V",
+    "path": "ArrayAllocation.java",
+    "line": 22,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "ArrayAllocation"
+    ]
+  },
+  {
+    "rule": 1,
+    "callee": "Lcom/mariana_trench/artificial/ArrayAllocation;.allocateArray:(I)V",
+    "path": "ArrayAllocation.java",
+    "line": 30,
+    "source_kinds": [
+      "Source"
+    ],
+    "sink_kinds": [
+      "ArrayAllocation"
+    ]
+  }
+]

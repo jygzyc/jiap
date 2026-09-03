@@ -1,0 +1,90 @@
+{
+  "sources": [
+    {"patterns": ["getIntent", "Activity.getIntent"], "port": "return", "kind": "ActivityUserInput", "features": ["user-controlled"]},
+    {"patterns": ["getStringExtra", "getCharSequenceExtra", "getParcelableExtra", "getSerializableExtra", "getDataString", "Intent.getData"], "port": "return", "kind": "ActivityUserInput"},
+    {"patterns": ["getQueryParameter", "Uri.getQueryParameter", "getLastPathSegment"], "port": "return", "kind": "ActivityUserInput"},
+    {"patterns": ["EditText.getText"], "port": "return", "kind": "UserInput"},
+    {"patterns": ["ClipboardManager.getPrimaryClip", "ClipboardManager.getText"], "port": "return", "kind": "Clipboard"},
+    {"patterns": ["getDeviceId", "getImei", "getSubscriberId", "getAndroidId", "Settings$Secure.getString"], "port": "return", "kind": "DeviceId"},
+    {"patterns": ["getLastLocation", "getCurrentLocation", "getLatitude", "getLongitude"], "port": "return", "kind": "Location"},
+    {"patterns": ["onReceive", "BroadcastReceiver"], "port": {"argument": {"index": 0}}, "kind": "ReceiverUserInput"},
+    {"patterns": ["ContentResolver.query"], "port": "return", "kind": "ProviderUserInput"}
+  ],
+  "sinks": [
+    {"patterns": ["Runtime.exec", "ProcessBuilder.<init>", "ProcessBuilder.start"], "port": {"argument": {"index": 0}}, "kind": "CodeExecution"},
+    {"patterns": ["DexClassLoader.<init>", "PathClassLoader.<init>", "InMemoryDexClassLoader", "loadClass", "System.load", "System.loadLibrary"], "port": {"argument": {"index": 0}}, "kind": "CodeExecution"},
+    {"patterns": ["rawQuery", "execSQL", "compileStatement"], "port": {"argument": {"index": 0}}, "kind": "SQLQuery"},
+    {"patterns": ["WebView.loadUrl", "loadData", "loadDataWithBaseURL", "evaluateJavascript"], "port": {"argument": {"index": 0}}, "kind": "ExecuteJavascript"},
+    {"patterns": ["addJavascriptInterface"], "port": {"argument": {"index": 0}}, "kind": "JavascriptInterface"},
+    {"patterns": ["Log.d", "Log.i", "Log.w", "Log.e", "Log.v", "println"], "port": {"argument": {"index": 1}}, "kind": "Logging"},
+    {"patterns": ["startActivity", "startActivityForResult", "startService", "bindService", "sendBroadcast", "sendOrderedBroadcast"], "port": {"argument": {"index": 0}}, "kind": "LaunchingComponent"},
+    {"patterns": ["setResult"], "port": {"argument": {"index": 1}}, "kind": "SetResult"},
+    {"patterns": ["openConnection", "HttpURLConnection", "OkHttpClient", "Request.Builder.url"], "port": {"argument": {"index": 0}}, "kind": "Network"},
+    {"patterns": ["FileOutputStream.<init>", "FileWriter.<init>", "openFileOutput"], "port": {"argument": {"index": 0}}, "kind": "FileWrite"}
+  ],
+  "propagations": [
+    {"patterns": ["StringBuilder.append", "StringBuffer.append", "append"], "from": {"argument": {"index": 1}}, "to": {"argument": {"index": 0}}},
+    {"patterns": ["StringBuilder.toString", "StringBuffer.toString", "toString"], "from": {"argument": {"index": 0}}, "to": "return"},
+    {"patterns": ["String.valueOf", "String.copyValueOf", "concat"], "from": {"argument": {"index": 0}}, "to": "return"},
+    {"patterns": ["Uri.parse", "Uri.Builder.build", "Uri.Builder.appendQueryParameter"], "from": {"argument": {"index": 0}}, "to": "return"},
+    {"patterns": ["Intent.putExtra", "putExtra", "putExtra"], "from": {"argument": {"index": 2}}, "to": {"argument": {"index": 0}}},
+    {"patterns": ["Intent.setData", "setData", "setDataAndType"], "from": {"argument": {"index": 1}}, "to": {"argument": {"index": 0}}},
+    {"patterns": ["Bundle.putString", "putString", "putCharSequence"], "from": {"argument": {"index": 2}}, "to": {"argument": {"index": 0}}}
+  ],
+  "sanitizers": [
+    {"patterns": ["MessageDigest.digest", "MessageDigest.update", "hashCode", "Objects.hash"], "kinds": []},
+    {"patterns": ["URLEncoder.encode", "Uri.encode"], "kinds": ["ActivityUserInput", "UserInput"]},
+    {"patterns": ["Base64.encode", "Base64.encodeToString"], "kinds": []}
+  ],
+  "rules": [
+    {
+      "name": "User input to code execution (RCE)",
+      "code": 1,
+      "description": "User-/intent-controlled values may flow into a code-execution sink",
+      "sources": ["ActivityUserInput", "UserInput", "ReceiverUserInput", "ProviderUserInput"],
+      "sinks": ["CodeExecution"]
+    },
+    {
+      "name": "User input to SQL",
+      "code": 4,
+      "description": "User-controlled values may flow into a raw SQL statement",
+      "sources": ["ActivityUserInput", "UserInput", "ReceiverUserInput", "ProviderUserInput"],
+      "sinks": ["SQLQuery"]
+    },
+    {
+      "name": "User input to WebView / JS",
+      "code": 5,
+      "description": "User-controlled values may flow into WebView script execution",
+      "sources": ["ActivityUserInput", "UserInput", "ReceiverUserInput"],
+      "sinks": ["ExecuteJavascript", "JavascriptInterface"]
+    },
+    {
+      "name": "User input to intent launch",
+      "code": 3,
+      "description": "User-controlled values may flow into an intent launcher",
+      "sources": ["ActivityUserInput", "UserInput", "ReceiverUserInput"],
+      "sinks": ["LaunchingComponent"]
+    },
+    {
+      "name": "PII to logging",
+      "code": 10,
+      "description": "Device identifiers or location may flow into logs",
+      "sources": ["DeviceId", "Location", "Clipboard"],
+      "sinks": ["Logging", "Network"]
+    },
+    {
+      "name": "User input to network",
+      "code": 11,
+      "description": "User-controlled values may flow into network APIs",
+      "sources": ["ActivityUserInput", "UserInput"],
+      "sinks": ["Network"]
+    },
+    {
+      "name": "User input to file write",
+      "code": 12,
+      "description": "User-controlled values may flow into file write APIs",
+      "sources": ["ActivityUserInput", "UserInput"],
+      "sinks": ["FileWrite"]
+    }
+  ]
+}
