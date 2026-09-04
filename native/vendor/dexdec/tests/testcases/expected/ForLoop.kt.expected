@@ -1,0 +1,14 @@
+public open class ForLoop {
+    companion object {
+        public fun factorial(i: Int): Int {
+            var i2: Int = 1
+            var result: Int = 1
+            while (i2 <= i) {
+                val i3: Int = result * i2
+                i2++
+                result = i3
+            }
+            return result
+        }
+    }
+}

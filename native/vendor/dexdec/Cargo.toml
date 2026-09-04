@@ -1,0 +1,52 @@
+[package]
+name = "dexdec"
+# vendored from asLody/dexdec @ 1.0.2; workspace-inherited fields inlined.
+# Native-port patch: mimalloc/zstd are opt-in features because this machine's
+# windows-gnu toolchain has no C compiler (see native/RESEARCH.md).
+version = "1.0.2"
+edition.workspace = true
+license.workspace = true
+readme = "README.md"
+
+description = "Next-gen Dex decompiler core library"
+documentation = "https://docs.rs/dexdec"
+keywords = ["android", "dex", "decompiler", "reverse-engineering"]
+categories = ["development-tools"]
+
+[dependencies]
+rusty-dex = { path = "../rusty-dex", version = "0.2.0" }
+mimalloc = { version = "0.1", optional = true }
+ruzstd = { version = "0.8", optional = true }
+clap = { version = "4.5", features = ["derive"], optional = true }
+serde = { version = "1", features = ["derive"], optional = true }
+serde_json = { version = "1", optional = true }
+bitflags = "2"
+rayon = "1"
+hotpath = { version = "0.17.0", default-features = false, features = ["hotpath"], optional = true }
+crc32fast = "1"
+zip = { version = "0.6.6", default-features = false, features = ["deflate"], optional = true }
+quick-xml = { version = "0.41", optional = true }
+abxml = { version = "0.8.2", default-features = false, optional = true }
+zstd = { version = "0.11", optional = true }
+
+[dev-dependencies]
+pretty_assertions = "1"
+tempfile = "3.24.0"
+
+[features]
+default = ["cli"]
+cli = ["dep:clap", "dep:serde", "dep:serde_json", "dep:abxml", "symbol-builder"]
+mimalloc-allocator = ["dep:mimalloc"]
+# symbol-codec decodes .dexsym with pure-Rust ruzstd; symbol-encode opts into
+# the C zstd for writing compressed databases (encode falls back to raw
+# storage without it — the reader accepts both).
+symbol-codec = ["dep:ruzstd"]
+symbol-encode = ["dep:zstd", "symbol-codec"]
+debug-switch = []
+profiling = ["dep:hotpath"]
+symbol-builder = ["dep:zip", "dep:quick-xml"]
+
+[[bin]]
+name = "dexdec"
+path = "src/bin/dexdec.rs"
+required-features = ["cli"]

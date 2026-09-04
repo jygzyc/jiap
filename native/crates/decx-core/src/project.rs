@@ -11,8 +11,11 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use dex_decompiler::input::load_dexes_from_path;
-use dex_decompiler::{Decompiler, DecompilerOptions};
 use dex_parser::{ClassDef, DexFile};
+use dexdec::api::{
+    ClassSelector, DecompileOptions as DexDecompileOptions, Decompiler as DexDecompiler,
+    SourceLanguage as DexSourceLanguage,
+};
 
 use crate::error::{DecxError, Result};
 use crate::names::descriptor_to_java;
@@ -125,6 +128,12 @@ impl SourceCache {
 
 /// A loaded analysis target: one or more dexes (from a `.dex` file or an
 /// `.apk`/`.zip` archive) plus the derived class index.
+///
+/// Two engines cooperate:
+/// - **dexdec** produces all Java source (interactive + batch), with the
+///   platform-symbol hierarchy analysis enabled;
+/// - the androguard stack provides the class index plus bytecode-level
+///   utilities (smali listing, method CFG, call/field xrefs).
 pub struct Project {
     pub path: PathBuf,
     pub dexes: Vec<DexFile>,
@@ -133,6 +142,9 @@ pub struct Project {
     entries: Vec<ClassEntry>,
     by_java_name: HashMap<String, usize>,
     cache: std::sync::Mutex<SourceCache>,
+    /// Java emitter. `&mut self` API → serialized behind a mutex; the LRU
+    /// source cache in front keeps repeated requests cheap.
+    dexdec_engine: std::sync::Mutex<DexDecompiler>,
 }
 
 impl Project {
@@ -188,6 +200,16 @@ impl Project {
             .ok()
             .and_then(|v| v.parse().ok())
             .unwrap_or(DEFAULT_CACHE_MAX_BYTES);
+        // Java emitter: dexdec with the shared-analysis batch mode. Requests
+        // run against one context so cross-class type recovery works; large
+        // sweeps clear the scope when they finish to release memory.
+        let mut engine = DexDecompiler::open(path)
+            .map_err(|e| DecxError::internal(format!("dexdec load: {e}")))?;
+        engine.set_options(
+            DexDecompileOptions::default()
+                .with_language(DexSourceLanguage::Java)
+                .with_isolated_requests(false),
+        );
         Ok(Self {
             path: path.to_path_buf(),
             dexes,
@@ -195,6 +217,7 @@ impl Project {
             entries,
             by_java_name,
             cache: std::sync::Mutex::new(SourceCache::new(cache_max)),
+            dexdec_engine: std::sync::Mutex::new(engine),
         })
     }
 
@@ -224,114 +247,99 @@ impl Project {
         self.cache.lock().map(|c| c.len_bytes()).unwrap_or(0)
     }
 
-    /// Decompile one class to Java source, served through the LRU cache.
-    /// Other dexes are passed to the engine so cross-dex type resolution works.
+    /// Decompile one class to Java via the dexdec engine, served through the
+    /// LRU cache. Nested classes are rendered inline by their parent, so
+    /// lookups for `$`-members fall back to their enclosing top-level class.
     pub fn class_source(&self, entry: &ClassEntry) -> Result<Arc<String>> {
         if let Some(hit) = self.cache.lock().ok().and_then(|mut c| c.get(&entry.java_name)) {
             return Ok(hit);
         }
-        let source = self.decompile_class_uncached(entry)?;
+        // Nested classes (`Outer$Inner`) decompile as part of `Outer`.
+        let owner_java = entry.java_name.split('$').next().unwrap_or(&entry.java_name);
+        let owner_dex = crate::names::java_to_descriptor(owner_java);
+        let source = {
+            let mut engine = self
+                .dexdec_engine
+                .lock()
+                .map_err(|_| DecxError::internal("dexdec engine lock poisoned"))?;
+            engine
+                .class(owner_dex)
+                .map_err(|e| DecxError::new("DECOMPILATION_SKIPPED", format!("{e}")))?
+                .source
+        };
         let arc = Arc::new(source);
         if let Ok(mut c) = self.cache.lock() {
+            // cache under both the requested name and the owner name
+            c.insert(owner_java.to_string(), Arc::clone(&arc));
             c.insert(entry.java_name.clone(), Arc::clone(&arc));
         }
         Ok(arc)
     }
 
-    fn decompile_class_uncached(&self, entry: &ClassEntry) -> Result<String> {
-        let dex = &self.dexes[entry.dex_idx];
-        let class_def = dex
-            .get_class_def(entry.class_def_idx as u32)
-            .map_err(|e| DecxError::internal(format!("class_def reparse: {e}")))?;
-        let extras: Vec<&DexFile> = self
-            .dexes
-            .iter()
-            .enumerate()
-            .filter(|(i, _)| *i != entry.dex_idx)
-            .map(|(_, d)| d)
-            .collect();
-        let decompiler = Decompiler::with_options(dex, DecompilerOptions::default())
-            .with_extra_dexes(extras);
-        decompiler
-            .decompile_class(&class_def)
-            .map_err(|e| DecxError::new("DECOMPILATION_SKIPPED", format!("{e}")))
+    /// Decompile a single method to Java via dexdec.
+    pub fn method_source(&self, entry: &ClassEntry, method_name: &str) -> Result<String> {
+        // Methods live on the class that declares them.
+        let owner_java = entry.java_name.split('$').next().unwrap_or(&entry.java_name);
+        let owner_dex = crate::names::java_to_descriptor(owner_java);
+        let mut engine = self
+            .dexdec_engine
+            .lock()
+            .map_err(|_| DecxError::internal("dexdec engine lock poisoned"))?;
+        let out = engine
+            .method(dexdec::api::MethodRequest::new(
+                owner_dex,
+                method_name,
+            ))
+            .map_err(|e| DecxError::method_not_found(format!("{}.{method_name}", entry.java_name)))?;
+        Ok(out.source.unwrap_or_else(|| {
+            format!("// {} is abstract or native (no bytecode body)", method_name)
+        }))
     }
 
-    /// Decompile many classes in parallel, reusing one `Decompiler` instance
-    /// per (worker, dex) chunk. Constructing the engine decompiler costs
-    /// O(classes in dex) (resource scan + class index), so per-class
-    /// construction is quadratic on large dexes — chunking amortizes it while
-    /// keeping full core parallelism.
-    ///
-    /// Engine panics on a single class are caught and reported as per-class
-    /// failures (fault isolation); the cache is filled for every success.
+    /// Decompile many classes through the dexdec batch pipeline (shared
+    /// analysis: one archive-level pass with prefetch and cross-class type
+    /// recovery). Sources land in the LRU cache; every per-class failure is
+    /// isolated and reported, never aborting the sweep.
     /// Returns (ok_count, failures).
     pub fn decompile_batch(&self, indices: &[usize]) -> (usize, Vec<String>) {
-        use rayon::prelude::*;
-
-        // group requested indices by dex, then split into ~2 chunks per worker
-        let workers = rayon::current_num_threads().max(1);
-        let per_dex = indices.len().max(1) / self.dexes.len().max(1);
-        let chunk_size = (per_dex / (workers * 2)).max(64);
-        let mut chunks: Vec<(usize, Vec<usize>)> = Vec::new(); // (dex_idx, entry indices)
-        let mut by_dex: HashMap<usize, Vec<usize>> = HashMap::new();
+        // Batch in top-level units: nested classes render inline with their
+        // owner, so one owner covers all of its `$`-members.
+        let mut owners: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
         for &i in indices {
-            by_dex.entry(self.entries[i].dex_idx).or_default().push(i);
-        }
-        for (dex_idx, mut list) in by_dex {
-            list.sort();
-            for group in list.chunks(chunk_size) {
-                chunks.push((dex_idx, group.to_vec()));
-            }
+            let entry = &self.entries[i];
+            let owner_java = entry.java_name.split('$').next().unwrap_or(&entry.java_name);
+            owners.insert(crate::names::java_to_descriptor(owner_java));
         }
 
-        let failures: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
-        let ok = std::sync::atomic::AtomicUsize::new(0);
-        chunks.into_par_iter().for_each(|(dex_idx, list)| {
-            let dex = &self.dexes[dex_idx];
-            let extras: Vec<&DexFile> = self
-                .dexes
-                .iter()
-                .enumerate()
-                .filter(|(i, _)| *i != dex_idx)
-                .map(|(_, d)| d)
-                .collect();
-            let decompiler = Decompiler::with_options(dex, DecompilerOptions::default())
-                .with_extra_dexes(extras);
-            for i in list {
-                let entry = &self.entries[i];
-                let class_def = match dex.get_class_def(entry.class_def_idx as u32) {
-                    Ok(c) => c,
-                    Err(e) => {
-                        failures.lock().unwrap().push(format!("{}: {e}", entry.java_name));
-                        continue;
-                    }
-                };
-                let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    decompiler.decompile_class(&class_def)
-                }));
-                match result {
-                    Ok(Ok(source)) => {
+        let mut ok = 0usize;
+        let mut failures = Vec::new();
+        let Ok(mut engine) = self.dexdec_engine.lock() else {
+            failures.push("dexdec engine lock poisoned".to_string());
+            return (0, failures);
+        };
+        if let Ok(batch) = engine.classes(ClassSelector::Listed(owners)) {
+            for unit in batch {
+                match unit {
+                    Ok(u) => {
+                        let java = descriptor_to_java(&u.class);
                         if let Ok(mut c) = self.cache.lock() {
-                            c.insert(entry.java_name.clone(), Arc::new(source));
+                            c.insert(java, Arc::new(u.source));
                         }
-                        ok.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                        ok += 1;
                     }
-                    Ok(Err(e)) => failures
-                        .lock()
-                        .unwrap()
-                        .push(format!("{}: {}", entry.java_name, e)),
-                    Err(_) => failures
-                        .lock()
-                        .unwrap()
-                        .push(format!("{}: panic during decompilation", entry.java_name)),
+                    Err(f) => {
+                        let java = descriptor_to_java(&f.class);
+                        failures.push(format!("{java}: {}", f.error));
+                    }
                 }
             }
-        });
-        (ok.into_inner(), failures.into_inner().unwrap_or_default())
+        }
+        // release batch-analysis memory after the sweep
+        engine.clear_analysis_scope();
+        (ok, failures)
     }
 
-    /// Decompile every class in parallel to warm the cache.
+    /// Decompile every class to warm the cache.
     /// Returns the number of classes processed. Failures are isolated and
     /// reported per class — one broken class never aborts the sweep.
     pub fn warm_all(&self) -> (usize, Vec<String>) {
@@ -508,5 +516,84 @@ mod tests {
         for f in failed.iter().take(20) {
             println!("FAIL {f}");
         }
+    }
+}
+
+/// dexdec engine benchmark — compares against the androguard numbers in
+/// native/RESEARCH.md. Run with:
+/// cargo test -p decx-core --release dexdec_bench -- --ignored --nocapture
+#[cfg(test)]
+mod dexdec_bench {
+    use dexdec::api::{ClassSelector, DecompileOptions, Decompiler, SourceLanguage};
+
+    fn test_dex() -> std::path::PathBuf {
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../vendor/dex-decompiler/testdata/classes.dex")
+    }
+
+    #[test]
+    #[ignore]
+    fn dexdec_bench() {
+        // 1) interactive single-class requests (lazy, isolated)
+        let t = std::time::Instant::now();
+        let mut d = Decompiler::open(test_dex()).expect("open");
+        println!("open+index: {:.1}ms, classes={}", t.elapsed().as_millis(), d.catalog().len());
+
+        // dexdec expects Lcom/foo/Bar; descriptors
+        for cls in [
+            "Landroidx/activity/result/ActivityResultRegistry;", // androguard: 31s
+            "Landroidx/activity/OnBackPressedDispatcher;",       // androguard: 5.2s
+            "Landroid/support/v4/app/INotificationSideChannel;", // androguard: 2.5s
+            "Landroidx/annotation/AnimRes;",                     // trivial
+        ] {
+            let t = std::time::Instant::now();
+            let r = d.class(cls);
+            match r {
+                Ok(unit) => println!(
+                    "class {:>55}: {:>6.1}ms  {} lines",
+                    cls,
+                    t.elapsed().as_millis(),
+                    unit.source.lines().count()
+                ),
+                Err(e) => println!("class {cls}: FAILED in {:?}: {e}", t.elapsed()),
+            }
+        }
+
+        // 2) full-archive batch (shared analysis, Java)
+        let mut d = Decompiler::open(test_dex()).expect("open");
+        d.set_options(
+            DecompileOptions::default()
+                .with_language(SourceLanguage::Java)
+                .with_isolated_requests(false),
+        );
+        let t0 = std::time::Instant::now();
+        let mut ok = 0usize;
+        let mut failed = 0usize;
+        let batch = d.classes(ClassSelector::All).expect("select");
+        let total = batch.len();
+        for (i, unit) in batch.enumerate() {
+            match unit {
+                Ok(u) => {
+                    ok += 1;
+                    let _ = u.source.len();
+                }
+                Err(f) => {
+                    failed += 1;
+                    if failed <= 5 {
+                        println!("FAIL {}: {}", f.class, f.error);
+                    }
+                }
+            }
+            if i % 1000 == 999 {
+                println!("[{}/{}] elapsed {:.1}s", i + 1, total, t0.elapsed().as_secs_f64());
+                use std::io::Write;
+                std::io::stdout().flush().ok();
+            }
+        }
+        println!(
+            "dexdec batch: {ok}/{total} ok, {failed} failed, total {:.1}s ({:.1}ms/class avg)",
+            t0.elapsed().as_secs_f64(),
+            t0.elapsed().as_millis() as f64 / total.max(1) as f64
+        );
     }
 }

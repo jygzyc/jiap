@@ -1,0 +1,70 @@
+{
+  "config_end_point": "https://butler.razorpay.com/v1/settings",
+  "enable": true,
+  "checkout": {
+    "end_point": "/v1/checkout",
+    "append_keys": [
+      "invoice_id",
+      "customer_id"
+    ],
+    "url_config": {
+      "platform": "android",
+      "library": "checkoutjs"
+    }
+  },
+  "permissions": {
+    "custom_message": "We need SMS permission to auto fill bank OTP",
+    "enable_custom_message": false,
+    "max_ask_count": 1
+  },
+  "card_saving": {
+    "broadcast_receiver_flow": true,
+    "shared_preferences_flow": true,
+    "local": true
+  },
+  "native_loader": {
+    "color": "#0783B4",
+    "enable": true
+  },
+  "otpelf": {
+    "enable": true,
+    "settings": {
+      "platform": "android"
+    },
+    "endpoint": "https://cdn.razorpay.com/static/otpelf/",
+    "js_file_name": "otpelf.js",
+    "version_file_name": "version.json"
+  },
+  "magic": {
+    "enable": true,
+    "settings": {
+      "platform": "android"
+    },
+    "endpoint": "https://cdn.razorpay.com/static/otpelf/",
+    "js_file_name": "magic.js",
+    "version_file_name": "version.json"
+  },
+  "retry": {
+    "enabled": true,
+    "max_count": -1
+  },
+  "analytics": {
+    "lumberjack": {
+      "key": "NTZmNWIwNGZhODc1MmUyY2YxOTM5NmM0",
+      "sdk_identifier": "checkoutandroid",
+      "end_point": "https://lumberjack.razorpay.com/v1/track",
+      "enable": true
+    }
+  },
+  "back_button": {
+    "negative_text": "Cancel Payment",
+    "positive_text": "Continue Payment",
+    "alert_message": "Do you want to cancel the ongoing payment?",
+    "enable": true
+  },
+  "update_sdk_config":{
+    "latest_version": 12,
+    "msg": "Razorpay: A new version of the sdk is available. Please update.",
+    "enable_alert": true
+  }
+}

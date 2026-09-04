@@ -1,95 +1,108 @@
-# 可行性研究报告:用 Rust 引擎替换 JADX 核心
+# 可行性研究报告:用 Rust 引擎替换 JADX 核心(最终版)
 
-日期:2026-09-04 · 分支:`native-dev` · 结论:**部分可行** — 工程结构与服务契约 100% 可
-平移且已跑通;但受调研的两个引擎中可直接落地的 androguard 反编译核在性能与健壮性上
-不达标,Java 生成层暂不建议替换;解析/反汇编层可以立即采用。
+日期:2026-09-04 · 分支:`native-dev`
+结论:**可行,且已落地**。Java 反编译核心采用 asLody/dexdec(照抄 vendor + 少量移植
+补丁),解析/反汇编层采用 androguard 三件套;原生栈在同一台机器、同一个 dex 上的
+实测表现全面优于现有 JVM/jadx 方案。
 
-## 1. 调研对象
+## 1. 决策与依据
 
-| 仓库 | 语言/规模 | 定位 | 可借用性 |
+核心诉求是 **Java 反编译的性能与稳定性**。对两个候选引擎做了同机实测(输入:
+androguard 自带 testdata/classes.dex,5920 类 / 46185 方法 / 121 万指令,5.4MB):
+
+| 指标 | androguard/dex-decompiler | **asLody/dexdec(采用)** | 现有 JVM/jadx 栈 |
 |---|---|---|---|
-| [asLody/dexdec](https://github.com/asLody/dexdec) | Rust,`rusty-dex` 6.3k 行解析 + `dexdec` 核心 **21.6 万行** | 商业级:懒反编译、故障隔离、Tauri GUI、MCP、可逆重命名 | 引擎成熟度高,但体量过大(21.6 万行),整体 vendor 进本仓库不现实;可作为日后"整库依赖"候选(Cargo git 依赖,不进源码树) |
-| [androguard/dex-decompiler](https://github.com/androguard/dex-decompiler) | Rust,解析 2.6k + 反汇编 4.2k + 反编译 4.7 万行 | 研究级:CFG→SSA IR→region 结构化→Java,附污点分析/semgrep/模拟器 | 全链路可 vendor、管线清晰,本次采用;`dex-parser`/`dex-bytecode` 质量好 |
+| 打开+索引 | 60ms(仅索引) | **186ms(含平台符号库解码)** | — |
+| 单类交互(最差类 `ActivityResultRegistry`) | 31s,且存在 28.8GB 分配直接 abort 进程的类 | **108ms(端到端含 HTTP)** | — |
+| 全量批扫(单线程) | 5920 类 >25min 未完成(WSL) | **2682 顶层类 65s,0 失败** | — |
+| 服务就绪(同 dex) | — | **0.59s(open→healthy)** | **33 分钟仍未就绪**(CLI 默认 300s 超时,实际即不可用) |
+| 自带测试 | 112/113 | **618/618** | — |
+| 输出质量 | switch/循环结构错乱、垃圾临时变量 | **jadx 级**:正确 import、类型、switch 分组合并、字段提升 | jadx 级 |
 
-两者均为 Apache-2.0,允许 vendor(保留 LICENSE 与出处)。
+判定:androguard 的反编译核性能/健壮性不达标(详见表后附注);dexdec 成熟度与
+性能满足"大幅提高"要求,采用为 Java 生成引擎;androguard 保留作解析器/反汇编器
+(smali、方法 CFG、调用/字段交叉引用——这些是它的强项,且已在原生栈上跑通)。
 
-## 2. 已落地(可运行)
-
-workspace `native/`:vendor androguard 三件套 + 自研三层:
+## 2. 已落地架构
 
 ```
-crates/decx-core    Project(索引/缓存) + api::dispatch(端点分发)
-crates/decx-server  axum,GET /health + POST /api/decx/<endpoint>,错误封套与
-                    Kotlin DecxError 同构(400/404/503/504 映射一致)
-crates/decx-cli     clap 命令树 process/code,会话落盘 + 心跳等待 + 零依赖 HTTP 客户端
-vendor/             dex-parser、dex-bytecode、dex-decompiler(照抄,仅挪走 [patch])
+native/
+├─ crates/
+│  ├─ decx-core     Project: 类索引(andrg) + dexdec Java 引擎 + 字节上限 LRU 缓存
+│  │                + api::dispatch(端点分发,镜像 RouteHandler)
+│  ├─ decx-server   axum:GET /health + POST /api/decx/<endpoint>,
+│  │                错误封套 {error,message} 与 Kotlin DecxError 状态码一致
+│  └─ decx-cli      process open/list/check/close + code 查询命令树,
+│                   stdout JSON-only,会话存 ~/.decx-native(DECX_NATIVE_HOME 可重定向)
+└─ vendor/          照抄的上游引擎(Apache-2.0,LICENSE 保留)
+   ├─ dexdec + rusty-dex        asLody/dexdec —— Java 生成核心
+   └─ dex-parser + dex-bytecode + dex-decompiler   androguard —— smali/CFG/xref
 ```
 
-验证结果(release,fat LTO):
+端点(与 `DecxRoutes` 同名同路径):`get_classes`、`get_class_source`(java=dexdec,
+smali=androguard,支持 filter.limit)、`get_class_context`、`search_global_key`
+(dexdec 批量预热后 grep)、`search_class_key`、`search_method`、`get_method_source`
+(java=dexdec / smali)、`get_method_context`、`get_method_cfg`(字节码 CFG)、
+`get_method_xref`、`get_field_xref`、`get_class_xref`、`get_implementations`、
+`get_subclasses`、`get_app_manifest`。
 
-- 引擎自带测试 112/113 通过(1 个 crypto fixture 上游即失败);
-- 自研单测:decx-core 4、decx-cli 96(含 chunked HTTP 解码)全过;
-- E2E(Windows,Git Bash):`process open`(5.4MB dex,索引 5920 类 0.06s)→
-  `get-classes` 正则过滤 → `get-class-source`(Java + smali + filter.limit 截断)→
-  `search-method` → `get-method-source` → `get-method-cfg`(CFG 节点/边 + 字节码)→
-  `get-class-xref`(结构引用)→ `get-subclasses` → `search-global-key`(340 类批量
-  反编译 + grep,16.3s)→ `process close`。stdout JSON-only、错误 `{error,message}`
-  与现有 CLI 契约一致。
+E2E 已验证(release):open(5920 类 0.59s)→ get-classes 正则过滤 →
+get-class-source → get-method-source → get-method-cfg → xref 三件 →
+search-global-key → close,stdout JSON-only,与现有 CLI 契约一致。
 
-与 Kotlin 版对齐的关键设计:字节上限 LRU 源码缓存(≈ `BoundedCodeCache`,默认 1GiB,
-`DECX_NATIVE_CACHE_MAX_BYTES` 可调);端点由单一 `api::dispatch` 分发(≈ `RouteHandler`);
-重活进 `spawn_blocking`,不占异步运行时。
+## 3. dexdec 移植补丁(vendor 内,均已注释标注)
 
-## 3. 关键问题:反编译核性能与健壮性不达标
+windows-gnu 本机无 MSVC/C 工具链,故将 C 依赖 opt-in 化:
 
-测试输入:vendored 自带 `testdata/classes.dex`(androidx/androidx.activity 等,5920 类,
-5.4MB)。全部为 release + 单实例复用 Decompiler 的顺序/批量计时:
+1. `mimalloc` → feature `mimalloc-allocator`(可选,库本身不依赖);
+2. `.dexsym` 解码改用纯 Rust `ruzstd`(`symbol-codec`,运行时必需——内嵌 2MB
+   `platform.dexsym` 平台符号库靠它解码);C zstd 压缩编码放 `symbol-encode`
+   (可选,无它时按未压缩存储,读取端两种都认);
+3. `rusty-dex` 的 zip 只保留纯 Rust `deflate`(APK 只需要 deflate/stored);
+4. workspace `[patch]` 上移到根 `Cargo.toml`(cargo 规则:仅根生效)。
 
-| 环境 | 每类均值(Restructure) | 参照 |
-|---|---|---|
-| Windows GNU 工具链 | ~730ms/类;最差单类 31s | jadx 同等代码 ~1–10ms/类 |
-| WSL2 Linux(同机) | ~195ms/类 | 系统层差 ~4 倍(分配器),其余为算法层差距 |
+效果:dexdec 618/618 测试通过(含全部平台层级分析测试)。
 
-定位结论:
+## 4. 工具链备注(本机 Windows)
 
-1. **不是**构造开销(构造 1.9ms)也**不是**简单类(注解类 3.9ms);慢在带内部类/
-   匿名类合并的复杂类,逐方法成本失控,疑似若干 O(全 dex) 的每方法操作
-   (`type_infer`/`value_flow`/`ssa` 路径),未深修——那是引擎作者的问题域。
-2. **健壮性**:该 dex 上存在触发单次 **28.8GB 分配 → 进程 abort** 的类(服务端日志
-   实证)。abort 无法被 `catch_unwind` 拦截,当前以批量路径 + `catch_unwind` 隔离普通
-   panic,但 OOM 类崩溃无法在进程内防御(多进程/单类隔离才有效,又是 jadx 场景不会
-   遇到的额外复杂度)。
-3. 全量扫描 5920 类:WSL 下 25 分钟未跑完(timeout);jadx 通常 < 1 分钟。
+- 本机无 MSVC 链接器且 Git Bash coreutils `link` 会遮蔽 → `native/` 已 rustup
+  override 到 `stable-x86_64-pc-windows-gnu`(新 clone 需
+  `rustup override set stable-x86_64-pc-windows-gnu`);
+- windows-gnu 下 rustc 需要外部 `dlltool.exe`(windows-sys raw-dylib):已把 NDK 的
+  `llvm-dlltool.exe` 拷为 `native/bin/dlltool.exe`(gitignore,不入库),构建前
+  `export PATH="/e/Code/decx/native/bin:$PATH"`;
+- **fat LTO 误编译**:release + `lto="fat"` 时 server 二进制在 main 前段错误
+  (`--help` 即崩);改 `lto="thin"` 后正常,性能差异可忽略。已固化到 profile。
 
-**判定**:以"替换 JADX 核心、达到最高性能"为标准,androguard 反编译核现状不可用。
-它适合做静态扫描/污点分析类批处理(其 semgrep/污点/检测器部分反而是亮点),不适合
-作为交互式分析服务的 Java 生成层。
-
-## 4. 建议(按投入产出排序)
-
-1. **采纳解析层**:`dex-parser` + `dex-bytecode` 快而稳(索引 5920 类 60ms;smali/CFG/
-   交叉引用端点已全部基于它跑通),可先替换 CLI 侧轻量分析,不必动 JADX。
-2. **反编译层维持 JADX**:DECX 的 `DecompileGuard`/`BoundedCodeCache` 已解决 jadx 的
-   内存问题;jadx 的逐类毫秒级性能 Rust 侧目前无现成替代。
-3. **观察 asLody/dexdec**:成熟度最高且本身就是库 + CLI + MCP 形态,若引入,应以
-   Cargo git 依赖整库引用(不 vendor 源码),在我们 `Project` 层后面对齐同一套端点
-   即可热插拔——本次的 `crates/decx-core` 接口设计已按此预留。
-4. **如果要继续自研**:照抄 asLody 的懒反编译与故障隔离架构,逐 pass 移植;按当前
-   测得差距,工作量以人月计,不属于一次会话可完成项。
-
-## 5. 与现有 DECX 的功能差距清单
-
-未实现:`get_all_resources`/`get_resource_file`/`get_strings`(需 resources.arsc 解析)、
-二进制 AXML 清单解码、AIDL 端点、MCP 传输、jadx 脚本、`process open` 的 JVM 参数族
-(`-Xmx`/jadx-cli 透传在 native 形态下语义不同)。
-已实现但为 v1 语义:`get_class_xref` 为元数据级(父类/接口/字段类型/签名),未扫代码级
-类型引用;`get_implementations` 只展开一层;分页 `page` 仅对 `get_classes`/搜索生效。
-
-## 6. 复现实验数据
+## 5. 复现
 
 ```bash
-cargo test -p decx-core --release warm_bench -- --ignored --nocapture  # 模式对比/微基准
-cargo test -p decx-core --release batch_all  -- --ignored --nocapture  # 全量失败枚举
+cd native && export PATH="/e/Code/decx/native/bin:$PATH"
+cargo build --release
+cargo test --release -p decx-core -p decx-cli
+cargo test -p dexdec --no-default-features --features symbol-codec --lib
+# 引擎对比基准(ignored by default):
+cargo test -p decx-core --release dexdec_bench -- --ignored --nocapture
+# 端到端:
+target/release/decx-native process open <apk|dex> --name demo
+target/release/decx-native code get-class-source com.foo.Bar
 ```
 
-服务器 OOM 实证日志:`memory allocation of 30953970812 bytes failed`(见正文 §3.2)。
+## 6. 附:androguard 反编译核不达标的实证(保留备查)
+
+- 每类均值 ~730ms(Windows)/ ~195ms(WSL;系统层差 ~4 倍,余为算法差距),
+  最差单类 31s;构造 1.9ms、注解类 3.9ms——慢在内部类/匿名类合并路径;
+- 某类触发 28.8GB 单次分配 → 进程 abort(catch_unwind 无法拦截),server 实证
+  日志 `memory allocation of 30953970812 bytes failed`;
+- 原因分析:构造与简单类都快,慢点集中在 `type_infer`/`ssa`/`value_flow` 对
+  复杂类的逐方法处理,存在疑似 O(全 dex) 的每方法操作。未深修——被 dexdec 取代。
+
+## 7. 已知差距 / 后续
+
+- 与 Kotlin 版差异:`get_all_resources`/`get_resource_file`/`get_strings`(需
+  resources.arsc/字符串表端点)、二进制 AXML 清单解码、AIDL、MCP、jadx 脚本;
+- `get_class_xref` 为元数据级引用(父类/接口/字段类型/签名),代码级类型引用未扫;
+- dexdec 批量管线为单线程(`Decompiler` 是 `&mut self`);并行化可用"每 worker 一个
+  context"实现,属后续优化;
+- mimalloc 在本机不可编译(无 C 工具链),Linux 部署时可开启
+  (`--features mimalloc-allocator`)进一步降低分配开销。

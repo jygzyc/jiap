@@ -1,0 +1,47 @@
+public open class MultiReturn {
+    companion object {
+        public fun abs(i: Int): Int {
+            if (i < 0) {
+                return -i
+            }
+            return i
+        }
+
+        public fun earlyReturn(i: Int): Int {
+            if (i < 0) {
+                return -1
+            }
+            if (i != 0) {
+                return 1
+            }
+            return 0
+        }
+
+        public fun findValue(iArr: IntArray, i: Int): Int {
+            var index: Int = 0
+            while (index < iArr.size) {
+                if (iArr[index] == i) {
+                    return index
+                }
+                index++
+            }
+            return -1
+        }
+
+        public fun grade(i: Int): String {
+            if (i >= 90) {
+                return "A"
+            }
+            if (i >= 80) {
+                return "B"
+            }
+            if (i >= 70) {
+                return "C"
+            }
+            if (i < 60) {
+                return "F"
+            }
+            return "D"
+        }
+    }
+}

@@ -1,0 +1,46 @@
+public open class BreakContinue {
+    companion object {
+        public fun findFirst(iArr: IntArray, i: Int): Int {
+            var index: Int = 0
+            while (index < iArr.size) {
+                if (iArr[index] == i) {
+                    return index
+                }
+                index++
+            }
+            index = -1
+            return index
+        }
+
+        public fun findPair(iArr: IntArray, i: Int): Boolean {
+            var index: Int = 0
+            while (index < iArr.size) {
+                val i2: Int = index + 1
+                var index2: Int = i2
+                while (index2 < iArr.size) {
+                    if (iArr[index] + iArr[index2] == i) {
+                        return true
+                    }
+                    index2++
+                }
+                index = i2
+            }
+            return false
+        }
+
+        public fun sumPositive(iArr: IntArray): Int {
+            var index: Int = 0
+            var i: Int = 0
+            while (index < iArr.size) {
+                if (iArr[index] > 0) {
+                    val i2: Int = i + iArr[index]
+                    index++
+                    i = i2
+                } else {
+                    index++
+                }
+            }
+            return i
+        }
+    }
+}

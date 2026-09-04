@@ -1,0 +1,11 @@
+public open class TryCatch {
+    companion object {
+        public fun divide(i: Int, i2: Int): Int {
+            try {
+                return i / i2
+            } catch (exception: ArithmeticException) {
+                return 0
+            }
+        }
+    }
+}

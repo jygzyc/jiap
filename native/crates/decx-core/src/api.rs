@@ -506,34 +506,8 @@ fn get_method_source(project: &Project, body: &Value) -> Result<Value> {
             .map_err(|e| DecxError::internal(e.to_string()))?;
         smali_rows_to_text(&rows)
     } else {
-        let dex = &project.dexes[entry.dex_idx];
-        let class_def = dex.get_class_def(entry.class_def_idx as u32).map_err(|e| DecxError::internal(e.to_string()))?;
-        let class_data = dex
-            .get_class_data(&class_def)
-            .map_err(|e| DecxError::internal(e.to_string()))?
-            .ok_or_else(|| DecxError::internal("no class_data"))?;
-        let encoded = class_data
-            .direct_methods
-            .iter()
-            .chain(class_data.virtual_methods.iter())
-            .find(|x| x.method_idx == m.method_idx)
-            .ok_or_else(|| DecxError::method_not_found(&mth))?;
-        let extras: Vec<&DexFile> = project
-            .dexes
-            .iter()
-            .enumerate()
-            .filter(|(i, _)| *i != entry.dex_idx)
-            .map(|(_, d)| d)
-            .collect();
-        let decompiler =
-            Decompiler::with_options(dex, dex_decompiler::DecompilerOptions::default()).with_extra_dexes(extras);
-        decompiler
-            .decompile_method(
-                encoded,
-                Some(simple_name(&entry.java_name)),
-                Some(&entry.java_name),
-            )
-            .map_err(|e| DecxError::new("DECOMPILATION_SKIPPED", format!("{e}")))?
+        // Java path: dexdec engine (whole-method semantic recovery)
+        project.method_source(entry, &m.name)?
     };
     Ok(json!({ "mth": mth, "cls": entry.java_name, "source": source }))
 }

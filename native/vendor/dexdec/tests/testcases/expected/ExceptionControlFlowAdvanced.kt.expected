@@ -1,0 +1,73 @@
+public open class ExceptionControlFlowAdvanced {
+    companion object {
+        public fun finallyWithBreakContinue(iArr: IntArray?): Int {
+            var index: Int = 0
+            var count: Int = 0
+            while (index < iArr!!.size) {
+                try {
+                    if (iArr[index] != 0) {
+                        if (iArr[index] < 0) {
+                            count++
+                            return count
+                        }
+                        count = count + iArr[index] + 1
+                    } else {
+                        count++
+                    }
+                    index++
+                } catch (exception: Throwable) {
+                    throw exception
+                }
+            }
+            return count
+        }
+
+        public fun multiCatchAndFinally(iArr: IntArray?): Int {
+            var index: Int = 0
+            var i: Int = 0
+            var result: Int
+            try {
+                while (index < iArr!!.size) {
+                    if (iArr[index] < 0) {
+                        throw IllegalArgumentException()
+                    }
+                    val i2: Int = i + 10 / iArr[index]
+                    index++
+                    i = i2
+                }
+                result = i + 3
+                return result
+            } catch (exception3: IllegalArgumentException) {
+                result = 1
+                return result
+            } catch (exception2: ArithmeticException) {
+                result = 2
+                return result
+            } catch (exception: Throwable) {
+                throw exception
+            }
+        }
+
+        public fun nestedTryInCatch(i: Int): Int {
+            var result: Int = 0
+            if (i != 0) {
+                result = 1
+                return result
+            }
+            try {
+                throw RuntimeException()
+            } catch (exception: RuntimeException) {
+                try {
+                    if (i < 0) {
+                        result = 3
+                        throw IllegalStateException()
+                    }
+                    result = 2
+                    return result
+                } catch (exception2: IllegalStateException) {
+                    return result
+                }
+            }
+        }
+    }
+}
