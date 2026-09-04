@@ -1,70 +1,33 @@
-//! Project state: loaded dexes (+ optional apk manifest), a full class index,
-//! and lazy per-class decompilation behind a byte-bounded LRU cache.
+//! Project state — fused on the dexdec engine.
 //!
-//! This mirrors the Kotlin server's "JADX decompiler state + DecompileGuard"
-//! role: opening a project is cheap (index only), sources are produced on
-//! demand, and the cache caps resident decompiled bytes so huge apps stay
-//! bounded.
+//! dexdec is not an external helper here: it IS the core. The class index is
+//! built from its [`dexdec::api::ArchiveCatalog`], members come from its
+//! [`dexdec::api::ClassOutline`], Java/smali-ish output from its decompiler
+//! and IR visualizer, and cross references from its own reference scanner.
+//! Everything else in this crate is glue around that.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use dex_decompiler::input::load_dexes_from_path;
-use dex_parser::{ClassDef, DexFile};
 use dexdec::api::{
     ClassSelector, DecompileOptions as DexDecompileOptions, Decompiler as DexDecompiler,
-    SourceLanguage as DexSourceLanguage,
+    DecompilerContext, ReferenceTarget, SourceLanguage as DexSourceLanguage,
 };
 
 use crate::error::{DecxError, Result};
-use crate::names::descriptor_to_java;
 
-/// One indexed field of a class.
-#[derive(Debug, Clone)]
-pub struct FieldEntry {
-    pub name: String,
-    pub field_idx: u32,
-    pub access_flags: u32,
-    /// Field type descriptor, e.g. `Ljava/lang/String;`.
-    pub type_descriptor: String,
-}
-
-/// One indexed method of a class. `idx_in_class` follows the engine xref
-/// convention: direct methods first, then virtual methods.
-#[derive(Debug, Clone)]
-pub struct MethodEntry {
-    pub name: String,
-    pub method_idx: u32,
-    pub idx_in_class: usize,
-    pub direct: bool,
-    pub access_flags: u32,
-    pub code_off: u32,
-    pub return_descriptor: String,
-    pub param_descriptors: Vec<String>,
-}
-
-impl MethodEntry {
-    /// `V(Landroid/os/Bundle;)`-style short descriptor.
-    pub fn short_descriptor(&self) -> String {
-        format!("({})", self.param_descriptors.join(""))
-    }
-}
-
-/// One indexed class across all dexes of the project.
+/// One indexed class (metadata only — members load on demand through the
+/// engine's `class_outline`).
 #[derive(Debug, Clone)]
 pub struct ClassEntry {
-    pub dex_idx: usize,
-    pub class_def_idx: usize,
     /// `Lcom/foo/Bar;`
-    pub dex_name: String,
+    pub descriptor: String,
     /// `com.foo.Bar`
     pub java_name: String,
-    pub access_flags: u32,
-    pub superclass_java: Option<String>,
-    pub interfaces_java: Vec<String>,
-    pub methods: Vec<MethodEntry>,
-    pub fields: Vec<FieldEntry>,
+    pub package: String,
+    /// True when the class is a nested/inner class of another class.
+    pub nested: bool,
 }
 
 /// Byte-bounded LRU cache of decompiled class sources (≈ `BoundedCodeCache`).
@@ -104,7 +67,6 @@ impl SourceCache {
         self.cur_bytes += bytes;
         self.map.insert(key, (value, self.tick));
         while self.cur_bytes > self.max_bytes {
-            // evict least-recently-used
             let victim = self
                 .map
                 .iter()
@@ -126,98 +88,61 @@ impl SourceCache {
     }
 }
 
-/// A loaded analysis target: one or more dexes (from a `.dex` file or an
-/// `.apk`/`.zip` archive) plus the derived class index.
-///
-/// Two engines cooperate:
-/// - **dexdec** produces all Java source (interactive + batch), with the
-///   platform-symbol hierarchy analysis enabled;
-/// - the androguard stack provides the class index plus bytecode-level
-///   utilities (smali listing, method CFG, call/field xrefs).
+/// Lazily built class-hierarchy table: java name → (superclass, interfaces).
+type Hierarchy = HashMap<String, (Option<String>, Vec<String>)>;
+
+/// A loaded analysis target, fused on the dexdec engine.
 pub struct Project {
     pub path: PathBuf,
-    pub dexes: Vec<DexFile>,
-    /// Raw `AndroidManifest.xml` bytes when the input was an APK.
-    pub manifest_raw: Option<Vec<u8>>,
     entries: Vec<ClassEntry>,
     by_java_name: HashMap<String, usize>,
     cache: std::sync::Mutex<SourceCache>,
-    /// Java emitter. `&mut self` API → serialized behind a mutex; the LRU
-    /// source cache in front keeps repeated requests cheap.
-    dexdec_engine: std::sync::Mutex<DexDecompiler>,
+    /// Java emitter + batch pipeline (`&mut self` API → mutex-serialized).
+    engine: std::sync::Mutex<DexDecompiler>,
+    /// Second dexdec context dedicated to IR/CFG decoding (`decode_method`
+    /// lives on the context, and `Decompiler` does not expose it).
+    ir_context: std::sync::Mutex<DecompilerContext>,
+    hierarchy: std::sync::Mutex<Option<Arc<Hierarchy>>>,
 }
 
 impl Project {
     /// Open a `.dex`/`.apk`/`.zip` target and build the class index.
     pub fn open(path: &Path) -> Result<Self> {
-        let dexes = load_dexes_from_path(path)
-            .map_err(|e| DecxError::invalid_parameter(format!("load {}: {e}", path.display())))?;
-        Self::from_dexes(path, dexes)
-    }
-
-    pub fn from_dexes(path: &Path, dexes: Vec<DexFile>) -> Result<Self> {
-        if dexes.is_empty() {
-            return Err(DecxError::invalid_parameter("no dex content in target"));
-        }
-        let mut entries = Vec::new();
-        let mut by_java_name = HashMap::new();
-        for (dex_idx, dex) in dexes.iter().enumerate() {
-            for cdef_idx in 0..dex.header.class_defs_size {
-                let cdef = match dex.get_class_def(cdef_idx) {
-                    Ok(c) => c,
-                    Err(_) => continue,
-                };
-                let Ok(dex_name) = dex.get_type(cdef.class_idx) else {
-                    continue;
-                };
-                let java_name = descriptor_to_java(&dex_name);
-                let superclass_java = if cdef.superclass_idx == dex_parser::NO_INDEX {
-                    None
-                } else {
-                    dex.get_type(cdef.superclass_idx).ok().map(|d| descriptor_to_java(&d))
-                };
-                let interfaces_java = read_interfaces(dex, &cdef)
-                    .into_iter()
-                    .map(|d| descriptor_to_java(&d))
-                    .collect();
-                let (methods, fields) = read_members(dex, &cdef);
-                let entry = ClassEntry {
-                    dex_idx,
-                    class_def_idx: cdef_idx as usize,
-                    dex_name,
-                    java_name: java_name.clone(),
-                    access_flags: cdef.access_flags,
-                    superclass_java,
-                    interfaces_java,
-                    methods,
-                    fields,
-                };
-                by_java_name.insert(java_name, entries.len());
-                entries.push(entry);
-            }
-        }
-        let cache_max = std::env::var("DECX_NATIVE_CACHE_MAX_BYTES")
-            .ok()
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(DEFAULT_CACHE_MAX_BYTES);
-        // Java emitter: dexdec with the shared-analysis batch mode. Requests
-        // run against one context so cross-class type recovery works; large
-        // sweeps clear the scope when they finish to release memory.
         let mut engine = DexDecompiler::open(path)
-            .map_err(|e| DecxError::internal(format!("dexdec load: {e}")))?;
+            .map_err(|e| DecxError::invalid_parameter(format!("load {}: {e}", path.display())))?;
         engine.set_options(
             DexDecompileOptions::default()
                 .with_language(DexSourceLanguage::Java)
                 .with_isolated_requests(false),
         );
+
+        let mut entries = Vec::new();
+        let mut by_java_name = HashMap::new();
+        for summary in engine.catalog().classes() {
+            let entry = ClassEntry {
+                descriptor: summary.descriptor.clone(),
+                java_name: summary.qualified_name.clone(),
+                package: summary.package.clone(),
+                nested: summary.parent_descriptor.is_some(),
+            };
+            by_java_name.insert(entry.java_name.clone(), entries.len());
+            entries.push(entry);
+        }
+
+        let cache_max = std::env::var("DECX_NATIVE_CACHE_MAX_BYTES")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(DEFAULT_CACHE_MAX_BYTES);
+        let ir_context = DecompilerContext::from_file(path)
+            .map_err(|e| DecxError::internal(format!("dexdec IR context: {e}")))?;
         Ok(Self {
             path: path.to_path_buf(),
-            dexes,
-            manifest_raw: None,
             entries,
             by_java_name,
             cache: std::sync::Mutex::new(SourceCache::new(cache_max)),
-            dexdec_engine: std::sync::Mutex::new(engine),
+            engine: std::sync::Mutex::new(engine),
+            ir_context: std::sync::Mutex::new(ir_context),
+            hierarchy: std::sync::Mutex::new(None),
         })
     }
 
@@ -247,53 +172,266 @@ impl Project {
         self.cache.lock().map(|c| c.len_bytes()).unwrap_or(0)
     }
 
-    /// Decompile one class to Java via the dexdec engine, served through the
-    /// LRU cache. Nested classes are rendered inline by their parent, so
-    /// lookups for `$`-members fall back to their enclosing top-level class.
+    fn engine_lock(&self) -> Result<std::sync::MutexGuard<'_, DexDecompiler>> {
+        self.engine
+            .lock()
+            .map_err(|_| DecxError::internal("dexdec engine lock poisoned"))
+    }
+
+    /// Narrow to the top-level owner descriptor of a possibly-nested class:
+    /// nested classes are rendered inline with their owner.
+    fn owner_descriptor(&self, entry: &ClassEntry) -> String {
+        let owner_java = entry.java_name.split('$').next().unwrap_or(&entry.java_name);
+        if owner_java == entry.java_name {
+            entry.descriptor.clone()
+        } else {
+            crate::names::java_to_descriptor(owner_java)
+        }
+    }
+
+    /// Decompile one class to Java, served through the LRU cache.
     pub fn class_source(&self, entry: &ClassEntry) -> Result<Arc<String>> {
-        if let Some(hit) = self.cache.lock().ok().and_then(|mut c| c.get(&entry.java_name)) {
+        // Nested classes are rendered inline with their owner: a cache hit on
+        // the owner serves any `$`-member without re-rendering.
+        let owner = self.owner_descriptor(entry);
+        let owner_java = crate::names::descriptor_to_java(&owner);
+        if let Some(hit) = self
+            .cache
+            .lock()
+            .ok()
+            .and_then(|mut c| c.get(&owner_java).or_else(|| c.get(&entry.java_name)))
+        {
             return Ok(hit);
         }
-        // Nested classes (`Outer$Inner`) decompile as part of `Outer`.
-        let owner_java = entry.java_name.split('$').next().unwrap_or(&entry.java_name);
-        let owner_dex = crate::names::java_to_descriptor(owner_java);
         let source = {
-            let mut engine = self
-                .dexdec_engine
-                .lock()
-                .map_err(|_| DecxError::internal("dexdec engine lock poisoned"))?;
+            let mut engine = self.engine_lock()?;
             engine
-                .class(owner_dex)
+                .class(owner.clone())
                 .map_err(|e| DecxError::new("DECOMPILATION_SKIPPED", format!("{e}")))?
                 .source
         };
         let arc = Arc::new(source);
         if let Ok(mut c) = self.cache.lock() {
-            // cache under both the requested name and the owner name
-            c.insert(owner_java.to_string(), Arc::clone(&arc));
+            c.insert(owner_java, Arc::clone(&arc));
             c.insert(entry.java_name.clone(), Arc::clone(&arc));
         }
         Ok(arc)
     }
 
-    /// Decompile a single method to Java via dexdec.
+    /// Class declaration (members, hierarchy, flags) without method bodies.
+    pub fn class_outline(
+        &self,
+        entry: &ClassEntry,
+    ) -> Result<Arc<dexdec::api::ClassOutline>> {
+        let owner = self.owner_descriptor(entry);
+        let mut engine = self.engine_lock()?;
+        let outline = engine
+            .class_outline(owner)
+            .map_err(|e| DecxError::class_not_found(format!("{e}")))?;
+        Ok(Arc::new(outline))
+    }
+
+    /// Decompile a single method to Java.
     pub fn method_source(&self, entry: &ClassEntry, method_name: &str) -> Result<String> {
-        // Methods live on the class that declares them.
-        let owner_java = entry.java_name.split('$').next().unwrap_or(&entry.java_name);
-        let owner_dex = crate::names::java_to_descriptor(owner_java);
-        let mut engine = self
-            .dexdec_engine
-            .lock()
-            .map_err(|_| DecxError::internal("dexdec engine lock poisoned"))?;
+        let owner = self.owner_descriptor(entry);
+        let mut engine = self.engine_lock()?;
+        let descriptor = engine
+            .class_outline(owner.clone())
+            .ok()
+            .and_then(|o| {
+                o.methods
+                    .iter()
+                    .find(|m| m.name == method_name)
+                    .map(|m| m.descriptor.clone())
+            });
+        let mut request = dexdec::api::MethodRequest::new(owner, method_name);
+        if let Some(d) = descriptor {
+            request = request.with_descriptor(d);
+        }
         let out = engine
-            .method(dexdec::api::MethodRequest::new(
-                owner_dex,
-                method_name,
-            ))
-            .map_err(|e| DecxError::method_not_found(format!("{}.{method_name}", entry.java_name)))?;
+            .method(request)
+            .map_err(|_| DecxError::method_not_found(format!("{}.{method_name}", entry.java_name)))?;
         Ok(out.source.unwrap_or_else(|| {
-            format!("// {} is abstract or native (no bytecode body)", method_name)
+            format!("// {method_name} is abstract or native (no bytecode body)")
         }))
+    }
+
+    /// Semantic IR listing of one method (the dexdec counterpart of a smali
+    /// body dump: blocks with structured instructions and branch kinds).
+    pub fn method_ir_text(&self, entry: &ClassEntry, method_name: &str) -> Result<String> {
+        let owner = self.owner_descriptor(entry);
+        let descriptor = {
+            let mut engine = self.engine_lock()?;
+            engine
+                .class_outline(owner.clone())
+                .ok()
+                .and_then(|o| {
+                    o.methods
+                        .iter()
+                        .find(|m| m.name == method_name)
+                        .map(|m| m.descriptor.clone())
+                })
+        };
+        let mut ir = self
+            .ir_context
+            .lock()
+            .map_err(|_| DecxError::internal("dexdec IR context lock poisoned"))?;
+        // decode_method reads the class from the context reader: load it first.
+        let _loaded = ir
+            .load_class(&owner)
+            .map_err(|e| DecxError::internal(e.to_string()))?;
+        let cfg = ir
+            .decode_method(&owner, method_name, descriptor.as_deref())
+            .map_err(|e| DecxError::method_not_found(format!("{}.{method_name}: {e}", entry.java_name)))?
+            .ok_or_else(|| {
+                DecxError::new(
+                    "DECOMPILATION_SKIPPED",
+                    format!("{method_name} has no bytecode body"),
+                )
+            })?;
+        Ok(dexdec::visualizer::method_to_text(cfg))
+    }
+
+    /// Whole-class IR listing: one decoded method body after another. This is
+    /// the `--smali` rendering (dexdec IR blocks instead of raw dalvik text).
+    pub fn class_ir_listing(&self, entry: &ClassEntry) -> Result<String> {
+        let outline = self.class_outline(entry)?;
+        let mut out = String::new();
+        for m in &outline.methods {
+            if !m.has_code {
+                continue;
+            }
+            out.push_str(&format!("## {}{}\n", m.name, m.descriptor));
+            match self.method_ir_text(entry, &m.name) {
+                Ok(text) => {
+                    out.push_str(&text);
+                    out.push('\n');
+                }
+                Err(_) => out.push_str("  (no decodable body)\n"),
+            }
+        }
+        if out.is_empty() {
+            out.push_str("// class has no method bodies\n");
+        }
+        Ok(out)
+    }
+
+    /// Control-flow graph of one method as (nodes, edges) JSON fragments.
+    /// Node: `{id, offset, insns}`; edge: `{from, to, kind}`.
+    pub fn method_cfg(
+        &self,
+        entry: &ClassEntry,
+        method_name: &str,
+    ) -> Result<(Vec<serde_json::Value>, Vec<serde_json::Value>, String)> {
+        let owner = self.owner_descriptor(entry);
+        let descriptor = {
+            let mut engine = self.engine_lock()?;
+            engine
+                .class_outline(owner.clone())
+                .ok()
+                .and_then(|o| {
+                    o.methods
+                        .iter()
+                        .find(|m| m.name == method_name)
+                        .map(|m| m.descriptor.clone())
+                })
+        };
+        let mut ir = self
+            .ir_context
+            .lock()
+            .map_err(|_| DecxError::internal("dexdec IR context lock poisoned"))?;
+        let _loaded = ir
+            .load_class(&owner)
+            .map_err(|e| DecxError::internal(e.to_string()))?;
+        let cfg = ir
+            .decode_method(&owner, method_name, descriptor.as_deref())
+            .map_err(|e| DecxError::method_not_found(format!("{}.{method_name}: {e}", entry.java_name)))?
+            .ok_or_else(|| {
+                DecxError::new(
+                    "DECOMPILATION_SKIPPED",
+                    format!("{method_name} has no bytecode body"),
+                )
+            })?;
+        let mut nodes = Vec::new();
+        for block in cfg.blocks_iter() {
+            nodes.push(serde_json::json!({
+                "id": block.id.0,
+                "offset": block.offset,
+                "insns": block.insns.len(),
+                "synthetic": block.synthetic,
+            }));
+        }
+        let mut edges = Vec::new();
+        for block in cfg.blocks_iter() {
+            for (target, kind) in cfg.successors_with_kind(block.id) {
+                edges.push(serde_json::json!({
+                    "from": block.id.0,
+                    "to": target.0,
+                    "kind": format!("{kind:?}"),
+                }));
+            }
+        }
+        let text = dexdec::visualizer::method_to_text(cfg);
+        Ok((nodes, edges, text))
+    }
+
+    /// Bytecode sites referencing the target, via dexdec's reference scanner.
+    pub fn references(
+        &self,
+        target: ReferenceTarget,
+    ) -> Result<Vec<dexdec::api::ReferenceLocation>> {
+        let mut engine = self.engine_lock()?;
+        let results = engine
+            .references(target)
+            .map_err(|e| DecxError::internal(format!("reference scan: {e}")))?;
+        Ok(results.locations)
+    }
+
+    /// Method/field declarations across the archive (metadata pass, no IR).
+    pub fn members(
+        &self,
+    ) -> Result<Vec<dexdec::api::MemberSummary>> {
+        let engine = self.engine_lock()?;
+        let catalog = engine
+            .member_catalog()
+            .map_err(|e| DecxError::internal(format!("member catalog: {e}")))?;
+        Ok(catalog.into_members())
+    }
+
+    /// Lazily built hierarchy table: java name → (superclass java, interfaces java).
+    pub fn hierarchy(&self) -> Result<Arc<Hierarchy>> {
+        if let Some(h) = self.hierarchy.lock().ok().and_then(|h| h.clone()) {
+            return Ok(h);
+        }
+        let map: Hierarchy = {
+            let mut engine = self.engine_lock()?;
+            let mut map = HashMap::with_capacity(self.entries.len());
+            for entry in &self.entries {
+                let Ok(outline) = engine.class_outline(entry.descriptor.clone()) else {
+                    continue;
+                };
+                map.insert(
+                    entry.java_name.clone(),
+                    (
+                        outline
+                            .super_class
+                            .as_deref()
+                            .map(crate::names::descriptor_to_java),
+                        outline
+                            .interfaces
+                            .iter()
+                            .map(|i| crate::names::descriptor_to_java(i))
+                            .collect(),
+                    ),
+                );
+            }
+            map
+        };
+        let arc = Arc::new(map);
+        if let Ok(mut slot) = self.hierarchy.lock() {
+            *slot = Some(Arc::clone(&arc));
+        }
+        Ok(arc)
     }
 
     /// Decompile many classes through the dexdec batch pipeline (shared
@@ -313,7 +451,7 @@ impl Project {
 
         let mut ok = 0usize;
         let mut failures = Vec::new();
-        let Ok(mut engine) = self.dexdec_engine.lock() else {
+        let Ok(mut engine) = self.engine.lock() else {
             failures.push("dexdec engine lock poisoned".to_string());
             return (0, failures);
         };
@@ -321,14 +459,14 @@ impl Project {
             for unit in batch {
                 match unit {
                     Ok(u) => {
-                        let java = descriptor_to_java(&u.class);
+                        let java = crate::names::descriptor_to_java(&u.class);
                         if let Ok(mut c) = self.cache.lock() {
                             c.insert(java, Arc::new(u.source));
                         }
                         ok += 1;
                     }
                     Err(f) => {
-                        let java = descriptor_to_java(&f.class);
+                        let java = crate::names::descriptor_to_java(&f.class);
                         failures.push(format!("{java}: {}", f.error));
                     }
                 }
@@ -340,89 +478,22 @@ impl Project {
     }
 
     /// Decompile every class to warm the cache.
-    /// Returns the number of classes processed. Failures are isolated and
-    /// reported per class — one broken class never aborts the sweep.
     pub fn warm_all(&self) -> (usize, Vec<String>) {
         let all: Vec<usize> = (0..self.entries.len()).collect();
         self.decompile_batch(&all)
     }
 }
 
-/// Interfaces of a class_def, as dex type descriptors.
-fn read_interfaces(dex: &DexFile, cdef: &ClassDef) -> Vec<String> {
-    let mut out = Vec::new();
-    if cdef.interfaces_off == 0 || cdef.interfaces_off == dex_parser::NO_INDEX {
-        return out;
-    }
-    let data = &*dex.data;
-    let off = cdef.interfaces_off as usize;
-    if data.len() < off + 4 {
-        return out;
-    }
-    let size = u32::from_le_bytes([data[off], data[off + 1], data[off + 2], data[off + 3]]) as usize;
-    for i in 0..size {
-        let p = off + 4 + i * 2;
-        if p + 2 > data.len() {
-            break;
-        }
-        let idx = u16::from_le_bytes([data[p], data[p + 1]]) as u32;
-        if let Ok(t) = dex.get_type(idx) {
-            out.push(t);
-        }
-    }
-    out
-}
-
-/// Methods + fields of a class, direct first (engine xref convention).
-fn read_members(dex: &DexFile, cdef: &ClassDef) -> (Vec<MethodEntry>, Vec<FieldEntry>) {
-    let mut methods = Vec::new();
-    let mut fields = Vec::new();
-    let Ok(Some(class_data)) = dex.get_class_data(cdef) else {
-        return (methods, fields);
-    };
-    let mut idx_in_class = 0usize;
-    for (direct, list) in [(true, &class_data.direct_methods), (false, &class_data.virtual_methods)] {
-        for m in list {
-            if let Ok(info) = dex.get_method_info(m.method_idx) {
-                methods.push(MethodEntry {
-                    name: info.name,
-                    method_idx: m.method_idx,
-                    idx_in_class: idx_in_class,
-                    direct,
-                    access_flags: m.access_flags,
-                    code_off: m.code_off,
-                    return_descriptor: info.return_type,
-                    param_descriptors: info.params,
-                });
-            }
-            idx_in_class += 1;
-        }
-    }
-    for f in class_data.static_fields.iter().chain(class_data.instance_fields.iter()) {
-        if let Ok(info) = dex.get_field_info(f.field_idx) {
-            fields.push(FieldEntry {
-                name: info.name,
-                field_idx: f.field_idx,
-                access_flags: f.access_flags,
-                type_descriptor: info.typ,
-            });
-        }
-    }
-    (methods, fields)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn test_dex_path() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../vendor/dex-decompiler/testdata/classes.dex")
+    fn test_dex() -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../testdata/classes.dex")
     }
 
     fn small_project() -> Project {
-        let path = test_dex_path();
-        let dexes = load_dexes_from_path(&path).expect("load testdata dex");
-        Project::from_dexes(&path, dexes).expect("project")
+        Project::open(&test_dex()).expect("open testdata dex")
     }
 
     #[test]
@@ -437,98 +508,30 @@ mod tests {
         let p = small_project();
         let entry = p.lookup("android.support.v4.app.INotificationSideChannel").unwrap();
         let src = p.class_source(entry).expect("decompile");
-        assert!(src.contains("interface INotificationSideChannel") || src.contains("interface"), "got: {}", &src[..200.min(src.len())]);
+        assert!(src.contains("interface"), "got: {}", &src[..200.min(src.len())]);
     }
 
-    /// Find pathological classes + measure per-class cost. Run with:
-    /// cargo test -p decx-core --release warm_bench -- --ignored --nocapture
     #[test]
-    #[ignore]
-    fn warm_bench() {
+    fn outline_exposes_members() {
         let p = small_project();
-        use dex_decompiler::{DecompilationMode, Decompiler, DecompilerOptions};
-        let dex = &p.dexes[0];
-        let n = 30usize;
-
-        for (label, mode) in [("Restructure", DecompilationMode::Restructure), ("Simple", DecompilationMode::Simple), ("Fallback", DecompilationMode::Fallback)] {
-            let d = Decompiler::with_options(
-                dex,
-                DecompilerOptions { mode, ..Default::default() },
-            );
-            let t0 = std::time::Instant::now();
-            let mut ok = 0;
-            for e in p.entries().iter().take(n) {
-                let Ok(class_def) = dex.get_class_def(e.class_def_idx as u32) else { continue };
-                if d.decompile_class(&class_def).is_ok() {
-                    ok += 1;
-                }
-            }
-            println!(
-                "mode={label}: {ok}/{n} classes in {:.2}s ({:.1}ms/class)",
-                t0.elapsed().as_secs_f64(),
-                t0.elapsed().as_millis() as f64 / n as f64
-            );
-        }
-
-        // micro-step: smallest class, timed stage by stage
-        let (smallest_idx, _) = p
-            .entries()
+        let entry = p.lookup("android.support.v4.app.INotificationSideChannel").unwrap();
+        let outline = p.class_outline(entry).expect("outline");
+        assert!(!outline.methods.is_empty());
+        assert!(outline
+            .methods
             .iter()
-            .enumerate()
-            .min_by_key(|(_, e)| e.methods.len())
-            .unwrap();
-        let e = &p.entries()[smallest_idx];
-        println!(
-            "smallest class: {} with {} methods",
-            e.java_name,
-            e.methods.len()
-        );
-        let cdef = dex.get_class_def(e.class_def_idx as u32).unwrap();
-        let t = std::time::Instant::now();
-        let cdata = dex.get_class_data(&cdef).unwrap();
-        println!("  get_class_data: {:?}", t.elapsed());
-        let t = std::time::Instant::now();
-        let d1 = Decompiler::with_options(dex, DecompilerOptions::default());
-        println!("  constructor: {:?}", t.elapsed());
-        if let Some(m) = cdata.as_ref().and_then(|c| c.virtual_methods.first().or(c.direct_methods.first())) {
-            let t = std::time::Instant::now();
-            let r = d1.decompile_method(m, Some(e.java_name.as_str()), Some(&e.java_name));
-            println!("  decompile_method (first): {:?} ok={}", t.elapsed(), r.is_ok());
-            let t = std::time::Instant::now();
-            let r = d1.decompile_method(m, Some(e.java_name.as_str()), Some(&e.java_name));
-            println!("  decompile_method (cached 2nd): {:?} ok={}", t.elapsed(), r.is_ok());
-        }
-        let t = std::time::Instant::now();
-        let r = d1.decompile_class(&cdef);
-        println!("  decompile_class: {:?} ok={}", t.elapsed(), r.is_ok());
-    }
-
-    /// Full batch scan (engine-resilient). Ignored by default; used to
-    /// enumerate per-class failures on a full dex:
-    /// cargo test -p decx-core --release batch_all -- --ignored --nocapture
-    #[test]
-    #[ignore]
-    fn batch_all() {
-        let p = small_project();
-        let all: Vec<usize> = (0..p.entries().len()).collect();
-        let (ok, failed) = p.decompile_batch(&all);
-        println!("ok={ok} failed={}", failed.len());
-        for f in failed.iter().take(20) {
-            println!("FAIL {f}");
-        }
+            .any(|m| m.name == "cancelNotification" || !m.name.is_empty()));
     }
 }
 
-/// dexdec engine benchmark — compares against the androguard numbers in
-/// native/RESEARCH.md. Run with:
+/// dexdec engine benchmark. Run with:
 /// cargo test -p decx-core --release dexdec_bench -- --ignored --nocapture
 #[cfg(test)]
 mod dexdec_bench {
     use dexdec::api::{ClassSelector, DecompileOptions, Decompiler, SourceLanguage};
 
     fn test_dex() -> std::path::PathBuf {
-        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../vendor/dex-decompiler/testdata/classes.dex")
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../testdata/classes.dex")
     }
 
     #[test]
@@ -539,12 +542,11 @@ mod dexdec_bench {
         let mut d = Decompiler::open(test_dex()).expect("open");
         println!("open+index: {:.1}ms, classes={}", t.elapsed().as_millis(), d.catalog().len());
 
-        // dexdec expects Lcom/foo/Bar; descriptors
         for cls in [
-            "Landroidx/activity/result/ActivityResultRegistry;", // androguard: 31s
-            "Landroidx/activity/OnBackPressedDispatcher;",       // androguard: 5.2s
-            "Landroid/support/v4/app/INotificationSideChannel;", // androguard: 2.5s
-            "Landroidx/annotation/AnimRes;",                     // trivial
+            "Landroidx/activity/result/ActivityResultRegistry;",
+            "Landroidx/activity/OnBackPressedDispatcher;",
+            "Landroid/support/v4/app/INotificationSideChannel;",
+            "Landroidx/annotation/AnimRes;",
         ] {
             let t = std::time::Instant::now();
             let r = d.class(cls);

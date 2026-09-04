@@ -13,4 +13,4 @@ pub mod names;
 pub mod project;
 
 pub use error::{DecxError, Result};
-pub use project::{ClassEntry, FieldEntry, MethodEntry, Project, SourceCache};
+pub use project::{ClassEntry, Project, SourceCache};

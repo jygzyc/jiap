@@ -79,3 +79,63 @@ mod tests {
         assert_eq!(simple_name("com.foo.Bar$Baz"), "Baz");
     }
 }
+
+/// Read one full type descriptor starting at the cursor (used to split method
+/// descriptors): `I`, `[I`, `Ljava/lang/String;`, `[[LFoo;`.
+pub fn read_type<I: Iterator<Item = char>>(chars: &mut std::iter::Peekable<I>) -> String {
+    let mut dims = 0usize;
+    while chars.peek() == Some(&'[') {
+        dims += 1;
+        chars.next();
+    }
+    let base = match chars.next() {
+        Some('L') => {
+            let mut t = String::from("L");
+            for ch in chars.by_ref() {
+                if ch == ';' {
+                    t.push(';');
+                    break;
+                }
+                t.push(ch);
+            }
+            t
+        }
+        Some(c) => c.to_string(),
+        None => String::new(),
+    };
+    format!("{}{}", "[".repeat(dims), base)
+}
+
+#[cfg(test)]
+mod read_type_tests {
+    #[test]
+    fn splits_method_descriptors() {
+        let (params, ret) = super::split_method_descriptor("(II[Ljava/lang/String;)V");
+        assert_eq!(params, vec!["I", "I", "[Ljava/lang/String;"]);
+        assert_eq!(ret, "V");
+
+        let (params, ret) = super::split_method_descriptor("()Lcom/foo/Bar;");
+        assert!(params.is_empty());
+        assert_eq!(ret, "Lcom/foo/Bar;");
+    }
+}
+
+/// Split `args)ret` pieces out of `(II[Ljava/lang/String;)V`.
+pub fn split_method_descriptor(descriptor: &str) -> (Vec<String>, String) {
+    let mut params = Vec::new();
+    let mut chars = descriptor.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '(' {
+            break;
+        }
+    }
+    loop {
+        match chars.peek() {
+            Some(')') | None => break,
+            _ => params.push(read_type(&mut chars)),
+        }
+    }
+    chars.next(); // consume ')'
+    let ret: String = chars.collect();
+    (params, ret)
+}

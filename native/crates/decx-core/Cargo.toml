@@ -7,10 +7,7 @@ description = "Native DECX core: dex/apk loading, class index, lazy decompilatio
 
 [dependencies]
 dexdec = { path = "../../vendor/dexdec", default-features = false, features = ["symbol-codec"] }
-dex-decompiler = { path = "../../vendor/dex-decompiler" }
-dex-parser = { path = "../../vendor/dex-parser/dexparser-rs" }
 serde.workspace = true
 serde_json.workspace = true
 anyhow.workspace = true
 regex.workspace = true
-rayon.workspace = true

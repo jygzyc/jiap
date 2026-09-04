@@ -2,4 +2,3 @@ target/
 .decx_native_test/
 *.log
 bin/
-native/vendor/dex-decompiler/testdata/bugbazaar/

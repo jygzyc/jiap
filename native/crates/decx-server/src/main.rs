@@ -26,8 +26,29 @@ struct AppState {
     started: Instant,
 }
 
-#[tokio::main]
-async fn main() {
+fn main() {
+    // dexdec's recursive DEX/IR processing overflows the 1 MiB Windows default
+    // main-thread stack at opt-level >= 2 (huge inlined frames). Run everything
+    // on explicitly big-stack threads instead; tokio's worker/blocking threads
+    // get the same treatment for request-time decompilation.
+    let handle = std::thread::Builder::new()
+        .stack_size(256 * 1024 * 1024)
+        .spawn(run)
+        .expect("spawn main thread");
+    handle.join().expect("main thread panicked");
+}
+
+fn run() {
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .thread_stack_size(64 * 1024 * 1024)
+        .build()
+        .expect("tokio runtime");
+    runtime.block_on(async_main());
+}
+
+async fn async_main() {
+    log("process start");
     let mut target: Option<PathBuf> = None;
     let mut port: u16 = 25419;
     let mut warm = false;
@@ -45,6 +66,7 @@ async fn main() {
             other => target = Some(PathBuf::from(other)),
         }
     }
+    log("args parsed");
     let Some(target) = target else {
         eprintln!("error: missing target file (apk/dex)");
         std::process::exit(2);
@@ -63,10 +85,10 @@ async fn main() {
             std::process::exit(1);
         }
     };
+    log("project open done");
     log(&format!(
-        "indexed {} classes from {} dex(es) in {:.2}s",
+        "indexed {} classes in {:.2}s",
         project.entries().len(),
-        project.dexes.len(),
         load_started.elapsed().as_secs_f64()
     ));
 
@@ -108,7 +130,6 @@ async fn health(State(state): State<AppState>) -> impl IntoResponse {
         "status": "running",
         "server": "decx-native-server",
         "target": state.project.path.display().to_string(),
-        "dexCount": state.project.dexes.len(),
         "classCount": state.project.entries().len(),
         "cacheBytes": state.project.cache_len_bytes(),
         "uptimeSecs": state.started.elapsed().as_secs(),

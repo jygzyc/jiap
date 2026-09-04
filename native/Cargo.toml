@@ -1,24 +1,12 @@
 [workspace]
 resolver = "2"
 members = [
-    "vendor/dex-parser/dexparser-rs",
-    "vendor/dex-bytecode/dex-bytecode",
-    "vendor/dex-decompiler",
     "vendor/rusty-dex",
     "vendor/dexdec",
     "crates/decx-core",
     "crates/decx-server",
     "crates/decx-cli",
 ]
-
-# dex-decompiler's git deps (dex-parser / dex-bytecode) are patched to the
-# vendored copies above. cargo only honors [patch] in the workspace root, so
-# the patch table was moved here from vendor/dex-decompiler/Cargo.toml.
-[patch."https://github.com/androguard/dex-parser"]
-dex-parser = { path = "vendor/dex-parser/dexparser-rs" }
-
-[patch."https://github.com/androguard/dex-bytecode.git"]
-dex-bytecode = { path = "vendor/dex-bytecode/dex-bytecode" }
 
 [workspace.package]
 edition = "2021"
@@ -32,11 +20,12 @@ thiserror = "2"
 regex = "1"
 rayon = "1.10"
 
-# Release profile. NOTE: fat LTO (`lto = "fat"`, codegen-units = 1) miscompiles
-# the server binary at startup on windows-gnu / rustc 1.93 (segfault before
-# main); thin LTO keeps near-fat performance and builds correctly. See
-# native/RESEARCH.md.
+# Release profile. NOTE: LTO (fat AND thin) miscompiles the server binary on
+# windows-gnu / rustc 1.93 — the process segfaults at startup even on paths
+# that never touch the engine. Plain opt-level=3 with default codegen-units
+# builds and runs correctly; per-crate inlining still applies. See
+# native/RESEARCH.md §4.
 [profile.release]
-opt-level = 3
-lto = "thin"
+opt-level = 2
+lto = false
 codegen-units = 1
