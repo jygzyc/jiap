@@ -362,11 +362,13 @@ dependencies = [
 name = "decx-core"
 version = "0.1.0"
 dependencies = [
+ "abxml",
  "anyhow",
  "dexdec",
  "regex",
  "serde",
  "serde_json",
+ "zip",
 ]
 
 [[package]]

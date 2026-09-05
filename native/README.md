@@ -55,10 +55,19 @@ cargo test --release -p decx-core -p decx-cli
 会话:`~/.decx-native/sessions.json`;server 日志:`~/.decx-native/logs/<name>.log`;
 源码缓存默认 1GiB,`DECX_NATIVE_CACHE_MAX_BYTES` 可调;stdout 只出 JSON。
 
+环境变量:`DECX_NATIVE_REQUEST_TIMEOUT_SECS`(默认 120,冷启全库搜索/预热调大)、
+`DECX_NATIVE_BATCH_WORKERS`(默认 min(4, 核数),批量/层级构建并行度)。
+
+`code call <endpoint> [--arg k=v]... [--json '{...}']` 可直达全部端点
+(含 `get_strings`、`get_app_manifest`、`get_exported_components`、
+`get_deep_links` 等 25 个 Kotlin 同名端点)。
+
 ## HTTP 契约(与 DecxRoutes 同名同路径)
 
-`GET /health`;`POST /api/decx/<endpoint>`,错误 `{ "error": "<CODE>", "message": "..." }`
-及 400/404/503/504 映射与 Kotlin `DecxError` 一致。
+`GET /health`;`POST /api/decx/<endpoint>`,成功返回 items 信封
+(`{ok, kind, query, summary:{total,returned,truncated}, items:[{id,kind,title,content,meta}], page}`),
+错误 `{ "error": "<CODE>", "message": "..." }` 及 400/404/503/504 映射与 Kotlin
+`DecxError` 一致。
 
 | 端点 | 引擎能力 |
 |---|---|
@@ -67,8 +76,13 @@ cargo test --release -p decx-core -p decx-cli
 | `--smali` 输出 | dexdec IR visualizer(语义块列表,非 dalvik 原文) |
 | `get_method_cfg` | dexdec `decode_method` 的 CFG(块/边/EdgeKind)+ IR 文本 |
 | `get_method_xref` / `get_field_xref` / `get_class_xref` | dexdec `references` 字节码级引用扫描(带指令偏移) |
-| `get_implementations` / `get_subclasses` | 基于全部 `ClassOutline` 的层级索引(首次查询建缓存 ~14s/5920 类) |
-| `search_global_key` | dexdec 批量预热(冷启全库 ~45s,之后走缓存)+ 正则 grep |
+| `get_app_manifest` | abxml 解码二进制 AXML(resources.arsc 资源名还原) |
+| `get_strings` | dex 字符串表(分页 + 正则过滤) |
+| `get_implementations` / `get_subclasses` | 全部 `ClassOutline` 并行构建的层级索引(缓存后毫秒级) |
+| `search_global_key` | 并行 dexdec 批量预热 + 正则 grep |
 
-差距清单(RESEARCH.md §7):二进制 AXML 清单解码、resources/strings 端点、
-AIDL、MCP、jadx 脚本。
+真机验证案例:vivo 全局搜索系统应用(`com.vivo.globalsearch`,42MB,48431 类,
+targetSdk 36,R8 混淆)——打开 1.1s,manifest/深链/导出组件/方法源码/IR/交叉引用
+(带源码行)全部可用,详见 RESEARCH.md §6。
+
+差距清单(RESEARCH.md §7):AIDL、MCP、jadx 脚本、resources.arsc 资源表端点。

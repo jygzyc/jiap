@@ -8,7 +8,11 @@
 //! - [`error`]   ≈ `DecxError`: structured error codes shared with the HTTP layer
 
 pub mod api;
+pub mod arsc;
+pub mod axml;
+pub mod envelope;
 pub mod error;
+pub mod manifest;
 pub mod names;
 pub mod project;
 

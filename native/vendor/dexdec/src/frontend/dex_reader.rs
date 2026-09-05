@@ -373,6 +373,19 @@ impl DexFileReader {
         self.dex_files.iter().map(|d| d.classes.items.len()).sum()
     }
 
+    /// Native-port patch: number of loaded dex files (multi-dex APK aware).
+    pub fn dex_count(&self) -> usize {
+        self.dex_files.len()
+    }
+
+    /// Native-port patch: shared-string table size of one dex file.
+    pub fn string_count(&self, dex_idx: usize) -> usize {
+        self.dex_files
+            .get(dex_idx)
+            .map(|d| d.strings.strings.len())
+            .unwrap_or(0)
+    }
+
     /// Get all class names
     pub fn class_names(&self) -> Vec<String> {
         self.dex_files

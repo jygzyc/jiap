@@ -13,7 +13,7 @@ pub struct HttpResponse {
 
 fn request(port: u16, method: &str, path: &str, body: Option<&str>) -> std::io::Result<HttpResponse> {
     let mut stream = TcpStream::connect(("127.0.0.1", port))?;
-    stream.set_read_timeout(Some(Duration::from_secs(900)))?;
+    stream.set_read_timeout(Some(Duration::from_secs(3600)))?;
     stream.set_write_timeout(Some(Duration::from_secs(30)))?;
     let body_bytes = body.unwrap_or("");
     let req = format!(

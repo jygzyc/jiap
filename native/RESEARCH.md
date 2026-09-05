@@ -98,7 +98,33 @@ target/release/decx-native process open <apk|dex> --name demo
 target/release/decx-native code get-class-source com.foo.Bar
 ```
 
-## 6. 已知差距 / 后续
+## 6. 真机案例:vivo 全局搜索系统应用(com.vivo.globalsearch)
+
+从已连接设备(`adb pull`)拉取真实系统 APK:42MB,targetSdk 36(Android 16),
+R8 混淆,48431 个类。打开 **1.1s**(仅索引,懒反编译)。
+
+功能面板(全部通过):
+
+| 端点 | 真机结果 |
+|---|---|
+| `get_app_manifest` | 真实二进制 AXML → 文本(v8.80.31.1, targetSdk 36, 权限清单完整) |
+| `get_deep_links` / `get_exported_components` / `get_application` | `vglobalsearch://` 深链、`SearchActivity` 导出组件与 intent-filter、`SearchApplication` |
+| `get_main_activity` | 正确返回 404 `NO_MAIN_ACTIVITY`——该应用确实无 LAUNCHER 入口(adb resolve-activity 交叉验证) |
+| `get_class_source` / `get_class_context` | 真实混淆类 `SearchApplication` 完整 Java(0.41s,import 正确) |
+| `get_method_source`(java / --smali) | 混淆方法还原 + 语义 IR 双输出 |
+| `get_method_cfg` | CFG + IR 文本,还原 lambda 调用 |
+| `search_method`(裸名,48431 类) | **0.42s**(member_catalog 元数据通道) |
+| `get_method_xref` | 真实调用点带源码行(`e1.j(SearchApplication.getApplication())`,MemoryPressureMonitor.f:84),8.1s |
+| `get_strings` | 真实资源字符串(“智慧桌面”等,resources.arsc 解析) |
+| `search_global_key`(带类名过滤) | 50s 扫完 `com.vivo.globalsearch.*` 包并命中 |
+
+规模成本(诚实数据):冷启**全库**批量反编译(无类名过滤)在 48431 类上超过
+60 分钟(opt2,8 worker)——真实 R8 应用的混淆大方法远贵于 androidx 测试类;
+带 `filter.includes` 的范围搜索是推荐用法(上表 50s)。层级索引
+(`get_subclasses`/`get_implementations` 首查)并行构建 36s/48431 类,缓存后毫秒级。
+批量/层级 worker 数:`DECX_NATIVE_BATCH_WORKERS`;请求超时:`DECX_NATIVE_REQUEST_TIMEOUT_SECS`。
+
+## 7. 已知差距 / 后续
 
 - 未实现端点:`get_all_resources`/`get_resource_file`/`get_strings`、二进制 AXML
   清单解码、AIDL、MCP、jadx 脚本;
@@ -108,7 +134,7 @@ target/release/decx-native code get-class-source com.foo.Bar
   context"推进;
 - Linux 部署时可开启 `--features mimalloc-allocator` 进一步降低分配开销。
 
-## 7. 附:androguard 反编译核不达标实证(已移除,保留备查)
+## 8. 附:androguard 反编译核不达标实证(已移除,保留备查)
 
 每类均值 ~730ms(Windows)/ ~195ms(WSL),最差单类 31s;某类触发 28.8GB 单次
 分配 → 进程 abort(server 日志实证)。构造 1.9ms、注解类 3.9ms——慢点集中在

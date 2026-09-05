@@ -103,6 +103,8 @@ pub struct Project {
     /// lives on the context, and `Decompiler` does not expose it).
     ir_context: std::sync::Mutex<DecompilerContext>,
     hierarchy: std::sync::Mutex<Option<Arc<Hierarchy>>>,
+    /// Lazy APK resources (manifest/arsc/zip entries) for android endpoints.
+    resources: std::sync::Mutex<Option<Option<Arc<crate::manifest::ApkResources>>>>,
 }
 
 impl Project {
@@ -143,6 +145,7 @@ impl Project {
             engine: std::sync::Mutex::new(engine),
             ir_context: std::sync::Mutex::new(ir_context),
             hierarchy: std::sync::Mutex::new(None),
+            resources: std::sync::Mutex::new(None),
         })
     }
 
@@ -170,6 +173,19 @@ impl Project {
 
     pub fn cache_len_bytes(&self) -> usize {
         self.cache.lock().map(|c| c.len_bytes()).unwrap_or(0)
+    }
+
+    /// Lazily load APK-level resources (manifest, resources.arsc, zip entries).
+    /// `None` for bare dex targets or files that carry neither a manifest
+    /// nor an arsc table.
+    pub fn resources(&self) -> Option<Arc<crate::manifest::ApkResources>> {
+        let mut slot = self.resources.lock().ok()?;
+        if let Some(cached) = slot.as_ref() {
+            return cached.clone();
+        }
+        let loaded = crate::manifest::open(&self.path).map(Arc::new);
+        *slot = Some(loaded.clone());
+        loaded
     }
 
     fn engine_lock(&self) -> Result<std::sync::MutexGuard<'_, DexDecompiler>> {
@@ -399,45 +415,75 @@ impl Project {
     }
 
     /// Lazily built hierarchy table: java name → (superclass java, interfaces java).
+    /// Built in parallel (one worker reader per partition) because loading
+    /// every ClassNode of a large archive is the dominant cost; cached forever.
     pub fn hierarchy(&self) -> Result<Arc<Hierarchy>> {
         if let Some(h) = self.hierarchy.lock().ok().and_then(|h| h.clone()) {
             return Ok(h);
         }
-        let map: Hierarchy = {
-            let mut engine = self.engine_lock()?;
-            let mut map = HashMap::with_capacity(self.entries.len());
-            for entry in &self.entries {
-                let Ok(outline) = engine.class_outline(entry.descriptor.clone()) else {
-                    continue;
-                };
-                map.insert(
-                    entry.java_name.clone(),
-                    (
-                        outline
-                            .super_class
-                            .as_deref()
-                            .map(crate::names::descriptor_to_java),
-                        outline
-                            .interfaces
-                            .iter()
-                            .map(|i| crate::names::descriptor_to_java(i))
-                            .collect(),
-                    ),
-                );
+        let workers = std::env::var("DECX_NATIVE_BATCH_WORKERS")
+            .ok()
+            .and_then(|v| v.parse::<usize>().ok())
+            .unwrap_or_else(|| std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4))
+            .clamp(1, 8);
+        let descriptors: Vec<String> = self.entries.iter().map(|e| e.descriptor.clone()).collect();
+        let chunk_size = descriptors.len().div_ceil(workers).max(1);
+
+        let maps: Vec<Hierarchy> = std::thread::scope(|scope| {
+            let mut handles = Vec::new();
+            for chunk in descriptors.chunks(chunk_size) {
+                let path = self.path.clone();
+                let chunk = chunk.to_vec();
+                handles.push(scope.spawn(move || {
+                    let Ok(mut engine) = DexDecompiler::open(&path) else {
+                        return Hierarchy::new();
+                    };
+                    let mut map = Hierarchy::new();
+                    for desc in chunk {
+                        let Ok(outline) = engine.class_outline(desc.clone()) else {
+                            continue;
+                        };
+                        map.insert(
+                            crate::names::descriptor_to_java(&desc),
+                            (
+                                outline
+                                    .super_class
+                                    .as_deref()
+                                    .map(crate::names::descriptor_to_java),
+                                outline
+                                    .interfaces
+                                    .iter()
+                                    .map(|i| crate::names::descriptor_to_java(i))
+                                    .collect(),
+                            ),
+                        );
+                    }
+                    engine.clear_analysis_scope();
+                    map
+                }));
             }
-            map
-        };
-        let arc = Arc::new(map);
+            handles
+                .into_iter()
+                .map(|h| h.join().unwrap_or_default())
+                .collect()
+        });
+
+        let mut merged = Hierarchy::new();
+        for map in maps {
+            merged.extend(map);
+        }
+        let arc = Arc::new(merged);
         if let Ok(mut slot) = self.hierarchy.lock() {
             *slot = Some(Arc::clone(&arc));
         }
         Ok(arc)
     }
 
-    /// Decompile many classes through the dexdec batch pipeline (shared
-    /// analysis: one archive-level pass with prefetch and cross-class type
-    /// recovery). Sources land in the LRU cache; every per-class failure is
-    /// isolated and reported, never aborting the sweep.
+    /// Decompile many classes in parallel: one independent dexdec instance
+    /// per worker (own reader + analysis), each decompiling a partition of
+    /// the owner list through the engine's batch pipeline. Sources land in
+    /// the LRU cache; per-class failures are isolated and reported.
+    /// Worker count: `DECX_NATIVE_BATCH_WORKERS` (default min(4, cores)).
     /// Returns (ok_count, failures).
     pub fn decompile_batch(&self, indices: &[usize]) -> (usize, Vec<String>) {
         // Batch in top-level units: nested classes render inline with their
@@ -448,32 +494,65 @@ impl Project {
             let owner_java = entry.java_name.split('$').next().unwrap_or(&entry.java_name);
             owners.insert(crate::names::java_to_descriptor(owner_java));
         }
+        let owners: Vec<String> = owners.into_iter().collect();
+        if owners.is_empty() {
+            return (0, Vec::new());
+        }
+
+        let workers = std::env::var("DECX_NATIVE_BATCH_WORKERS")
+            .ok()
+            .and_then(|v| v.parse::<usize>().ok())
+            .unwrap_or_else(|| std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4))
+            .clamp(1, 8);
+        let chunk_size = owners.len().div_ceil(workers).max(1);
+
+        let results: Vec<(Vec<(String, String)>, Vec<String>)> = std::thread::scope(|scope| {
+            let mut handles = Vec::new();
+            for chunk in owners.chunks(chunk_size) {
+                let path = self.path.clone();
+                let chunk: std::collections::BTreeSet<String> = chunk.iter().cloned().collect();
+                handles.push(scope.spawn(move || {
+                    let mut engine = match DexDecompiler::open(&path) {
+                        Ok(e) => e,
+                        Err(e) => return (Vec::new(), vec![format!("worker open: {e}")]),
+                    };
+                    engine.set_options(
+                        DexDecompileOptions::default()
+                            .with_language(DexSourceLanguage::Java)
+                            .with_isolated_requests(false),
+                    );
+                    let mut sources = Vec::new();
+                    let mut failures = Vec::new();
+                    if let Ok(batch) = engine.classes(ClassSelector::Listed(chunk)) {
+                        for unit in batch {
+                            match unit {
+                                Ok(u) => sources.push((u.class, u.source)),
+                                Err(f) => failures.push(format!("{}: {}", f.class, f.error)),
+                            }
+                        }
+                    }
+                    // release this worker's analysis memory before exiting
+                    engine.clear_analysis_scope();
+                    (sources, failures)
+                }));
+            }
+            handles
+                .into_iter()
+                .map(|h| h.join().unwrap_or((Vec::new(), vec!["worker panicked".to_string()])))
+                .collect()
+        });
 
         let mut ok = 0usize;
         let mut failures = Vec::new();
-        let Ok(mut engine) = self.engine.lock() else {
-            failures.push("dexdec engine lock poisoned".to_string());
-            return (0, failures);
-        };
-        if let Ok(batch) = engine.classes(ClassSelector::Listed(owners)) {
-            for unit in batch {
-                match unit {
-                    Ok(u) => {
-                        let java = crate::names::descriptor_to_java(&u.class);
-                        if let Ok(mut c) = self.cache.lock() {
-                            c.insert(java, Arc::new(u.source));
-                        }
-                        ok += 1;
-                    }
-                    Err(f) => {
-                        let java = crate::names::descriptor_to_java(&f.class);
-                        failures.push(format!("{java}: {}", f.error));
-                    }
+        for (sources, mut worker_failures) in results {
+            ok += sources.len();
+            if let Ok(mut c) = self.cache.lock() {
+                for (descriptor, source) in sources {
+                    c.insert(crate::names::descriptor_to_java(&descriptor), Arc::new(source));
                 }
             }
+            failures.append(&mut worker_failures);
         }
-        // release batch-analysis memory after the sweep
-        engine.clear_analysis_scope();
         (ok, failures)
     }
 
@@ -481,6 +560,65 @@ impl Project {
     pub fn warm_all(&self) -> (usize, Vec<String>) {
         let all: Vec<usize> = (0..self.entries.len()).collect();
         self.decompile_batch(&all)
+    }
+
+    /// Shared-string table entries across all dexes, paginated.
+    /// Yields `(dex, index, value)` in dex/table order.
+    pub fn strings(&self) -> Result<Vec<(usize, u32, String)>> {
+        let engine = self.engine_lock()?;
+        let reader = engine.reader();
+        let mut out = Vec::new();
+        for dex_idx in 0..reader.dex_count() {
+            for idx in 0..reader.string_count(dex_idx) as u32 {
+                if let Some(s) = reader.get_string(dex_idx, idx) {
+                    out.push((dex_idx, idx, s.as_str().to_string()));
+                }
+            }
+        }
+        Ok(out)
+    }
+
+    /// Decoded `AndroidManifest.xml` (binary AXML → text via abxml, using the
+    /// archive's `resources.arsc` for resource-id resolution).
+    pub fn app_manifest(&self) -> Result<String> {
+        let file = std::fs::File::open(&self.path)
+            .map_err(|e| DecxError::invalid_parameter(format!("open {}: {e}", self.path.display())))?;
+        let mut archive = zip::ZipArchive::new(file).map_err(|_| {
+            DecxError::new(
+                "MANIFEST_NOT_FOUND",
+                "target is not an APK/ZIP archive",
+            )
+        })?;
+        let mut bytes = Vec::new();
+        {
+            let mut entry = archive
+                .by_name("AndroidManifest.xml")
+                .map_err(|_| DecxError::new("MANIFEST_NOT_FOUND", "no AndroidManifest.xml in archive"))?;
+            std::io::Read::read_to_end(&mut entry, &mut bytes)
+                .map_err(|e| DecxError::internal(format!("read manifest: {e}")))?;
+        }
+        // Already-decoded (text) manifest: pass through.
+        if let Ok(text) = std::str::from_utf8(&bytes) {
+            if text.trim_start().starts_with('<') {
+                return Ok(text.to_string());
+            }
+        }
+        // Binary AXML: resource ids resolve against resources.arsc.
+        let mut table = Vec::new();
+        {
+            let mut entry = archive
+                .by_name("resources.arsc")
+                .map_err(|_| DecxError::new("MANIFEST_NOT_FOUND", "no resources.arsc to decode AXML against"))?;
+            std::io::Read::read_to_end(&mut entry, &mut table)
+                .map_err(|e| DecxError::internal(format!("read resources.arsc: {e}")))?;
+        }
+        let decoder = abxml::decoder::Decoder::from_buffer(&table)
+            .map_err(|e| DecxError::internal(format!("decode resources.arsc: {e}")))?;
+        let text = decoder
+            .xml_visitor(&bytes)
+            .and_then(abxml::visitor::XmlVisitor::into_string)
+            .map_err(|e| DecxError::internal(format!("decode binary manifest: {e}")))?;
+        Ok(text)
     }
 }
 

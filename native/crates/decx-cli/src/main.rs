@@ -232,6 +232,22 @@ enum CodeCommand {
         #[arg(long)]
         port: Option<u16>,
     },
+    /// Call any /api/decx endpoint directly (escape hatch for the full surface,
+    /// e.g. get_strings / get_app_manifest / get_exported_components)
+    Call {
+        /// Endpoint name without the /api/decx/ prefix
+        endpoint: String,
+        /// Repeatable key=value body args (value parses as JSON, else string)
+        #[arg(long = "arg")]
+        args: Vec<String>,
+        /// Raw JSON body (overrides --arg)
+        #[arg(long)]
+        json: Option<String>,
+        #[arg(long)]
+        session: Option<String>,
+        #[arg(long)]
+        port: Option<u16>,
+    },
 }
 
 fn main() {
@@ -518,8 +534,19 @@ fn call(port: u16, endpoint: &str, body: Value) -> i32 {
                 println!("{v}");
                 0
             } else {
-                let code = v.get("error").and_then(Value::as_str).unwrap_or("UNKNOWN");
-                let msg = v.get("message").and_then(Value::as_str).unwrap_or("");
+                // error envelope comes in two shapes: flat `{"error": CODE,
+                // "message": ..}` and nested `{"error": {code, message}}`
+                let (code, msg) = match v.get("error") {
+                    Some(Value::String(s)) => (
+                        s.clone(),
+                        v.get("message").and_then(Value::as_str).unwrap_or("").to_string(),
+                    ),
+                    Some(obj) => (
+                        obj.get("code").and_then(Value::as_str).unwrap_or("UNKNOWN").to_string(),
+                        obj.get("message").and_then(Value::as_str).unwrap_or("").to_string(),
+                    ),
+                    None => ("UNKNOWN".to_string(), v.to_string()),
+                };
                 eprintln!("error: [{code}] {msg}");
                 1
             }
@@ -549,7 +576,8 @@ fn run_code(cmd: CodeCommand) -> i32 {
         | C::GetFieldXref { session, port, .. }
         | C::GetClassXref { session, port, .. }
         | C::GetImplementations { session, port, .. }
-        | C::GetSubclasses { session, port, .. } => (session.clone(), *port),
+        | C::GetSubclasses { session, port, .. }
+        | C::Call { session, port, .. } => (session.clone(), *port),
     };
     let target = match resolve_target(session, port) {
         Ok(t) => t,
@@ -602,6 +630,30 @@ fn run_code(cmd: CodeCommand) -> i32 {
         C::GetClassXref { cls, .. } => call(target.port, "get_class_xref", json!({ "cls": cls })),
         C::GetImplementations { iface, .. } => call(target.port, "get_implementations", json!({ "iface": iface })),
         C::GetSubclasses { cls, .. } => call(target.port, "get_subclasses", json!({ "cls": cls })),
+        C::Call { endpoint, args, json, .. } => {
+            let body = match json {
+                Some(raw) => match serde_json::from_str::<Value>(&raw) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        eprintln!("error: --json is not valid JSON: {e}");
+                        return 1;
+                    }
+                },
+                None => {
+                    let mut body = serde_json::Map::new();
+                    for a in &args {
+                        let Some((k, v)) = a.split_once('=') else {
+                            eprintln!("error: --arg expects key=value, got {a:?}");
+                            return 1;
+                        };
+                        let value = serde_json::from_str::<Value>(v).unwrap_or(Value::String(v.to_string()));
+                        body.insert(k.to_string(), value);
+                    }
+                    Value::Object(body)
+                }
+            };
+            call(target.port, &endpoint, body)
+        }
     }
 }
 

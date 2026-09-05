@@ -38,6 +38,45 @@ impl DecxError {
         Self::new("INTERNAL_ERROR", msg)
     }
 
+    pub fn interface_not_found(iface: impl fmt::Display) -> Self {
+        Self::new("INTERFACE_NOT_FOUND", format!("interface not found: {iface}"))
+    }
+
+    pub fn service_impl_not_found(iface: impl fmt::Display) -> Self {
+        Self::new(
+            "SERVICE_IMPL_NOT_FOUND",
+            format!("no implementation found for system service interface: {iface}"),
+        )
+    }
+
+    pub fn manifest_not_found() -> Self {
+        Self::new("MANIFEST_NOT_FOUND", "AndroidManifest.xml not found in the loaded target")
+    }
+
+    pub fn resource_not_found(res: impl fmt::Display) -> Self {
+        Self::new("RESOURCE_NOT_FOUND", format!("resource not found: {res}"))
+    }
+
+    pub fn no_strings_found() -> Self {
+        Self::new("NO_STRINGS_FOUND", "no string resources found")
+    }
+
+    pub fn no_main_activity() -> Self {
+        Self::new("NO_MAIN_ACTIVITY", "no main (launcher) activity found in AndroidManifest.xml")
+    }
+
+    pub fn no_application() -> Self {
+        Self::new("NO_APPLICATION", "no custom Application class declared in AndroidManifest.xml")
+    }
+
+    pub fn decompilation_skipped(msg: impl Into<String>) -> Self {
+        Self::new("DECOMPILATION_SKIPPED", msg)
+    }
+
+    pub fn empty_search_key() -> Self {
+        Self::new("EMPTY_SEARCH_KEY", "search key must not be empty")
+    }
+
     /// HTTP status for this error, mirroring the Kotlin status mapping.
     pub fn http_status(&self) -> u16 {
         match self.code.as_str() {

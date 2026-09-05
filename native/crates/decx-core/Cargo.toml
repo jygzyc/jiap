@@ -7,7 +7,12 @@ description = "Native DECX core: dex/apk loading, class index, lazy decompilatio
 
 [dependencies]
 dexdec = { path = "../../vendor/dexdec", default-features = false, features = ["symbol-codec"] }
+# binary AndroidManifest.xml (AXML) decoding for get_app_manifest;
+# default-features off to avoid the C-backed zip/bzip2 backend (we read the
+# archive ourselves with pure-Rust deflate)
+abxml = { version = "0.8.2", default-features = false }
 serde.workspace = true
 serde_json.workspace = true
 anyhow.workspace = true
 regex.workspace = true
+zip = { version = "0.6", default-features = false, features = ["deflate"] }

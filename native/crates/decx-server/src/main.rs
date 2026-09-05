@@ -1,15 +1,20 @@
 //! Native DECX server — headless replacement for the JVM `decx-server`.
 //!
 //! Contract-compatible with the DECX CLI family:
-//! - `GET  /health`                → `{ "status": "running", ... }`
-//! - `POST /api/decx/<endpoint>`   → dispatch via decx-core, 200 JSON on success,
-//!   `{ "error": "<CODE>", "message": "..." }` with the Kotlin status mapping on failure.
+//! - `GET  /health`                → Kotlin-compatible health document
+//!   (`status/version/url/port/timestamp/active_operations/endpoint_stats/cache`
+//!   plus a `native` sub-object with engine details)
+//! - `POST /api/decx/<endpoint>`   → dispatch via decx-core; success returns the
+//!   full `DecxApiResult` envelope (200), errors return the error envelope with
+//!   the Kotlin status mapping (`{ok:false, kind, query, error:{code,message}}`)
 //!
 //! Usage: `decx-native-server <target.apk|classes.dex> --port <port> [--warm]`
 
+use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::Arc;
-use std::time::Instant;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
@@ -20,10 +25,25 @@ use serde_json::{json, Value};
 
 use decx_core::{api, DecxError, Project};
 
+/// Per-request timeout before a 504 REQUEST_TIMEOUT (matches Kotlin DecxServer).
+/// Override with `DECX_NATIVE_REQUEST_TIMEOUT_SECS` — cold full-archive sweeps
+/// (search/warm on huge apps) legitimately exceed the 120s default.
+fn request_timeout() -> Duration {
+    Duration::from_secs(
+        std::env::var("DECX_NATIVE_REQUEST_TIMEOUT_SECS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(120),
+    )
+}
+
 #[derive(Clone)]
 struct AppState {
     project: Arc<Project>,
     started: Instant,
+    port: u16,
+    in_flight: Arc<AtomicU64>,
+    endpoint_stats: Arc<Mutex<HashMap<String, (u64, u128)>>>,
 }
 
 fn main() {
@@ -98,12 +118,16 @@ async fn async_main() {
         log(&format!("warm decompilation done: {ok} ok, {} failed", failed.len()));
     }
 
-    let port = port;
     let state = AppState {
         project: Arc::new(project),
         started: Instant::now(),
+        port,
+        in_flight: Arc::new(AtomicU64::new(0)),
+        endpoint_stats: Arc::new(Mutex::new(HashMap::new())),
     };
     log(&format!("http server listening on 127.0.0.1:{port}"));
+    // Ready marker consumed by decx-cli's waitForServer (launcher.ts).
+    log(&format!("DECX Server running at http://127.0.0.1:{port}"));
 
     let app = Router::new()
         .route("/health", get(health))
@@ -126,13 +150,51 @@ fn log(msg: &str) {
 }
 
 async fn health(State(state): State<AppState>) -> impl IntoResponse {
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0);
+    let stats: Value = {
+        let guard = state.endpoint_stats.lock().map(|s| {
+            let mut keys: Vec<&String> = s.keys().collect();
+            keys.sort();
+            let mut m = serde_json::Map::new();
+            for k in keys {
+                let (count, total_ms) = s[k];
+                m.insert(
+                    k.clone(),
+                    json!({
+                        "count": count,
+                        "total_ms": total_ms as u64,
+                        "avg_ms": if count > 0 { (total_ms / count as u128) as u64 } else { 0 },
+                    }),
+                );
+            }
+            Value::Object(m)
+        });
+        guard.unwrap_or(Value::Object(serde_json::Map::new()))
+    };
     Json(json!({
+        // Kotlin-compatible fields (decx-cli `process check` reads `status`).
         "status": "running",
-        "server": "decx-native-server",
-        "target": state.project.path.display().to_string(),
-        "classCount": state.project.entries().len(),
-        "cacheBytes": state.project.cache_len_bytes(),
-        "uptimeSecs": state.started.elapsed().as_secs(),
+        "version": env!("CARGO_PKG_VERSION"),
+        "url": format!("http://127.0.0.1:{}", state.port),
+        "port": state.port,
+        "timestamp": timestamp,
+        "active_operations": state.in_flight.load(Ordering::Relaxed),
+        "endpoint_stats": stats,
+        "cache": {
+            "cacheBytes": state.project.cache_len_bytes(),
+            "classCount": state.project.entries().len(),
+        },
+        // Native-engine extras.
+        "native": {
+            "server": "decx-native-server",
+            "target": state.project.path.display().to_string(),
+            "classCount": state.project.entries().len(),
+            "cacheBytes": state.project.cache_len_bytes(),
+            "uptimeSecs": state.started.elapsed().as_secs(),
+        },
     }))
 }
 
@@ -148,39 +210,63 @@ async fn api_call(
             Ok(v) => v,
             Err(e) => {
                 let err = DecxError::invalid_parameter(format!("bad JSON body: {e}"));
-                return error_response(&err);
+                log_api(&endpoint, Instant::now(), false, Some(&err));
+                return error_response(&endpoint, &json!({}), &err);
             }
         }
     };
     let started = Instant::now();
+    state.in_flight.fetch_add(1, Ordering::Relaxed);
     let endpoint_for_log = endpoint.clone();
     let project = state.project.clone();
     // Parsing/decompilation can be CPU-heavy; keep the async runtime free.
-    let result = tokio::task::spawn_blocking(move || api::dispatch(&project, &endpoint, &body))
-        .await
-        .unwrap_or_else(|e| Err(DecxError::internal(format!("task join: {e}"))));
+    // A blocking task cannot be cancelled, but the response times out exactly
+    // like the Kotlin server (504 REQUEST_TIMEOUT after 120s).
+    let dispatch_body = body.clone();
+    let work =
+        tokio::task::spawn_blocking(move || api::dispatch(&project, &endpoint, &dispatch_body));
+    let result = match tokio::time::timeout(request_timeout(), work).await {
+        Ok(joined) => joined.unwrap_or_else(|e| Err(DecxError::internal(format!("task join: {e}")))),
+        Err(_) => {
+            let path = format!("/api/decx/{endpoint_for_log}");
+            let elapsed_ms = request_timeout().as_millis();
+            Err(DecxError::new(
+                "REQUEST_TIMEOUT",
+                format!("Request timeout after {elapsed_ms} ms: {path}"),
+            ))
+        }
+    };
+    state.in_flight.fetch_sub(1, Ordering::Relaxed);
     match result {
         Ok(payload) => {
+            record_stats(&state, &endpoint_for_log, started);
             log_api(&endpoint_for_log, started, true, None);
             (StatusCode::OK, Json(payload)).into_response()
         }
         Err(err) => {
+            record_stats(&state, &endpoint_for_log, started);
             log_api(&endpoint_for_log, started, false, Some(&err));
-            error_response(&err)
+            error_response(&endpoint_for_log, &body, &err)
         }
     }
 }
 
-fn error_response(err: &DecxError) -> Response {
-    let status = StatusCode::from_u16(err.http_status()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
-    (
-        status,
-        Json(json!({ "error": err.code, "message": err.message })),
-    )
-        .into_response()
+fn record_stats(state: &AppState, endpoint: &str, started: Instant) {
+    let elapsed = started.elapsed().as_millis();
+    if let Ok(mut stats) = state.endpoint_stats.lock() {
+        let entry = stats.entry(endpoint.to_string()).or_insert((0, 0));
+        entry.0 += 1;
+        entry.1 += elapsed;
+    }
 }
 
-fn log_api(endpoint: &str, started: Instant, ok: bool, err: Option<&DecxError>) {
+fn error_response(endpoint: &str, body: &Value, err: &DecxError) -> Response {
+    let status = StatusCode::from_u16(err.http_status()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
+    let envelope = api::error_envelope(endpoint, body, err);
+    (status, Json(envelope)).into_response()
+}
+
+fn log_api(endpoint: &str, started: Instant, _ok: bool, err: Option<&DecxError>) {
     match err {
         None => log(&format!(
             "POST /api/decx/{endpoint} -> 200 ({} ms)",
