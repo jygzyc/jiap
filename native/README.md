@@ -92,4 +92,14 @@ min(4, 核数))、`DECX_NATIVE_CACHE_MAX_BYTES`(源码缓存,默认 1GiB)。
 targetSdk 36,R8 混淆)——打开 1.1s,manifest/深链/导出组件/方法源码/IR/交叉引用
 (带源码行)全部可用,详见 RESEARCH.md §6。
 
+### 标准 jar 与 android.jar
+
+内容为 JVM `.class` 的 jar(库 jar、SDK 的 `android.jar`)同样可加载:
+`process open <jar> --engine native` 后按内容自动识别。能力范围:
+类清单、javap 风格骨架源码(层级+签名+常量)、类上下文、方法签名块、
+成员搜索、implementations/subclasses——对 API 面分析足够
+(`android.jar` 本就是空体 stub)。JVM 方法体不做反编译,dex 专属端点
+(cfg/xref/字符串表)返回 `UNSUPPORTED_FOR_TARGET`。实测:SDK 35 的
+android.jar(27MB)打开 2.2s,`android.app.Activity` 骨架/成员/层级查询正常。
+
 差距清单(RESEARCH.md §7):AIDL、MCP、jadx 脚本、resources.arsc 资源表端点。
