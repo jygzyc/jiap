@@ -14,8 +14,11 @@ use dexdec::api::{
     ClassSelector, DecompileOptions as DexDecompileOptions, Decompiler as DexDecompiler,
     DecompilerContext, ReferenceTarget, SourceLanguage as DexSourceLanguage,
 };
+use dexdec::platform_symbols::PlatformClass;
 
 use crate::error::{DecxError, Result};
+use crate::java_archive::JavaArchive;
+use crate::names::descriptor_to_java;
 
 /// One indexed class (metadata only — members load on demand through the
 /// engine's `class_outline`).
@@ -91,25 +94,52 @@ impl SourceCache {
 /// Lazily built class-hierarchy table: java name → (superclass, interfaces).
 type Hierarchy = HashMap<String, (Option<String>, Vec<String>)>;
 
-/// A loaded analysis target, fused on the dexdec engine.
-pub struct Project {
-    pub path: PathBuf,
-    entries: Vec<ClassEntry>,
-    by_java_name: HashMap<String, usize>,
-    cache: std::sync::Mutex<SourceCache>,
+/// What a [`Project`] was opened from. Drives per-endpoint capability.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProjectKind {
+    /// APK / DEX via the dexdec engine (full decompilation, IR, xref).
+    Dex,
+    /// Standard-Java archive (`.class` entries): skeleton views only.
+    JavaArchive,
+}
+
+/// dexdec state for dex/apk targets.
+struct DexState {
     /// Java emitter + batch pipeline (`&mut self` API → mutex-serialized).
     engine: std::sync::Mutex<DexDecompiler>,
     /// Second dexdec context dedicated to IR/CFG decoding (`decode_method`
     /// lives on the context, and `Decompiler` does not expose it).
     ir_context: std::sync::Mutex<DecompilerContext>,
+}
+
+/// A loaded analysis target: the dexdec engine for dex/apk inputs, the JVM
+/// class-file decoder for standard-Java archives.
+pub struct Project {
+    pub path: PathBuf,
+    pub kind: ProjectKind,
+    entries: Vec<ClassEntry>,
+    by_java_name: HashMap<String, usize>,
+    cache: std::sync::Mutex<SourceCache>,
+    /// Present for dex/apk targets only.
+    dex: Option<DexState>,
+    /// Present for standard-java archive targets only.
+    java: Option<JavaArchive>,
     hierarchy: std::sync::Mutex<Option<Arc<Hierarchy>>>,
     /// Lazy APK resources (manifest/arsc/zip entries) for android endpoints.
     resources: std::sync::Mutex<Option<Option<Arc<crate::manifest::ApkResources>>>>,
 }
 
 impl Project {
-    /// Open a `.dex`/`.apk`/`.zip` target and build the class index.
+    /// Open a target and build the class index. Sniffs content: dex/apk →
+    /// dexdec engine; jar of `.class` files → JVM class-file skeletons.
     pub fn open(path: &Path) -> Result<Self> {
+        if Self::sniffs_as_java_archive(path) {
+            return Self::open_java_archive(path);
+        }
+        Self::open_dex(path)
+    }
+
+    fn open_dex(path: &Path) -> Result<Self> {
         let mut engine = DexDecompiler::open(path)
             .map_err(|e| DecxError::invalid_parameter(format!("load {}: {e}", path.display())))?;
         engine.set_options(
@@ -139,14 +169,75 @@ impl Project {
             .map_err(|e| DecxError::internal(format!("dexdec IR context: {e}")))?;
         Ok(Self {
             path: path.to_path_buf(),
+            kind: ProjectKind::Dex,
             entries,
             by_java_name,
             cache: std::sync::Mutex::new(SourceCache::new(cache_max)),
-            engine: std::sync::Mutex::new(engine),
-            ir_context: std::sync::Mutex::new(ir_context),
+            dex: Some(DexState {
+                engine: std::sync::Mutex::new(engine),
+                ir_context: std::sync::Mutex::new(ir_context),
+            }),
+            java: None,
             hierarchy: std::sync::Mutex::new(None),
             resources: std::sync::Mutex::new(None),
         })
+    }
+
+    fn open_java_archive(path: &Path) -> Result<Self> {
+        let archive = JavaArchive::open(path)?;
+        let mut entries = Vec::new();
+        let mut by_java_name = HashMap::new();
+        for name in archive.class_names() {
+            let entry = ClassEntry {
+                descriptor: crate::names::java_to_descriptor(name),
+                java_name: name.clone(),
+                package: name
+                    .split('$')
+                    .next()
+                    .unwrap_or(name)
+                    .rsplit_once('.')
+                    .map_or(String::new(), |(pkg, _)| pkg.to_string()),
+                nested: name.contains('$'),
+            };
+            by_java_name.insert(entry.java_name.clone(), entries.len());
+            entries.push(entry);
+        }
+        let cache_max = std::env::var("DECX_NATIVE_CACHE_MAX_BYTES")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(DEFAULT_CACHE_MAX_BYTES);
+        Ok(Self {
+            path: path.to_path_buf(),
+            kind: ProjectKind::JavaArchive,
+            entries,
+            by_java_name,
+            cache: std::sync::Mutex::new(SourceCache::new(cache_max)),
+            dex: None,
+            java: Some(archive),
+            hierarchy: std::sync::Mutex::new(None),
+            resources: std::sync::Mutex::new(None),
+        })
+    }
+
+    /// True when the file is a zip whose entries are `.class` files (no dex).
+    fn sniffs_as_java_archive(path: &Path) -> bool {
+        let Ok(file) = std::fs::File::open(path) else {
+            return false;
+        };
+        let Ok(mut archive) = zip::ZipArchive::new(file) else {
+            return false;
+        };
+        let mut has_class = false;
+        let mut has_dex = false;
+        for i in 0..archive.len() {
+            let Ok(entry) = archive.by_index(i) else {
+                continue;
+            };
+            let name = entry.name().to_string();
+            has_class |= name.ends_with(".class");
+            has_dex |= name.ends_with(".dex");
+        }
+        has_class && !has_dex
     }
 
     pub fn entries(&self) -> &[ClassEntry] {
@@ -189,9 +280,26 @@ impl Project {
     }
 
     fn engine_lock(&self) -> Result<std::sync::MutexGuard<'_, DexDecompiler>> {
-        self.engine
+        self.dex_ref()?
+            .engine
             .lock()
             .map_err(|_| DecxError::internal("dexdec engine lock poisoned"))
+    }
+
+    fn ir_lock(&self) -> Result<std::sync::MutexGuard<'_, DecompilerContext>> {
+        self.dex_ref()?
+            .ir_context
+            .lock()
+            .map_err(|_| DecxError::internal("dexdec IR context lock poisoned"))
+    }
+
+    fn dex_ref(&self) -> Result<&DexState> {
+        self.dex.as_ref().ok_or_else(|| {
+            DecxError::new(
+                "UNSUPPORTED_FOR_TARGET",
+                "not available for standard-java targets (JVM class files are served as signature skeletons)",
+            )
+        })
     }
 
     /// Narrow to the top-level owner descriptor of a possibly-nested class:
@@ -205,7 +313,8 @@ impl Project {
         }
     }
 
-    /// Decompile one class to Java, served through the LRU cache.
+    /// Decompile one class to Java (dex) or render its signature skeleton
+    /// (standard-java archive), served through the LRU cache.
     pub fn class_source(&self, entry: &ClassEntry) -> Result<Arc<String>> {
         // Nested classes are rendered inline with their owner: a cache hit on
         // the owner serves any `$`-member without re-rendering.
@@ -219,7 +328,12 @@ impl Project {
         {
             return Ok(hit);
         }
-        let source = {
+        let source = if let Some(archive) = &self.java {
+            let class = archive
+                .get(&owner_java)
+                .ok_or_else(|| DecxError::class_not_found(&owner_java))?;
+            JavaArchive::skeleton_source(&class)
+        } else {
             let mut engine = self.engine_lock()?;
             engine
                 .class(owner.clone())
@@ -235,6 +349,7 @@ impl Project {
     }
 
     /// Class declaration (members, hierarchy, flags) without method bodies.
+    /// Dex path: engine outline. Java path: the decoded JVM class.
     pub fn class_outline(
         &self,
         entry: &ClassEntry,
@@ -247,8 +362,23 @@ impl Project {
         Ok(Arc::new(outline))
     }
 
-    /// Decompile a single method to Java.
+    /// The decoded JVM class for standard-java archive targets.
+    pub fn java_class(&self, entry: &ClassEntry) -> Option<Arc<PlatformClass>> {
+        let owner_java = entry.java_name.split('$').next().unwrap_or(&entry.java_name);
+        self.java.as_ref().and_then(|a| a.get(owner_java))
+    }
+
+    /// Decompile a single method to Java (dex) or render its signature
+    /// skeleton (standard-java archive — JVM bodies are not decompiled).
     pub fn method_source(&self, entry: &ClassEntry, method_name: &str) -> Result<String> {
+        let owner_java = entry.java_name.split('$').next().unwrap_or(&entry.java_name);
+        if let Some(archive) = &self.java {
+            let class = archive
+                .get(owner_java)
+                .ok_or_else(|| DecxError::class_not_found(owner_java))?;
+            return JavaArchive::method_skeleton(&class, method_name)
+                .ok_or_else(|| DecxError::method_not_found(format!("{}.{method_name}", entry.java_name)));
+        }
         let owner = self.owner_descriptor(entry);
         let mut engine = self.engine_lock()?;
         let descriptor = engine
@@ -288,10 +418,7 @@ impl Project {
                         .map(|m| m.descriptor.clone())
                 })
         };
-        let mut ir = self
-            .ir_context
-            .lock()
-            .map_err(|_| DecxError::internal("dexdec IR context lock poisoned"))?;
+        let mut ir = self.ir_lock()?;
         // decode_method reads the class from the context reader: load it first.
         let _loaded = ir
             .load_class(&owner)
@@ -352,10 +479,7 @@ impl Project {
                         .map(|m| m.descriptor.clone())
                 })
         };
-        let mut ir = self
-            .ir_context
-            .lock()
-            .map_err(|_| DecxError::internal("dexdec IR context lock poisoned"))?;
+        let mut ir = self.ir_lock()?;
         let _loaded = ir
             .load_class(&owner)
             .map_err(|e| DecxError::internal(e.to_string()))?;
@@ -407,6 +531,27 @@ impl Project {
     pub fn members(
         &self,
     ) -> Result<Vec<dexdec::api::MemberSummary>> {
+        if let Some(archive) = &self.java {
+            let mut out = Vec::new();
+            for (name, class) in archive.iter() {
+                let owner = crate::names::java_to_descriptor(name);
+                for m in &class.methods {
+                    out.push(dexdec::api::MemberSummary::new_method(
+                        owner.clone(),
+                        m.name.clone(),
+                        m.descriptor.clone(),
+                    ));
+                }
+                for f in &class.fields {
+                    out.push(dexdec::api::MemberSummary::new_field(
+                        owner.clone(),
+                        f.name.clone(),
+                        f.descriptor.clone(),
+                    ));
+                }
+            }
+            return Ok(out);
+        }
         let engine = self.engine_lock()?;
         let catalog = engine
             .member_catalog()
@@ -420,6 +565,27 @@ impl Project {
     pub fn hierarchy(&self) -> Result<Arc<Hierarchy>> {
         if let Some(h) = self.hierarchy.lock().ok().and_then(|h| h.clone()) {
             return Ok(h);
+        }
+        if let Some(archive) = &self.java {
+            let mut map = Hierarchy::new();
+            for (name, class) in archive.iter() {
+                map.insert(
+                    name.clone(),
+                    (
+                        class.super_class.as_deref().map(crate::names::descriptor_to_java),
+                        class
+                            .interfaces
+                            .iter()
+                            .map(|i| crate::names::descriptor_to_java(i))
+                            .collect(),
+                    ),
+                );
+            }
+            let arc = Arc::new(map);
+            if let Ok(mut slot) = self.hierarchy.lock() {
+                *slot = Some(Arc::clone(&arc));
+            }
+            return Ok(arc);
         }
         let workers = std::env::var("DECX_NATIVE_BATCH_WORKERS")
             .ok()
@@ -486,6 +652,10 @@ impl Project {
     /// Worker count: `DECX_NATIVE_BATCH_WORKERS` (default min(4, cores)).
     /// Returns (ok_count, failures).
     pub fn decompile_batch(&self, indices: &[usize]) -> (usize, Vec<String>) {
+        // Java-archive targets: skeletons render on demand in class_source.
+        if self.java.is_some() {
+            return (indices.len(), Vec::new());
+        }
         // Batch in top-level units: nested classes render inline with their
         // owner, so one owner covers all of its `$`-members.
         let mut owners: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
@@ -565,6 +735,10 @@ impl Project {
     /// Shared-string table entries across all dexes, paginated.
     /// Yields `(dex, index, value)` in dex/table order.
     pub fn strings(&self) -> Result<Vec<(usize, u32, String)>> {
+        if self.java.is_some() {
+            // Standard-java archives have no dex string table.
+            return Ok(Vec::new());
+        }
         let engine = self.engine_lock()?;
         let reader = engine.reader();
         let mut out = Vec::new();

@@ -98,6 +98,18 @@ pub struct MemberSummary {
     pub has_code: bool,
 }
 
+// Native-port patch: constructors for external callers (decx-core synthesizes
+// member indexes for standard-java archives).
+impl MemberSummary {
+    pub fn new_method(owner: String, name: String, descriptor: String) -> Self {
+        Self { owner, name, descriptor, kind: MemberKind::Method, has_code: false }
+    }
+
+    pub fn new_field(owner: String, name: String, descriptor: String) -> Self {
+        Self { owner, name, descriptor, kind: MemberKind::Field, has_code: false }
+    }
+}
+
 impl From<DexMemberDeclaration> for MemberSummary {
     fn from(declaration: DexMemberDeclaration) -> Self {
         Self {

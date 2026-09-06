@@ -5,13 +5,13 @@ use super::{
     PlatformMethod, SymbolAvailability,
 };
 
-pub(crate) struct ClassFileDecoder;
+pub struct ClassFileDecoder;
 
 impl ClassFileDecoder {
     const MAGIC: u32 = 0xcafebabe;
     const MAX_ANNOTATION_DEPTH: usize = 64;
 
-    pub(crate) fn decode(bytes: &[u8]) -> io::Result<PlatformClass> {
+    pub fn decode(bytes: &[u8]) -> io::Result<PlatformClass> {
         let mut reader = ClassReader::new(bytes);
         if reader.u4()? != Self::MAGIC {
             return Err(invalid_data("invalid class-file header"));

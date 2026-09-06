@@ -21,6 +21,10 @@ mod model;
 pub use android::AndroidMetadataStats;
 #[cfg(feature = "symbol-builder")]
 pub use builder::{PlatformSymbolBuilder, SymbolArchive, SymbolBuildStats};
+// Native-port patch: expose the JVM class-file decoder so decx-core can serve
+// standard Java jars / android.jar without the whole symbol builder.
+#[cfg(feature = "symbol-builder")]
+pub use classfile::ClassFileDecoder;
 #[cfg(feature = "symbol-codec")]
 pub use codec::DexSymbolsCodec;
 pub use model::{

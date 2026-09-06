@@ -6,7 +6,7 @@ license.workspace = true
 description = "Native DECX core: dex/apk loading, class index, lazy decompilation, search, xref (replaces the JADX-based Kotlin core)"
 
 [dependencies]
-dexdec = { path = "../../vendor/dexdec", default-features = false, features = ["symbol-codec"] }
+dexdec = { path = "../../vendor/dexdec", default-features = false, features = ["symbol-codec", "symbol-builder"] }
 # binary AndroidManifest.xml (AXML) decoding for get_app_manifest;
 # default-features off to avoid the C-backed zip/bzip2 backend (we read the
 # archive ourselves with pure-Rust deflate)

@@ -15,7 +15,7 @@ use dexdec::api::{MemberKind, ReferenceTarget};
 use crate::error::{DecxError, Result};
 use crate::envelope::{error_response, Item, SuccessResponse};
 use crate::names::{descriptor_to_java, split_method_descriptor};
-use crate::project::{ClassEntry, Project};
+use crate::project::{ClassEntry, Project, ProjectKind};
 
 /// Kind string for an endpoint (mirrors Kotlin `DecxKind`), used by the HTTP
 /// layer to label error envelopes for unknown/failing endpoints.
@@ -268,6 +268,32 @@ fn method_signature(owner_java: &str, name: &str, descriptor: &str) -> String {
     )
 }
 
+/// Method descriptor lookup: engine outline for dex targets, the decoded JVM
+/// class for standard-java archive targets.
+fn method_descriptor_for(project: &Project, entry: &ClassEntry, name: &str) -> String {
+    if project.kind == ProjectKind::JavaArchive {
+        return project
+            .java_class(entry)
+            .and_then(|class| {
+                class
+                    .methods
+                    .iter()
+                    .find(|m| m.name == name)
+                    .map(|m| m.descriptor.clone())
+            })
+            .unwrap_or_else(|| "()V".to_string());
+    }
+    let outline = project.class_outline(entry).ok();
+    outline
+        .and_then(|o| {
+            o.methods
+                .iter()
+                .find(|m| m.name == name)
+                .map(|m| m.descriptor.clone())
+        })
+        .unwrap_or_else(|| "()V".to_string())
+}
+
 /// jadx-style field signature: `owner#name:type`.
 fn field_signature(owner_java: &str, name: &str, descriptor: &str) -> String {
     format!("{}#{name}:{}", owner_java, descriptor_to_java(descriptor))
@@ -294,6 +320,18 @@ fn resolve_method<'a>(project: &'a Project, mth: &str) -> Result<(&'a ClassEntry
         let entry = project
             .lookup_fuzzy(&c)
             .ok_or_else(|| DecxError::class_not_found(c))?;
+        // Java-archive targets: validate against the decoded JVM class
+        // (class_outline is a dex-only capability).
+        if project.kind == ProjectKind::JavaArchive {
+            let exists = project
+                .java_class(entry)
+                .map(|class| class.methods.iter().any(|m| m.name == mth_part))
+                .unwrap_or(false);
+            if exists {
+                return Ok((entry, mth_part));
+            }
+            return Err(DecxError::method_not_found(mth));
+        }
         let outline = project.class_outline(entry)?;
         if outline.methods.iter().any(|m| m.name == mth_part) {
             return Ok((entry, mth_part));
@@ -501,6 +539,42 @@ fn get_class_context(project: &Project, body: &Value) -> Result<Value> {
     let entry = project
         .lookup_fuzzy(&cls)
         .ok_or_else(|| DecxError::class_not_found(&cls))?;
+    let owner = entry.java_name.clone();
+
+    // Standard-java archive: build context from the decoded JVM class.
+    if let Some(class) = project.java_class(entry) {
+        let mut items = Vec::new();
+        let mut class_meta = Map::new();
+        class_meta.insert("method_count".into(), json!(class.methods.len()));
+        class_meta.insert("field_count".into(), json!(class.fields.len()));
+        class_meta.insert(
+            "superclass".into(),
+            json!(class.super_class.as_deref().map(crate::names::descriptor_to_java)),
+        );
+        items.push(Item::symbol_meta(
+            owner.clone(),
+            format!("Class: {}", simple_name(&owner)),
+            owner.clone(),
+            class_meta,
+        ));
+        for m in &class.methods {
+            let sig = method_signature(&owner, &m.name, &m.descriptor);
+            items.push(Item::symbol(sig.clone(), format!("Method: {sig}"), sig));
+        }
+        for f in &class.fields {
+            let sig = field_signature(&owner, &f.name, &f.descriptor);
+            items.push(Item::symbol(sig.clone(), format!("Field: {sig}"), sig));
+        }
+        return Ok(SuccessResponse {
+            kind: "class_context",
+            query: query_from(vec![("target".into(), json!(cls))]),
+            items,
+            summary_extra: vec![],
+            page: page_of(body),
+        }
+        .paginate());
+    }
+
     let outline = project.class_outline(entry)?;
     let owner = entry.java_name.clone();
 
@@ -704,7 +778,25 @@ fn search_class_key(project: &Project, body: &Value) -> Result<Value> {
         .unwrap_or(false);
     let matcher = compile_matcher(key.clone(), case_sensitive, use_regex)?;
 
-    let outline = project.class_outline(entry)?;
+    let methods: Vec<(String, String)> = if project.kind == ProjectKind::JavaArchive {
+        project
+            .java_class(entry)
+            .map(|class| {
+                class
+                    .methods
+                    .iter()
+                    .map(|m| (m.name.clone(), m.descriptor.clone()))
+                    .collect()
+            })
+            .unwrap_or_default()
+    } else {
+        let outline = project.class_outline(entry)?;
+        outline
+            .methods
+            .iter()
+            .map(|m| (m.name.clone(), m.descriptor.clone()))
+            .collect()
+    };
     let owner = entry.java_name.clone();
     let mut items: Vec<Item> = Vec::new();
     if limit == 0 {
@@ -722,14 +814,14 @@ fn search_class_key(project: &Project, body: &Value) -> Result<Value> {
         }
         .paginate());
     }
-    for m in &outline.methods {
-        let src = match project.method_source(entry, &m.name) {
+    for (m_name, m_desc) in &methods {
+        let src = match project.method_source(entry, m_name) {
             Ok(s) => s,
             Err(_) => continue,
         };
         for (idx, line) in src.lines().enumerate() {
             if matcher(line) {
-                let sig = method_signature(&owner, &m.name, &m.descriptor);
+                let sig = method_signature(&owner, m_name, m_desc);
                 let mut meta = Map::new();
                 meta.insert("line".into(), json!(idx + 1));
                 items.push(Item::code(
@@ -794,13 +886,7 @@ fn get_method_source(project: &Project, body: &Value) -> Result<Value> {
     let mth = required_str(body, "mth")?;
     let smali = bool_of(body, "smali");
     let (entry, name) = resolve_method(project, &mth)?;
-    let outline = project.class_outline(entry)?;
-    let desc = outline
-        .methods
-        .iter()
-        .find(|m| m.name == name)
-        .map(|m| m.descriptor.clone())
-        .unwrap_or_else(|| "()V".to_string());
+    let desc = method_descriptor_for(project, entry, &name);
     let sig = method_signature(&entry.java_name, &name, &desc);
     let source = if smali {
         project.method_ir_text(entry, &name)?
@@ -890,13 +976,7 @@ fn get_method_context(project: &Project, body: &Value) -> Result<Value> {
 fn get_method_cfg(project: &Project, body: &Value) -> Result<Value> {
     let mth = required_str(body, "mth")?;
     let (entry, name) = resolve_method(project, &mth)?;
-    let outline = project.class_outline(entry)?;
-    let desc = outline
-        .methods
-        .iter()
-        .find(|m| m.name == name)
-        .map(|m| m.descriptor.clone())
-        .unwrap_or_else(|| "()V".to_string());
+    let desc = method_descriptor_for(project, entry, &name);
     let sig = method_signature(&entry.java_name, &name, &desc);
     let (_nodes, _edges, text) = project.method_cfg(entry, &name)?;
     let mut meta = Map::new();
