@@ -70,6 +70,8 @@ export interface FrameworkCollectionResult {
   scanned: number;
   pulled: number;
   failed: number;
+  /** .apex/.capex images skipped because the /apex mount already provided the module. */
+  skippedCoveredModules: number;
   files: string[];
   failures: Array<{ path: string; error: string }>;
 }

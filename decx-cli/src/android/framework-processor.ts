@@ -1,9 +1,10 @@
-import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from "fs";
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync } from "fs";
 import * as os from "os";
 import * as path from "path";
 import { spawnSync } from "child_process";
 import { FileError } from "../utils/errors.js";
 import { extractZipEntry, listZipEntries } from "./zip-utils.js";
+import { Ext4Image, NotExt4ImageError, UnsupportedImageFeatureError } from "./ext4-reader.js";
 import { translateWslArgs } from "./framework-tools.js";
 import type {
   FrameworkPathLayout,
@@ -13,6 +14,8 @@ import type {
 } from "./types.js";
 
 const SUPPORTED_EXTENSIONS = new Set([".apk", ".jar", ".apex", ".capex", ".dex"]);
+/** File types extracted from apex payload images (native ext4 path + tool path). */
+const APEX_PAYLOAD_EXTENSIONS = new Set([".jar", ".apk", ".dex"]);
 const DEFAULT_PROCESS_CONCURRENCY = Math.max(1, Math.min(os.cpus().length || 1, 4));
 
 function walkFiles(dir: string, found: string[] = []): string[] {
@@ -51,10 +54,22 @@ function detectFilesystemType(filePath: string): "erofs" | "ext4" | "ext2" {
 }
 
 function extractDexFromZip(inputFile: string, outputDir: string, prefix: string): void {
+  let counter = 0;
   for (const entryName of listZipEntries(inputFile)) {
     if (!entryName.toLowerCase().endsWith(".dex")) continue;
     const targetName = `${prefix}_${path.basename(entryName)}`;
-    extractZipEntry(inputFile, entryName, path.join(outputDir, targetName));
+    // Extract via a unique temp file then rename, so concurrent processing
+    // of inputs that produce the same target name cannot interleave writes
+    // into one file.
+    const targetPath = path.join(outputDir, targetName);
+    const tmpPath = `${targetPath}.${process.pid}.${counter++}.tmp`;
+    try {
+      extractZipEntry(inputFile, entryName, tmpPath);
+      renameSync(tmpPath, targetPath);
+    } catch (error) {
+      rmSync(tmpPath, { force: true });
+      throw error;
+    }
   }
 }
 
@@ -77,6 +92,34 @@ function extractApexPayload(apexFile: string, targetDir: string): string {
   return payloadPath;
 }
 
+/**
+ * Extract jar/apk/dex files from an ext4 payload image natively (no external
+ * tools). Returns false when the image is not parseable natively (EROFS
+ * payload, or an unsupported ext4 feature) so callers can fall back to the
+ * external-tool pipeline.
+ */
+function extractPayloadNatively(payloadPath: string, payloadDir: string): boolean {
+  if (detectFilesystemType(payloadPath) !== "ext4") return false;
+  let image: Ext4Image;
+  try {
+    image = Ext4Image.open(payloadPath);
+  } catch (error) {
+    if (error instanceof NotExt4ImageError || error instanceof UnsupportedImageFeatureError) return false;
+    throw error;
+  }
+  try {
+    image.extractTo(payloadDir, (relative) =>
+      APEX_PAYLOAD_EXTENSIONS.has(path.extname(relative).toLowerCase()),
+    );
+  } catch (error) {
+    if (error instanceof UnsupportedImageFeatureError) return false; // retry with debugfs
+    throw error;
+  } finally {
+    image.close();
+  }
+  return true;
+}
+
 function extractFilesystemImage(
   imagePath: string,
   extractDir: string,
@@ -96,16 +139,22 @@ function extractFilesystemImage(
   runTool(tools.debugfs, ["-R", `rdump ./ ${extractDir}`, imagePath]);
 }
 
-function processApex(
+async function processApex(
   inputFile: string,
   layout: FrameworkPathLayout,
-  tools: FrameworkToolPaths,
-): void {
+  resolveTools: () => Promise<FrameworkToolPaths>,
+): Promise<void> {
   const apexName = path.basename(inputFile, path.extname(inputFile));
   const apexTmpDir = path.join(layout.apexTmpDir, apexName);
   const payloadDir = path.join(apexTmpDir, "payload");
   const payloadPath = extractApexPayload(inputFile, apexTmpDir);
-  extractFilesystemImage(payloadPath, payloadDir, tools);
+
+  if (!extractPayloadNatively(payloadPath, payloadDir)) {
+    // EROFS payload or unsupported ext4 feature: extract via external tools
+    // (WSL-backed debugfs / extract.erofs on Windows).
+    const tools = await resolveTools();
+    extractFilesystemImage(payloadPath, payloadDir, tools);
+  }
 
   for (const nestedFile of walkFiles(payloadDir)) {
     const extension = path.extname(nestedFile).toLowerCase();
@@ -117,12 +166,51 @@ function processApex(
   }
 }
 
-function processFrameworkInput(
+/** True when the source tree contains .apex/.capex inputs needing image extraction. */
+export function hasApexImageInputs(sourceDir: string): boolean {
+  return walkFiles(sourceDir).some((file) => {
+    const extension = path.extname(file).toLowerCase();
+    return extension === ".apex" || extension === ".capex";
+  });
+}
+
+/**
+ * Resolve the APEX module name for inputs pulled from the runtime APEX mount
+ * point (device `/apex/<module>/...` — activated, i.e. already-extracted,
+ * modules). Returns null when the file does not sit inside an `apex/<module>/`
+ * layout, or sits directly under an `apex/` directory.
+ */
+function extractedApexModule(inputFile: string, sourceDir: string): string | null {
+  const segments = path.relative(sourceDir, inputFile).split(path.sep).filter((segment) => segment !== "");
+  const apexIndex = segments.indexOf("apex");
+  // Require at least `apex/<module>/<file>` depth.
+  if (apexIndex === -1 || segments.length < apexIndex + 3) return null;
+  // Device /apex dirs may carry @<version> suffixes; strip them so outputs are
+  // stable whether the module was pulled from /apex or extracted from an .apex.
+  const moduleName = segments[apexIndex + 1].split("@")[0];
+  return moduleName.length > 0 ? moduleName : null;
+}
+
+async function processFrameworkInput(
   inputFile: string,
   layout: FrameworkPathLayout,
-  tools: FrameworkToolPaths,
-): void {
+  resolveTools: () => Promise<FrameworkToolPaths>,
+): Promise<void> {
   const extension = path.extname(inputFile).toLowerCase();
+  const apexModule = extractedApexModule(inputFile, layout.sourceDir);
+  if (apexModule && (extension === ".jar" || extension === ".apk" || extension === ".dex")) {
+    // Pulled from the runtime /apex mount point: the module payload is already
+    // extracted on device, so namespace dex outputs by module name — same
+    // scheme processApex applies to extracted apex_payload.img content, and it
+    // keeps same-named jars from different modules from overwriting each other.
+    if (extension === ".dex") {
+      copyFileSync(inputFile, path.join(layout.outTmpDir, `${apexModule}_${path.basename(inputFile)}`));
+    } else {
+      extractDexFromZip(inputFile, layout.outTmpDir, `${apexModule}_${path.basename(inputFile, extension)}`);
+    }
+    return;
+  }
+
   switch (extension) {
     case ".jar":
     case ".apk":
@@ -130,7 +218,7 @@ function processFrameworkInput(
       return;
     case ".apex":
     case ".capex":
-      processApex(inputFile, layout, tools);
+      await processApex(inputFile, layout, resolveTools);
       return;
     case ".dex":
       copyFileSync(inputFile, path.join(layout.outTmpDir, path.basename(inputFile)));
@@ -166,7 +254,7 @@ export async function runTasksWithConcurrency<T>(
 
 export async function processFrameworkFiles(
   layout: FrameworkPathLayout,
-  tools: FrameworkToolPaths,
+  resolveTools: () => Promise<FrameworkToolPaths>,
 ): Promise<FrameworkProcessResult> {
   mkdirSync(layout.outTmpDir, { recursive: true });
   mkdirSync(layout.apexTmpDir, { recursive: true });
@@ -176,7 +264,7 @@ export async function processFrameworkFiles(
   const results = await runTasksWithConcurrency(
     files.map((inputFile) => async () => {
       try {
-        processFrameworkInput(inputFile, layout, tools);
+        await processFrameworkInput(inputFile, layout, resolveTools);
         return { ok: true as const, path: inputFile };
       } catch (error) {
         return {
