@@ -120,7 +120,7 @@ Notable details:
 - `get_all_resources` accepts `filter.includes` and optional `regex=false` for resource file-name filtering
 - `search_global_key` accepts a `search` object with `limit`, `includes`, `excludes`, `caseSensitive`, and `regex`
 - `search_class_key` greps within one class and requires a `grep` object with `limit`, `caseSensitive`, and `regex`
-- Framework build metadata is stored per-output-directory under `.artifact.json`; legacy `.meta.json` is no longer used
+- Framework build metadata is stored per-output-directory under `.artifact.json`; legacy `.meta.json` is no longer used. The artifact vendor (device model) is auto-detected: a single connected adb device is auto-selected; several devices require `--serial` (`ADB_DEVICE_AMBIGUOUS`); no device keeps the offline `unknown` default
 - `decx android framework open` / `run` ultimately create normal process sessions via `decx process open`; framework artifacts are not stored as a separate session kind
 ### Skill workflow details
 
