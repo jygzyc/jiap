@@ -1,6 +1,10 @@
-# native — Rust 原生 DECX(core / server / cli)
+# native — Rust 原生 DECX core + server
 
-分支 `native-dev`。用纯 Rust 替换现有 JVM/JADX 方案的核心。
+分支 `native-dev`。最终架构分工:
+
+- **Rust(本目录)= `decx-core` + `decx-server`**:分析核心与 HTTP 服务,替换 JVM/JADX 栈;
+- **TypeScript `decx-cli`(仓库 `decx-cli/`,保持原样)= 唯一客户端**:会话管理、
+  查询命令、skill 工作流全部走现有 TS CLI,不做 Rust 化。
 
 **dexdec 不是外挂依赖,而是这个核心的内在引擎**:类索引来自它的
 `ArchiveCatalog`,成员/继承来自 `ClassOutline`,Java 与 smali(IRDump)输出来自
@@ -9,11 +13,11 @@
 `Project + api::dispatch` 形态。
 
 - 引擎:[asLody/dexdec](https://github.com/asLody/dexdec) + `rusty-dex`(vendor 照抄,Apache-2.0)
-- 自研三层:`decx-core`(引擎融合 + 端点分发)、`decx-server`(axum HTTP)、`decx-cli`(会话 + 查询)
+- 自研两层:`decx-core`(引擎融合 + 端点分发)、`decx-server`(axum HTTP)
 
 同机实测(5920 类 dex):open **0.59s** 就绪(JVM/jadx 栈 33 分钟未就绪)、
-单类交互 **76–160ms**、全量批扫 65s 零失败、dexdec 自测 **618/618**。
-数据与结论见 [RESEARCH.md](RESEARCH.md)。
+单类交互 **76–160ms**、dexdec 自测 **618/618**。真机案例(vivo 全局搜索,
+42MB/48431 类/R8 混淆)全端点验证通过。数据与结论见 [RESEARCH.md](RESEARCH.md)。
 
 ## 构建(Windows + Git Bash)
 
@@ -31,42 +35,44 @@
 cd native
 export PATH="/e/Code/decx/native/bin:$PATH"
 cargo build --release
-cargo test --release -p decx-core -p decx-cli
+cargo test --release -p decx-core -p decx-server
 ```
 
-产物:`target/release/decx-native-server.exe`、`target/release/decx-native.exe`
-(CLI 按同级目录查找 server)。
+产物:`target/release/decx-native-server[.exe]`。TS CLI 自动发现它:
+`DECX_NATIVE_SERVER` 环境变量(文件或目录)> `DECX_HOME/bin` > 本仓库 dev 构建。
 
-## 用法(对齐 decx-cli 体验)
+## 用法:TS CLI 驱动 Rust 引擎
 
 ```bash
-./target/release/decx-native process open app.apk --name demo [--port N] [--warm]
-./target/release/decx-native process list
-./target/release/decx-native code get-classes --limit 20 --includes '^com\.foo\.'
-./target/release/decx-native code get-class-source com.foo.Bar [--smali] [--limit N]
-./target/release/decx-native code search-global-key 'pattern' [--regex] [--case-sensitive]
-./target/release/decx-native code get-method-source 'com.foo.Bar.method' [--smali]
-./target/release/decx-native code get-method-cfg 'com.foo.Bar.method'
-./target/release/decx-native code get-method-xref / get-field-xref / get-class-xref
-./target/release/decx-native code get-implementations / get-subclasses
-./target/release/decx-native process close demo
+cd decx-cli && npm run build   # 一次性
+
+node dist/index.js process open app.apk --engine native --name demo
+# 或 export DECX_ENGINE=native 后省略 --engine
+
+node dist/index.js process list
+node dist/index.js code classes --limit 20 --includes '^com\.foo\.'
+node dist/index.js code class-source com.foo.Bar [--smali]
+node dist/index.js code search-global 'pattern' --includes '^com\.foo\.'
+node dist/index.js code method-source 'com.foo.Bar#method'
+node dist/index.js code method-cfg 'com.foo.Bar#method'
+node dist/index.js code xref-method / xref-class / xref-field
+node dist/index.js code implementations / subclasses
+node dist/index.js process close demo
 ```
 
-会话:`~/.decx-native/sessions.json`;server 日志:`~/.decx-native/logs/<name>.log`;
-源码缓存默认 1GiB,`DECX_NATIVE_CACHE_MAX_BYTES` 可调;stdout 只出 JSON。
+约束(与 JVM 引擎的差异):`--script`/`--mcp` 需要 JVM,`--engine native` 下
+直接报错;jadx 透传参数被忽略;会话按 engine 区分,同名/同 hash 不同引擎的
+复用会报错(用 `--force` 替换)。
 
-环境变量:`DECX_NATIVE_REQUEST_TIMEOUT_SECS`(默认 120,冷启全库搜索/预热调大)、
-`DECX_NATIVE_BATCH_WORKERS`(默认 min(4, 核数),批量/层级构建并行度)。
-
-`code call <endpoint> [--arg k=v]... [--json '{...}']` 可直达全部端点
-(含 `get_strings`、`get_app_manifest`、`get_exported_components`、
-`get_deep_links` 等 25 个 Kotlin 同名端点)。
+环境变量:`DECX_NATIVE_REQUEST_TIMEOUT_SECS`(server 请求超时,默认 120,冷启
+全库搜索/预热调大)、`DECX_NATIVE_BATCH_WORKERS`(批量/层级并行度,默认
+min(4, 核数))、`DECX_NATIVE_CACHE_MAX_BYTES`(源码缓存,默认 1GiB)。
 
 ## HTTP 契约(与 DecxRoutes 同名同路径)
 
 `GET /health`;`POST /api/decx/<endpoint>`,成功返回 items 信封
 (`{ok, kind, query, summary:{total,returned,truncated}, items:[{id,kind,title,content,meta}], page}`),
-错误 `{ "error": "<CODE>", "message": "..." }` 及 400/404/503/504 映射与 Kotlin
+错误 `{ "error": { "code", "message" } }` 及 400/404/503/504 映射与 Kotlin
 `DecxError` 一致。
 
 | 端点 | 引擎能力 |
@@ -80,6 +86,7 @@ cargo test --release -p decx-core -p decx-cli
 | `get_strings` | dex 字符串表(分页 + 正则过滤) |
 | `get_implementations` / `get_subclasses` | 全部 `ClassOutline` 并行构建的层级索引(缓存后毫秒级) |
 | `search_global_key` | 并行 dexdec 批量预热 + 正则 grep |
+| 其余 manifest 类端点 | 解码后的 manifest 解析(导出组件/深链/receiver 等) |
 
 真机验证案例:vivo 全局搜索系统应用(`com.vivo.globalsearch`,42MB,48431 类,
 targetSdk 36,R8 混淆)——打开 1.1s,manifest/深链/导出组件/方法源码/IR/交叉引用

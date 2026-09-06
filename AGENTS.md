@@ -31,6 +31,7 @@ AI Assistant / CLI
 | `decx/decx-plugin/` | Kotlin, Shadow JAR | JADX GUI plugin, lifecycle, UI, in-process MCP server management |
 | `decx/decx-server/` | Kotlin, Shadow JAR | Standalone headless server with `DecxServerApp` main class |
 | `decx-cli/` | TypeScript, Node.js 22.5+ | User CLI for session management and analysis commands |
+| `native/` | Rust (vendored dexdec) | Pure-Rust analysis engine + `decx-native-server` HTTP server speaking the same DecxApiResult contract as the JVM server |
 | `skills/decx-cli/` | Skill `decx-cli` | DECX CLI usage, general analysis, and workflow routing |
 | `skills/decx-vulnhunt/` | Skill `decx-vulnhunt` | Android vulnerability hunting workflow (App + Framework tracks) |
 | `skills/decx-report/` | Skill `decx-report` | Report generation from finalized DECX analysis graph findings |
@@ -40,7 +41,7 @@ AI Assistant / CLI
 
 ### Kotlin server capabilities
 
-`decx-core` exposes these HTTP endpoints through `DecxRoutes` and `RouteHandler`:
+`decx-core` exposes these HTTP endpoints through `DecxRoutes` and `RouteHandler` (the native Rust engine in `native/` exposes the same endpoint set through `native/crates/decx-core/src/api.rs`):
 
 - Common code analysis:
   `get_classes`, `get_class_context`, `get_class_source`, `search_global_key`, `search_class_key`,
@@ -54,6 +55,29 @@ AI Assistant / CLI
   `get_system_service_impl`
 - Health endpoint:
   `GET /health`
+
+### Native Rust engine (experimental)
+
+`native/` contains a pure-Rust analysis engine (vendored from androguard `dex-parser`/`dex-bytecode`/`dex-decompiler` as `vendor/rusty-dex` + `vendor/dexdec`) plus an HTTP server binary that speaks the same contract as the JVM server:
+
+- `native/crates/decx-core/src/api.rs` — endpoint dispatcher (all 26 endpoints, same envelope as Kotlin `AnalysisResultUtils`)
+- `native/crates/decx-core/src/envelope.rs` — `DecxApiResult` success/error envelope + 64 KiB pagination (line + list, binary-searched page size)
+- `native/crates/decx-core/src/axml.rs` — binary AndroidManifest.xml (AXML) decoder + text-XML renderer
+- `native/crates/decx-core/src/arsc.rs` — resources.arsc parser (string pools discovered positionally; aapt2 writes non-standard typeStrings/keyStrings fields)
+- `native/crates/decx-core/src/manifest.rs` — APK resources + manifest model (exported components, deep links, launcher activity, strings)
+- `native/crates/decx-core/src/project.rs` — dex/apk loading, class index, lazy decompilation with byte-bounded LRU source cache
+- `native/crates/decx-server/` — `decx-native-server` binary: `--port` (default 25419), `--warm`, Kotlin-compatible `/health`, 120s request timeout → 504 REQUEST_TIMEOUT (override: `DECX_NATIVE_REQUEST_TIMEOUT_SECS`)
+- Build: `cd native && cargo build --release` (offline: deps are vendored/locked; `zip` uses `default-features = false, features = ["deflate"]`)
+- Known divergences from the JVM engine: `--mcp` and `--script` are JVM-only; smali output is dexdec IR text (not real smali); method-context callee owners use short names from the IR text; `get_dynamic_receivers` without a class filter decompiles the whole app and can exceed the 120s timeout (use `filter.includes`)
+- The TypeScript `decx-cli` is the only client (no Rust CLI); it drives the native engine via `--engine native`
+
+### CLI engine selection
+
+- `decx process open <file> --engine native` spawns `decx-native-server` instead of the JVM jar; `--engine jvm` (default) keeps the current behavior; `DECX_ENGINE=native` sets the default
+- Native binary discovery (`findDecxNativeServer` in `decx-cli/src/core/installer.ts`): `DECX_NATIVE_SERVER` env (file or dir) > `DECX_HOME/bin/decx-native-server[.exe]` > dev checkout `native/target/release`
+- Session reuse requires matching engine; a live session on the same file with a different engine is an error unless `--force`
+- `--script`/`--mcp` with `--engine native` fail fast with a clear message; jadx passthrough flags are ignored for native spawns
+- `process check` reports both the jar and the native binary status
 
 ### Plugin responsibilities
 
@@ -153,6 +177,16 @@ Artifacts copied by Gradle:
 
 Jadx script plugin: `jadx-script-kotlin` is not on Maven Central. `decx-server`'s `fetchJadxScriptPlugin` task downloads its GitHub release zip once and extracts the plugin jar; the scripting runtime (Kotlin scripting, ktlint, kotlin-logging) comes from Maven Central. Offline builds can set `DECX_JADX_SCRIPT_ZIP=/path/to/jadx-script-kotlin-<ver>.zip`. The fat jar uses Zip64 (>65535 entries) and its `META-INF/services/jadx.api.plugins.JadxPlugin` merge is verified to contain both `DexInputPlugin` and `JadxScriptKotlinPlugin`.
 
+### Native Rust engine
+
+```bash
+cd native
+cargo build --release   # produces target/release/decx-native-server[.exe]
+cargo test --offline -p decx-core
+```
+
+Jadx Kotlin scripts are JVM-engine only.
+
 Version source:
 
 - repository-root `version` file
@@ -168,7 +202,6 @@ npm run lint
 npm run typecheck
 npm run dev
 ```
-
 `npm run build` type-checks (via `tsc --noEmit` behind the build script) and emits a compact runtime bundle under `dist/`. `npm run typecheck` runs `tsc --noEmit` standalone for CI/local checks.
 
 ## Technology And Style Notes
@@ -323,6 +356,12 @@ Port coordination matters:
 | `decx-cli/src/commands/code.ts` | Common code-analysis commands |
 | `decx-cli/src/commands/android.ts` | Android-analysis commands |
 | `decx-cli/src/commands/self.ts` | CLI/server self-management |
+| `native/crates/decx-core/src/api.rs` | Native engine: all-endpoint dispatcher with DecxApiResult envelope |
+| `native/crates/decx-core/src/envelope.rs` | Native engine: success/error envelope + pagination (Kotlin-compatible) |
+| `native/crates/decx-core/src/axml.rs` | Native engine: binary AndroidManifest.xml (AXML) decoder |
+| `native/crates/decx-core/src/arsc.rs` | Native engine: resources.arsc parser |
+| `native/crates/decx-core/src/manifest.rs` | Native engine: APK resources + manifest component model |
+| `native/crates/decx-server/src/main.rs` | `decx-native-server` HTTP server (Kotlin-compatible health + errors) |
 
 ## Agent Guidance For This Repo
 

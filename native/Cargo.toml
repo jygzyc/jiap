@@ -5,7 +5,6 @@ members = [
     "vendor/dexdec",
     "crates/decx-core",
     "crates/decx-server",
-    "crates/decx-cli",
 ]
 
 [workspace.package]

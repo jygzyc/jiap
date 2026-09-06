@@ -26,12 +26,14 @@ native/
 │  ├─ decx-core     Project: dexdec ArchiveCatalog 索引 + ClassOutline 成员
 │  │                + 反编译/IRDump/引用扫描/批量管线 + 字节上限 LRU 缓存
 │  │                + api::dispatch(端点分发,镜像 RouteHandler)
-│  ├─ decx-server   axum:GET /health + POST /api/decx/<endpoint>,
-│  │                错误封套 {error,message} 与 Kotlin DecxError 状态码一致
-│  └─ decx-cli      process open/list/check/close + code 查询命令树
+│  └─ decx-server   axum:GET /health + POST /api/decx/<endpoint>,
+│                   错误封套 {error,message} 与 Kotlin DecxError 状态码一致
 ├─ vendor/          dexdec + rusty-dex(照抄,Apache-2.0;约 22 万行引擎代码)
 ├─ testdata/        测试用 dex(5920 类)
 └─ bin/             llvm-dlltool(不入库,见 §4)
+
+客户端 = 现有 TypeScript decx-cli(不做 Rust 化):`process open --engine native`
+拉起 decx-native-server,会话/查询/skill 工作流全部复用。
 ```
 
 自研代码约 2400 行,引擎按依赖引入(不是重写、不是 fork 修改)。
@@ -90,7 +92,7 @@ windows-gnu 本机无 C 工具链,C 依赖 opt-in 化:
 ```bash
 cd native && export PATH="/e/Code/decx/native/bin:$PATH"
 cargo build --release
-cargo test --release -p decx-core -p decx-cli          # 6 + 1 通过
+cargo test --release -p decx-core -p decx-server  # 10+7 通过(TS CLI 侧: cd decx-cli && npm test)
 cargo test -p dexdec --no-default-features --features symbol-codec --lib  # 618 通过
 cargo test -p decx-core --release dexdec_bench -- --ignored --nocapture
 # 端到端:
