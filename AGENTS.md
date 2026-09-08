@@ -96,18 +96,20 @@ Notable details:
 - `decx process close` can close by session name, by `--port <port>`, or all sessions with `--all`
 - CLI data defaults to `~/.decx`; set `DECX_HOME` to redirect config, sessions, logs, tmp files, output, and installed server JARs
 - CLI tests set `DECX_HOME` to `.decx_test/home/.decx` and keep test-only artifacts under `.decx_test/`
-- `decx self install` installs or updates `decx-server.jar`
+- `decx self install` installs or updates `decx-server.jar`; the skip-if-current check reads the version baked into the installed jar (`version.properties`) and prefers it over the config record, so stale records or manually replaced jars are handled correctly
 - `decx self skills install --client <client>` downloads DECX skills from GitHub into `DECX_HOME/skills`, then symlinks them into private directories for Codex, Claude Code, and Cursor or the shared `~/.agents/skills` directory for every other or omitted client
 - `decx self update` updates both the server JAR and the currently installed npm CLI package
 - On startup the CLI runs a non-blocking update check (`decx-cli/src/core/update-notifier.ts`): the latest version comes from the npm registry, results are cached in `DECX_HOME/update-check.json` for 24 hours, refreshes happen in a detached `__update-check` child process, and update hints go to stderr; disable with `DECX_NO_UPDATE_CHECK=1` (also skipped under `CI`)
-- `decx-cli` builds runtime JavaScript as two bundles: `dist/index.js` for the CLI and `dist/sdk/index.js` for SDK imports; packaged native tools are stored as `dist/bin.tar.gz` and extracted to cache at runtime
+- Framework processing is implemented in native TypeScript under `decx-cli/src/android/`
+- `decx-cli` builds runtime JavaScript as two bundles: `dist/index.js` for the CLI and `dist/sdk/index.js` for SDK imports; packaged native tools are stored as `dist/bin.tar.gz`
+- Packaged native tools are extracted to `DECX_HOME/bin` (next to `decx-server.jar`), gated by a `.native-tools.sha256` content-hash marker that cleans and re-extracts on upgrade
 - `decx android framework` provides framework collection and preprocessing subcommands:
   `collect`, `process`, `run`, `open`
 - `decx android device` provides adb-backed inspection commands:
   `system-services`, `permission-info`
-- Framework processing is implemented in native TypeScript under `decx-cli/src/android/`
+- Framework collection is tiered: ready-made files first (`/system/framework`, the runtime `/apex` mount whose activated modules expose already-extracted `javalib` jars, `/vendor/framework`, `/system_ext/framework`), then `.apex`/`.capex` images from `/system/apex` only for modules `/apex` did not already cover (result field `skippedCoveredModules`). At process time, jars/dex under a source `apex/<module>/...` layout reuse the APEX post-extraction scheme (`<module>_`-prefixed dex outputs, `@version` dir suffixes stripped); `.apex` files keep going through payload-image extraction
 - Zip/jar read-write operations are centralized in `decx-cli/src/android/zip-utils.ts` and are cross-platform: Windows 10+ uses the bundled bsdtar (`C:\Windows\System32\tar.exe`, no `zip`/`unzip` dependency), other platforms use Info-ZIP `zip`/`unzip`
-- Framework APEX filesystem-image extraction (debugfs/erofs-utils) has no native Windows binaries; on Windows `decx-cli/src/android/framework-tools.ts` delegates those tools to WSL (`wsl.exe`) with `/mnt/<drive>/...` path translation (`translateWslArgs`), falling back to the packaged `linux/x86_64/extract.erofs`. Without WSL, `decx android framework` errors with an explicit "Windows requires WSL" message
+- ext4 `apex_payload.img` images are parsed natively in TypeScript (`decx-cli/src/android/ext4-reader.ts`: superblock → group descriptors → extents → dirents, jar/apk/dex extracted without any external tool); EROFS payloads and unsupported ext4 features fall back to external tools. Framework APEX image-extraction fallback tools (debugfs for unsupported ext4 features, erofs-utils for EROFS payloads) have no native Windows binaries; only `extract.erofs`/`fsck.erofs` are packaged (no packaged debugfs — the native TS ext4 reader covers ext4 payloads; system/WSL e2fsprogs serves as the rare fallback). On Windows `decx-cli/src/android/framework-tools.ts` delegates those tools to WSL (`wsl.exe`) with `/mnt/<drive>/...` path translation (`translateWslArgs`), falling back to the packaged `linux/x86_64/extract.erofs`. WSL tools are exec'd via absolute distro paths resolved with `command -v` (never bare names): some WSL relay builds fail bare-name exec of `/usr/sbin` binaries with `execvpe(...) failed: No such file or directory` even when the binary is installed. Tools are resolved lazily during `framework process` — only when a payload actually needs them — so ext4-only and `/apex`-pulled sources work without WSL
 - ADB interaction is centralized in `decx-cli/src/android/adb.ts`
 - `decx android device system-services` returns structured JSON for live Binder/system services and supports `--serial`, `--adb-path`, and `--grep`
 - `decx android device permission-info <permission>` returns one structured JSON object for a permission and supports `--serial` and `--adb-path`
@@ -118,7 +120,7 @@ Notable details:
 - `get_all_resources` accepts `filter.includes` and optional `regex=false` for resource file-name filtering
 - `search_global_key` accepts a `search` object with `limit`, `includes`, `excludes`, `caseSensitive`, and `regex`
 - `search_class_key` greps within one class and requires a `grep` object with `limit`, `caseSensitive`, and `regex`
-- Framework build metadata is stored per-output-directory under `.artifact.json`; legacy `.meta.json` is no longer used
+- Framework build metadata is stored per-output-directory under `.artifact.json`; legacy `.meta.json` is no longer used. The artifact vendor (device model) is auto-detected: a single connected adb device is auto-selected; several devices require `--serial` (`ADB_DEVICE_AMBIGUOUS`); no device keeps the offline `unknown` default
 - `decx android framework open` / `run` ultimately create normal process sessions via `decx process open`; framework artifacts are not stored as a separate session kind
 ### Skill workflow details
 

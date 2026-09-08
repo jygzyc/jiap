@@ -39,6 +39,7 @@ export function registerAndroidFrameworkCommands(cmd: Command): void {
         scanned: result.scanned,
         pulled: result.pulled,
         failed: result.failed,
+        skippedCovered: result.skippedCoveredModules,
       });
       fmt.output({ artifact, layout, collection: result });
     }));
@@ -47,7 +48,7 @@ export function registerAndroidFrameworkCommands(cmd: Command): void {
     framework
       .command("process [oem]")
       .summary("Process local framework sources and pack framework_<brand>_<vendor>.jar")
-      .description("Process a local framework source directory and pack a DECX-readable framework jar. When <oem> is omitted it is resolved from the .artifact.json at --out-dir, or from a connected device as a last resort.")
+      .description("Process a local framework source directory and pack a DECX-readable framework jar. When <oem> is omitted it is resolved from the .artifact.json at --out-dir, or from a connected device as a last resort. The device model for the jar name is read the same way: a single connected device is auto-selected; with several devices pass --serial.")
   )
     .action(withErrorHandler(async (oem: string | undefined, opts) => {
       const fmt = new Formatter();

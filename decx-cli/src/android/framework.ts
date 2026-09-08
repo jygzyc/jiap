@@ -2,11 +2,11 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "fs";
 import * as path from "path";
 import { AdbClient } from "./adb.js";
 import { collectFrameworkFiles, normalizeOem } from "./framework-collector.js";
-import { defaultFrameworkRoot, ensureDirectory, resolveFrameworkTools } from "./framework-tools.js";
+import { defaultFrameworkRoot, ensureDirectory, resolveAdbOnlyTools, resolveFrameworkTools } from "./framework-tools.js";
 import { cleanFrameworkOutputs, processFrameworkFiles } from "./framework-processor.js";
 import { packFrameworkJar } from "./framework-packer.js";
 import { openAnalysisTarget } from "../core/launcher.js";
-import { FileError } from "../utils/errors.js";
+import { DecxError, FileError } from "../utils/errors.js";
 import type {
   FrameworkArtifactRecord,
   FrameworkArtifactSummary,
@@ -18,6 +18,7 @@ import type {
   FrameworkPathLayout,
   FrameworkProcessResult,
   FrameworkRunResult,
+  FrameworkToolPaths,
 } from "./types.js";
 
 function frameworkRootForOem(oem: FrameworkOem, outDir?: string): string {
@@ -150,7 +151,9 @@ export function resolveFrameworkLayout(options: FrameworkCommandOptions, require
 export async function collectFramework(
   options: FrameworkCommandOptions,
 ): Promise<{ oem: FrameworkOem; layout: FrameworkPathLayout; result: FrameworkCollectionResult }> {
-  const tools = resolveFrameworkTools(options.adbPath);
+  // Collection only pulls ready-made files (now from the /apex mount instead of
+  // .apex images), so it never needs the WSL-backed image-extraction tools.
+  const tools = resolveAdbOnlyTools(options.adbPath);
   const adb = new AdbClient({ adbPath: tools.adb, serial: options.serial });
   adb.ensureAvailable();
   adb.ensureDeviceConnected();
@@ -167,10 +170,43 @@ export async function collectFramework(
 
 export async function processFramework(
   options: FrameworkCommandOptions & { oem?: string },
+  detectVendor: (
+    opts: Pick<FrameworkCommandOptions, "adbPath" | "serial">,
+  ) => Promise<string> = detectConnectedFrameworkVendor,
 ): Promise<{ layout: FrameworkPathLayout; result: FrameworkProcessResult }> {
+  // Vendor (device model) feeds the framework_<oem>_<vendor>.jar name. When no
+  // artifact recorded it yet, ask the device: a single connected device is
+  // auto-selected; several devices without --serial fail fast with
+  // ADB_DEVICE_AMBIGUOUS; no device at all keeps "unknown" (offline-safe).
+  const preLayout = resolveFrameworkLayout(options);
+  const preArtifact = readFrameworkArtifact(preLayout.artifactPath);
+  if (!preArtifact || preArtifact.vendor === "unknown") {
+    let vendor: string | null = null;
+    try {
+      vendor = await detectVendor(options);
+    } catch (error) {
+      if (error instanceof DecxError && error.code === "ADB_DEVICE_AMBIGUOUS") throw error;
+      // No adb / no device / read failure: keep the offline default.
+    }
+    if (vendor && vendor !== "unknown") {
+      writeFrameworkArtifact(
+        preLayout.artifactPath,
+        buildFrameworkArtifactRecord(preLayout, preArtifact?.oem ?? options.oem ?? "google", vendor),
+      );
+    }
+  }
   const layout = resolveFrameworkLayout(options);
-  const tools = resolveFrameworkTools(options.adbPath);
-  const result = await processFrameworkFiles(layout, tools);
+  // Image-extraction tools are resolved lazily: ext4 payload images are
+  // parsed natively by the processor, so the WSL-backed toolchain
+  // (debugfs / extract.erofs) is only touched when a payload actually needs
+  // it — EROFS images or ext4 features the native reader does not support.
+  // A source pulled from /apex (plain jars/dex) never resolves tools at all.
+  let cachedTools: FrameworkToolPaths | null = null;
+  const resolveTools = async (): Promise<FrameworkToolPaths> => {
+    cachedTools ??= await resolveFrameworkTools(options.adbPath);
+    return cachedTools;
+  };
+  const result = await processFrameworkFiles(layout, resolveTools);
   return { layout, result };
 }
 
@@ -221,11 +257,22 @@ export async function openFrameworkJar(
 async function detectConnectedFrameworkOem(
   options: Pick<FrameworkCommandOptions, "adbPath" | "serial">,
 ): Promise<FrameworkOem> {
-  const tools = resolveFrameworkTools(options.adbPath);
+  const tools = resolveAdbOnlyTools(options.adbPath);
   const adb = new AdbClient({ adbPath: tools.adb, serial: options.serial });
   adb.ensureAvailable();
   adb.ensureDeviceConnected();
   return adb.detectFrameworkOem();
+}
+
+/** Device model for the artifact vendor segment (single-device auto-select). */
+export async function detectConnectedFrameworkVendor(
+  options: Pick<FrameworkCommandOptions, "adbPath" | "serial">,
+): Promise<string> {
+  const tools = resolveAdbOnlyTools(options.adbPath);
+  const adb = new AdbClient({ adbPath: tools.adb, serial: options.serial });
+  adb.ensureAvailable();
+  adb.ensureDeviceConnected();
+  return adb.getProp("ro.product.model") || "unknown";
 }
 
 export async function resolveFrameworkJarPath(

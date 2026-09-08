@@ -1,13 +1,11 @@
 import { createHash } from "crypto";
-import { chmodSync, existsSync, mkdirSync, readFileSync } from "fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
 import { execFileSync, spawnSync } from "child_process";
 import { FileError } from "../utils/errors.js";
 import { decxPath } from "../core/paths.js";
 import type { FrameworkTool, FrameworkToolPaths } from "./types.js";
-
-const archiveCacheKeys = new Map<string, string>();
 
 function commandExists(command: string): boolean {
   const probe = process.platform === "win32" ? "where" : "which";
@@ -37,8 +35,21 @@ function wslAvailable(): boolean {
   return process.platform === "win32" && wslRun(["-e", "sh", "-c", "exit 0"]).ok;
 }
 
-function wslHasCommand(command: string): boolean {
-  return wslRun(["-e", "sh", "-c", `command -v ${command}`]).ok;
+/**
+ * Resolve `command` to its absolute path inside the default WSL distro, or
+ * null when it is unavailable.
+ *
+ * The absolute path is required, not cosmetic: on some WSL builds the relay
+ * resolves bare command names (`wsl.exe -e debugfs`) against a PATH that
+ * misses /usr/sbin, so exec fails with "execvpe(debugfs) failed: No such file
+ * or directory" even though the binary is installed and `command -v` inside
+ * sh finds it. Executing the resolved absolute path sidesteps that lookup.
+ */
+function wslResolveCommand(command: string): string | null {
+  const { ok, stdout } = wslRun(["-e", "sh", "-c", `command -v ${command}`]);
+  if (!ok) return null;
+  const resolved = stdout.trim().split("\n").pop()?.trim() ?? "";
+  return resolved.startsWith("/") ? resolved : null;
 }
 
 function windowsPathToWsl(p: string): string {
@@ -80,30 +91,66 @@ function extractPackagedBinArchive(parts: string[]): string | null {
   const archive = archiveCandidates.find((candidate) => existsSync(candidate));
   if (!archive) return null;
 
-  const cacheDir = decxPath("cache", "bin", "decx-cli", archiveCacheKey(archive));
-  const cacheFile = path.join(cacheDir, ...parts);
-  if (!existsSync(cacheFile)) {
-    mkdirSync(cacheDir, { recursive: true });
+  const target = extractPackagedBinArchiveTo(archive, decxPath("bin"), path.join(...parts));
+  return existsSync(target) ? target : null;
+}
+
+// Native tools from bin.tar.gz are extracted into DECX_HOME/bin (next to
+// decx-server.jar). A marker file holding the archive content hash gates
+// re-extraction: on CLI upgrades the hash changes, the archive's previous
+// top-level dirs are removed, and the new archive is extracted — no stale
+// binaries survive from older versions.
+const NATIVE_TOOLS_MARKER = ".native-tools.sha256";
+
+// Prefer bsdtar on Windows (GNU tar from Git Bash misparses drive-letter paths).
+function resolveTarBin(): string {
+  const windowsTar = "C:\\Windows\\System32\\tar.exe";
+  return process.platform === "win32" && existsSync(windowsTar) ? windowsTar : "tar";
+}
+
+/** Top-level directory names inside the archive (the platform dirs). */
+function archiveTopLevelDirs(archive: string, tarBin: string): string[] {
+  const result = spawnSync(tarBin, ["-tf", archive], { encoding: "utf-8" });
+  const names = new Set(
+    (result.stdout ?? "")
+      .split("\n")
+      .map((line) => line.trim().split("/")[0])
+      .filter((name) => name.length > 0 && !name.startsWith(".")),
+  );
+  return [...names];
+}
+
+/**
+ * Extract `archive` into `binDir` and return `binDir/relativePath`.
+ * Extraction is skipped while the marker matches the archive hash and the
+ * target already exists; otherwise the archive's previous top-level dirs are
+ * removed first so upgrades never leave stale binaries behind.
+ */
+export function extractPackagedBinArchiveTo(archive: string, binDir: string, relativePath: string): string {
+  const archiveKey = archiveHash(archive);
+  const markerPath = path.join(binDir, NATIVE_TOOLS_MARKER);
+  const targetPath = path.join(binDir, relativePath);
+  const markerUpToDate =
+    existsSync(markerPath) && readFileSync(markerPath, "utf-8").trim() === archiveKey;
+
+  if (!markerUpToDate || !existsSync(targetPath)) {
+    mkdirSync(binDir, { recursive: true });
+    const tarBin = resolveTarBin();
     try {
-      // Prefer bsdtar on Windows (GNU tar from Git Bash misparses `E:\...` paths).
-      const tarBin =
-        process.platform === "win32" && existsSync("C:\\Windows\\System32\\tar.exe")
-          ? "C:\\Windows\\System32\\tar.exe"
-          : "tar";
-      execFileSync(tarBin, ["-xzf", archive, "-C", cacheDir], { stdio: "ignore" });
+      for (const topDir of archiveTopLevelDirs(archive, tarBin)) {
+        rmSync(path.join(binDir, topDir), { recursive: true, force: true });
+      }
+      execFileSync(tarBin, ["-xzf", archive, "-C", binDir], { stdio: "ignore" });
     } catch {
       throw new FileError(`Failed to extract packaged binaries from ${archive}`);
     }
+    writeFileSync(markerPath, archiveKey, "utf-8");
   }
-  return existsSync(cacheFile) ? cacheFile : null;
+  return targetPath;
 }
 
-function archiveCacheKey(archive: string): string {
-  const cached = archiveCacheKeys.get(archive);
-  if (cached) return cached;
-  const key = createHash("sha256").update(readFileSync(archive)).digest("hex").slice(0, 16);
-  archiveCacheKeys.set(archive, key);
-  return key;
+function archiveHash(archive: string): string {
+  return createHash("sha256").update(readFileSync(archive)).digest("hex").slice(0, 16);
 }
 
 function resolvePackagedErofsExtractor(platformDir: string): string | null {
@@ -125,8 +172,9 @@ function resolveDebugfs(wslOk: boolean): FrameworkTool {
   }
 
   if (process.platform === "win32") {
-    if (wslOk && wslHasCommand("debugfs")) {
-      return { argv: ["wsl.exe", "-e", "debugfs"], translatePaths: true };
+    const resolved = wslOk ? wslResolveCommand("debugfs") : null;
+    if (resolved) {
+      return { argv: ["wsl.exe", "-e", resolved], translatePaths: true };
     }
     throw new FileError(
       "debugfs not found. On Windows, 'decx android framework' runs its Linux-only tools in WSL: " +
@@ -164,11 +212,13 @@ function resolveErofsExtractor(wslOk: boolean): FrameworkTool {
           "Install WSL (wsl --install) or run this command on Linux/macOS.",
       );
     }
-    if (wslHasCommand("fsck.erofs")) {
-      return { argv: ["wsl.exe", "-e", "fsck.erofs"], translatePaths: true };
+    const fsck = wslResolveCommand("fsck.erofs");
+    if (fsck) {
+      return { argv: ["wsl.exe", "-e", fsck], translatePaths: true };
     }
-    if (wslHasCommand("extract.erofs")) {
-      return { argv: ["wsl.exe", "-e", "extract.erofs"], translatePaths: true };
+    const extract = wslResolveCommand("extract.erofs");
+    if (extract) {
+      return { argv: ["wsl.exe", "-e", extract], translatePaths: true };
     }
     // Fall back to the packaged Linux x86_64 extract.erofs, run through WSL.
     const packaged = packagedBinPath("linux", "x86_64", "extract.erofs");
@@ -217,6 +267,17 @@ export function resolveFrameworkTools(
     debugfs: resolveDebugfs(wslOk),
     erofsExtractor: resolveErofsExtractor(wslOk),
   };
+}
+
+/**
+ * Resolve only adb, for framework commands that never extract APEX filesystem
+ * images. Collect pulls ready-made jars from the /apex mount, and process only
+ * needs the image tools when .apex/.capex inputs are present (see
+ * hasApexImageInputs). The image tools are stubs that must never be spawned.
+ */
+export function resolveAdbOnlyTools(adbPath?: string): FrameworkToolPaths {
+  const neverSpawned: FrameworkTool = { argv: [] };
+  return { adb: resolveAdb(adbPath), debugfs: neverSpawned, erofsExtractor: neverSpawned };
 }
 
 export function ensureDirectory(dir: string): string {

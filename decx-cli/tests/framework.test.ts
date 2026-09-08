@@ -2,7 +2,8 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from "fs";
 import * as path from "path";
 import { cleanFrameworkOutputs, cleanFrameworkTempDirs } from "../src/android/framework-processor.js";
 import { getOemSearchPaths, normalizeOem } from "../src/android/framework-collector.js";
-import { resolveFrameworkJarPath, resolveFrameworkLayout, resolveProcessOem, summarizeFrameworkArtifact } from "../src/android/framework.js";
+import { resolveFrameworkJarPath, resolveFrameworkLayout, processFramework, resolveProcessOem, summarizeFrameworkArtifact } from "../src/android/framework.js";
+import { DecxError } from "../src/utils/errors.js";
 import { resolveFrameworkTools, translateWslArgs, windowsPathToWsl } from "../src/android/framework-tools.js";
 import { resetTestDir, testPath } from "./test-paths.js";
 
@@ -69,7 +70,7 @@ describe("framework OEM handling", () => {
 });
 
 describe("framework OEM search paths", () => {
-  const defaultDirs = ["/system/framework", "/system/apex", "/vendor/framework", "/system_ext/framework"];
+  const defaultDirs = ["/system/framework", "/apex", "/vendor/framework", "/system_ext/framework"];
 
   it("uses the default collection directories for non-listed OEMs", () => {
     for (const oem of ["vivo", "honor", "google", "samsung"] as const) {
@@ -78,8 +79,8 @@ describe("framework OEM search paths", () => {
   });
 
   it("keeps the oppo and xiaomi overrides", () => {
-    expect(getOemSearchPaths("oppo")).toEqual(["/system/framework", "/system/apex", "/system_ext/framework"]);
-    expect(getOemSearchPaths("xiaomi")).toEqual(["/system/framework", "/system/apex", "/system_ext/framework", "/vendor/framework"]);
+    expect(getOemSearchPaths("oppo")).toEqual(["/system/framework", "/apex", "/system_ext/framework"]);
+    expect(getOemSearchPaths("xiaomi")).toEqual(["/system/framework", "/apex", "/system_ext/framework", "/vendor/framework"]);
   });
 });
 
@@ -238,5 +239,70 @@ describe("wsl path translation", () => {
       "/mnt/c/in/img",
     ]);
     expect(translateWslArgs(["-R", "rdump ./ C:\\out\\dir"])).toEqual(["-R", "rdump ./ /mnt/c/out/dir"]);
+  });
+});
+
+describe("framework process vendor detection", () => {
+  const emptySource = (outDir: string): string => {
+    const sourceDir = path.join(outDir, "source");
+    mkdirSync(sourceDir, { recursive: true });
+    return sourceDir;
+  };
+
+  it("seeds the artifact vendor from a single connected device", async () => {
+    const outDir = resetTestDir("tmp", "decx-fw-vendor-detect");
+    emptySource(outDir);
+    const { layout } = await processFramework(
+      { oem: "xiaomi", outDir },
+      async () => "V2324A",
+    );
+    expect(layout.jarPath).toBe(path.join(outDir, "framework_xiaomi_v2324a.jar"));
+    expect(existsSync(path.join(outDir, ".artifact.json"))).toBe(true);
+    rmSync(outDir, { recursive: true, force: true });
+  });
+
+  it("fails fast on ambiguous devices without --serial", async () => {
+    const outDir = resetTestDir("tmp", "decx-fw-vendor-ambiguous");
+    emptySource(outDir);
+    await expect(
+      processFramework(
+        { oem: "xiaomi", outDir },
+        async () => {
+          throw new DecxError("Multiple adb devices detected. Use --serial to select one.", "ADB_DEVICE_AMBIGUOUS");
+        },
+      ),
+    ).rejects.toThrow(/--serial/);
+    rmSync(outDir, { recursive: true, force: true });
+  });
+
+  it("keeps the unknown vendor offline (no device reachable)", async () => {
+    const outDir = resetTestDir("tmp", "decx-fw-vendor-offline");
+    emptySource(outDir);
+    const { layout } = await processFramework(
+      { oem: "xiaomi", outDir },
+      async () => {
+        throw new DecxError("No connected Android device detected via adb", "ADB_DEVICE_MISSING");
+      },
+    );
+    expect(layout.jarPath).toBe(path.join(outDir, "framework_xiaomi_unknown.jar"));
+    expect(existsSync(path.join(outDir, ".artifact.json"))).toBe(false);
+    rmSync(outDir, { recursive: true, force: true });
+  });
+
+  it("does not query the device when the artifact already has a vendor", async () => {
+    const outDir = resetTestDir("tmp", "decx-fw-vendor-cached");
+    emptySource(outDir);
+    writeArtifact(outDir, "K70 Ultra");
+    let queried = false;
+    const { layout } = await processFramework(
+      { oem: "xiaomi", outDir },
+      async () => {
+        queried = true;
+        return "SHOULD_NOT_BE_USED";
+      },
+    );
+    expect(queried).toBe(false);
+    expect(layout.jarPath).toBe(path.join(outDir, "framework_xiaomi_k70_ultra.jar"));
+    rmSync(outDir, { recursive: true, force: true });
   });
 });
