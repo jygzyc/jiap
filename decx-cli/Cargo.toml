@@ -1,0 +1,29 @@
+[workspace]
+resolver = "2"
+members = ["crates/decx-cli-core", "crates/decx-cli"]
+
+[workspace.package]
+version = "4.2.0"
+edition = "2021"
+rust-version = "1.80"
+license = "Apache-2.0"
+repository = "https://github.com/jygzyc/decx"
+
+[workspace.dependencies]
+# default-features off drops `color` (anstream -> windows-sys), which needs
+# dlltool on the windows-gnu toolchain; help/usage/errors stay available.
+clap = { version = "4", default-features = false, features = [
+  "std",
+  "help",
+  "usage",
+  "error-context",
+  "suggestions",
+] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+flate2 = "1"
+
+[profile.release]
+strip = true
+lto = "thin"

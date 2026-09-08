@@ -1,0 +1,17 @@
+[package]
+name = "decx-cli"
+description = "DECX CLI - Decompiler + X (Rust rewrite)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "decx"
+path = "src/main.rs"
+
+[dependencies]
+decx-cli-core = { path = "../decx-cli-core" }
+clap.workspace = true
+serde_json.workspace = true

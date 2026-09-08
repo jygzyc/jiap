@@ -1,268 +1,183 @@
-# decx-cli
+# DECX CLI (Rust)
 
-DECX CLI - Decompiler + X command-line tool.
+`decx` — Decompiler + X CLI, rewritten in Rust. This is the `decx-cli-dev`
+branch rewrite of the former TypeScript CLI, redesigned around three
+architectural pieces inspired by [opencli](https://github.com/jackwener/opencli)'s
+adapter/registry model:
 
-## Install
+1. **Independent project manager** — every analysis target is a *project*
+   with a supervised background server process and a monitored execution
+   state (`starting / healthy / unreachable / stopped`), transition events,
+   and a live `watch` stream.
+2. **Unified tool integration surface** — every command group is a `Tool`
+   registered in a `ToolRegistry` that assembles the CLI tree; new tools plug
+   in by implementing one trait, and external CLI tools register through
+   `decx tools register` and become reachable as `decx <name> [args...]`
+   (opencli's `external register` equivalent).
+3. **Pluggable analysis engines** — `jvm` (decx-server.jar) and `native`
+   (decx-native-server) implement an `Engine` trait that owns binary
+   discovery and spawn-command assembly. Select with `--engine` or
+   `DECX_ENGINE`.
 
-```bash
-npm install -g @jygzyc/decx-cli
-```
-
-## Usage
-
-```bash
-decx <command> [options]
-```
-
-### Commands
-
-| Command | Description |
-|---------|-------------|
-| `decx process` | Manage DECX server processes |
-| `decx self` | Install and update decx-server.jar |
-| `decx android` | Android specific analysis |
-| `decx code` | Common code analysis |
-
-### process
+## Build and test
 
 ```bash
-decx process check               # Check environment status
-decx process open <file> [options] # Open and analyze a file (APK, DEX, JAR, etc.)
-decx process close [name] [--port <port>] [--all]  # Stop session
-decx process list                  # List running sessions
-decx process status [name]         # Check server status
+cargo build --release        # produces target/release/decx[.exe]
+cargo test
 ```
 
-### self
+Rust 1.80+ (edition 2021). The workspace has no C dependencies and no TLS
+stack: server communication is a hand-rolled HTTP/1.1 client over
+`std::net::TcpStream` (the DECX server is always on 127.0.0.1), and internet
+downloads (self install, URL targets) delegate to the system `curl`.
 
-```bash
-decx self install [-p]          # Install decx-server.jar (-p for prerelease)
-decx self skills install [-c codex] # Install skills; defaults to ~/.agents/skills
-decx self update [-p]           # Update decx-server.jar and the currently installed npm CLI package
+## Command surface
+
+```
+decx project open <file> [--engine jvm|native] [--port N] [-n name]
+                         [--script s.jadx.kts]... [--force] [--timeout secs]
+                         [jadx passthrough args...]
+decx project close [name] [--port N] [--all]
+decx project list [--probe]          # projects + monitored state
+decx project status [name] [--port N]
+decx project check [--port N]        # binaries, port, server health
+decx project watch [name] [--interval s]   # stream state transitions
+decx project events [name] [--limit n]     # replay recorded transitions
+
+decx code classes|search-global|class-context|class-source|method-source|
+      method-context|method-cfg|search-class|search-method|xref-method|
+      xref-class|xref-field|implementations|subclasses ...
+
+decx android app manifest|launcher-activity|application|exported-components|
+      deep-links|dynamic-receivers|framework-service-implementation|resources|
+      resource-file|strings|aidl-interfaces ...
+decx android device system-services [--serial S] [--adb-path P] [--grep K]
+decx android device permission-info <permission> [--serial S]
+decx android framework open [jar]    # collect/process/run: see parity notes
+
+decx tools register <name> -- <command...>
+decx tools list | remove <name> | run <name> [args...]
+decx <name> [args...]                # registered external tool passthrough
+
+decx self install [--prerelease] | update | status
 ```
 
-**open options:**
+`decx process ...` remains available as a hidden alias for `decx project ...`.
 
-| Option | Description |
-|--------|-------------|
-| `--port <port>` | Server port (omit to auto-assign a free random port in 30000–40000) |
-| `--force` | Force start even if session exists |
-| `-n, --name <name>` | Custom session name |
-| `--mcp` | Also start the MCP Streamable HTTP server on port + 1 |
-| `--script <file>` | Jadx Kotlin script (`.jadx.kts`) run during decompilation; may be repeated |
+### Output contract (stable for AI agents)
 
-`--script` uses the [Jadx scripting API](https://github.com/skylot/jadx/wiki/Jadx-scripts-guide): top-level code runs while the decompiler loads, and `jadx.afterLoad { }` blocks run after classes are loaded. The server bundles the `jadx-script-kotlin` plugin, so no extra install step is needed. Session reuse is keyed on the target file **plus** the script set; use `--force` to restart with a different set.
+- Successful results print **JSON on stdout** (`--format table` for humans).
+- Progress notices and errors go to **stderr**; stdout stays parseable.
+- Exit codes follow `sysexits.h`: `0` ok, `64` usage, `66` missing
+  input/project, `69` server unavailable, `70` internal, `75` timeout.
+- `DECX_DEBUG=1` logs HTTP traffic and debug details to stderr.
 
-All standard [jadx-cli options](https://github.com/skylot/jadx) are passed through directly, including JADX `-P<key>=<value>` project properties. `decx process open` enables `--show-bad-code` by default, and common passthrough options also include `--deobf`, `--no-res`, `-j`/`--threads-count`, `--no-imports`, `--no-debug-info`, `--escape-unicode`, `--log-level`.
+## Architecture
 
-> **`-P` is not a port shortcut.** DECX uses `--port` everywhere for the server port, reserving `-P` for JADX `-P<key>=<value>` project properties (forwarded by `process open`). The properties DECX itself needs, such as `-Pdex-input.verify-checksum=no`, are injected automatically.
+Workspace layout:
 
-### android
-
-```bash
-decx android manifest                    # Get AndroidManifest.xml
-decx android launcher-activity            # Get launcher activity name
-decx android application                 # Get Application class name
-decx android exported-components [--type <pattern>] [--no-regex] # List exported components
-decx android deep-links                   # List deep link schemes
-decx android dynamic-receivers [--limit <n>] [--include-package <pattern>] [--exclude-package <pattern>] [--no-regex] # List dynamic broadcast receivers
-decx android framework-service-implementation <interface> # Find system service implementations
-decx android device system-services [--serial <serial>] [--adb-path <path>] [--grep <kw>] # List Android system services as structured JSON
-decx android device permission-info <permission> [--serial <serial>] [--adb-path <path>]        # Show structured permission details
-decx android resources [--include <pattern>] [--no-regex] # List resource file names
-decx android resource-file <res>             # Get resource file content
-decx android strings                         # Get strings.xml content
-decx android aidl-interfaces [--limit <n>] [--include-package <pattern>] [--exclude-package <pattern>] [--no-regex] # Get AIDL interfaces
-decx android framework collect               # Collect framework files from the connected device
-decx android framework process [oem]         # Process local framework sources; OEM can be inferred
-decx android framework run                   # Collect, process, pack, and optionally open
-decx android framework open [jar]            # Open the generated framework jar or a provided JAR
+```
+decx-cli/
+├── crates/decx-cli-core/        # the architecture (library)
+│   └── src/
+│       ├── project/             # ← independent project manager
+│       │   ├── model.rs         #   Project, ProjectState state machine
+│       │   ├── store.rs         #   <DECX_HOME>/projects/*.json + events.jsonl
+│       │   ├── manager.rs       #   ProjectManager: records, probes, events
+│       │   └── monitor.rs       #   background monitor threads
+│       ├── tools/               # ← unified tool integration surface
+│       │   ├── mod.rs           #   Tool trait + ToolRegistry + ToolContext
+│       │   ├── external.rs      #   external CLI registry (opencli-style)
+│       │   ├── project_tool.rs  #   project/process command group
+│       │   ├── code_tool.rs     #   code command group
+│       │   ├── android_tool.rs  #   android app/device/framework
+│       │   ├── tools_tool.rs    #   tools register/list/remove/run
+│       │   ├── self_tool.rs     #   self install/update/status
+│       │   └── adb.rs           #   adb client + output parsers
+│       ├── engine/              # ← pluggable analysis engines
+│       │   ├── mod.rs           #   Engine trait + EngineRegistry
+│       │   ├── jvm.rs           #   decx-server.jar spawn logic
+│       │   ├── native.rs        #   decx-native-server spawn logic
+│       │   └── launcher.rs      #   open flow, reuse decisions, health wait
+│       ├── client.rs            # DecxClient (all 26 endpoints)
+│       ├── net.rs               # std-only HTTP/1.1 client + curl downloads
+│       └── spawn.rs             # detached spawn, pid liveness, tree kill
+└── crates/decx-cli/             # the `decx` binary (thin entrypoint)
 ```
 
-**ADB-backed command output**
+### Project manager
 
-`system-services` returns structured JSON:
+`ProjectManager` (in `decx-cli-core::project`) owns every analysis project:
 
-```json
-{
-  "total": 2,
-  "services": [
-    {
-      "index": 6,
-      "name": "activity",
-      "interfaces": ["android.app.IActivityManager"]
-    },
-    {
-      "index": 511,
-      "name": "window",
-      "interfaces": ["android.view.IWindowManager"]
-    }
-  ]
+- **Records** persist under `DECX_HOME/projects/<name>.json` — target file,
+  sha256, engine, pid, port, scripts, log path, and the last *observed*
+  state, so any short-lived CLI invocation can report monitored state.
+- **Probing** classifies each project through a pure state machine
+  (`model::evaluate_state`): process dead → `stopped`; `/health` says
+  `running` → `healthy`; alive but health failing → `starting` (never yet
+  healthy) or `unreachable` (flapped after being healthy).
+- **Monitors** are background threads (one per supervised project) that poll
+  PID liveness + `/health`, persist observed state, append transitions to
+  `<name>.events.jsonl`, and broadcast to subscribers. `project watch`
+  subscribes to the live stream; `project events` replays the log.
+- **Session reuse** mirrors the TypeScript semantics: an alive project with
+  the same file hash + script set is reused; different scripts refuse until
+  `--force`; `--force` kills same-name/same-hash servers with verified death
+  before respawning (a failed kill aborts the spawn instead of orphaning).
+
+### Tool adapter interface
+
+New integrations implement one trait (`decx-cli-core::tools::Tool`) and
+register in the `ToolRegistry` — the entrypoint assembles the clap tree from
+the registry, routes dispatch, applies the output contract, and maps errors
+to exit codes:
+
+```rust
+pub trait Tool: Send + Sync {
+    fn id(&self) -> &'static str;
+    fn commands(&self) -> Vec<clap::Command>;   // subcommand tree (aliases ok)
+    fn run(&self, ctx: &ToolContext, m: &clap::ArgMatches)
+        -> Result<serde_json::Value, DecxError>;
 }
 ```
 
-`permission-info` returns one parsed permission object instead of raw shell text:
+`ToolContext` hands the tool the project manager, engine registry, home
+paths, and output format. Analysis tools resolve their server with the
+shared `-s/--session` / `--port` / auto-select resolution.
 
-```json
-{
-  "permission": "android.permission.DUMP",
-  "package": "android",
-  "label": null,
-  "description": null,
-  "protectionLevel": "signature|privileged|development"
-}
-```
+External CLI tools need no code at all: `decx tools register <name> -- <cmd>`
+stores the registration in `DECX_HOME/tools.json` and the entrypoint spawns
+it as `decx <name> [args...]` with inherited stdio and propagated exit code —
+the same unified-surface idea as opencli's `external register`.
 
-Examples:
+### Engine adapters
 
-```bash
-decx android device system-services --serial emulator-5554
-decx android device system-services --serial emulator-5554 --grep permission
-decx android device permission-info android.permission.DUMP --serial emulator-5554
-```
+`Engine` implementations own binary discovery and spawn-assembly for an
+analysis backend. `jvm` mirrors the TypeScript launcher exactly (heap =
+2/3 of machine memory, jadx passthrough normalization: strip `--deobf`,
+inject `--show-bad-code --no-imports -Pdex-input.verify-checksum=no`,
+default `--rename-flags case,valid`, strip the `printable` token, positional
+`.jadx.kts` scripts). `native` rejects `--script` and ignores jadx flags.
+Servers spawn detached (Unix: own process group; Windows:
+`DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP`) with stdout/stderr appended to
+`DECX_HOME/logs/<name>.log`, and are killed with verified process-tree death.
 
-### android framework
+Binary discovery:
 
-`decx android framework` integrates the archived preprocessor workflow into the native CLI.
-It supports both end-to-end collection from a connected Android device and offline
-processing of an existing local framework dump.
+| Engine | Lookup order |
+|---|---|
+| `jvm` | `DECX_SERVER_HOME` (file or dir) → `<DECX_HOME>/bin/decx-server.jar` |
+| `native` | `DECX_NATIVE_SERVER` (file or dir) → `<DECX_HOME>/bin/decx-native-server[.exe]` → dev checkout `decx-native/target/release/` near the working directory |
 
-Framework artifacts are not treated as a separate runtime session type.
-Only `framework open` and `framework run` start a DECX server, and once opened they
-are managed exactly like any other DECX session through `decx process list`,
-`decx process status`, and `decx process close`.
+## Parity with the TypeScript CLI
 
-```bash
-decx android framework run
-decx android framework run --no-open
-decx android framework collect --serial emulator-5554
-decx android framework process google --out-dir ~/.decx/output/framework/google
-decx android framework open
-decx android framework open ~/.decx/output/framework/google/framework_google_pixel.jar
-decx process list
-decx process close framework_google_pixel
-decx process close --port 25419
-```
+Ported: session/project lifecycle (open/close/list/status/check + new
+watch/events), all `code` analysis commands, all `android app` commands,
+`android device` (system-services, permission-info), `android framework open`,
+`self install/update/status`, URL target downloads, jar version probing and
+skip-if-current install.
 
-**Common framework options:**
-
-| Option | Description |
-|--------|-------------|
-| `--source-dir <dir>` | Framework source directory |
-| `--out-dir <dir>` | Framework output directory |
-| `--adb-path <path>` | ADB executable path |
-| `--serial <serial>` | ADB device serial |
-| `--clean-source` | Remove `source/` after the command finishes successfully |
-
-**run/open options:**
-
-| Option | Description |
-|--------|-------------|
-| `--no-open` | Do not open the generated framework jar after packing |
-| `-n, --name <name>` | Custom DECX session name when opening the jar |
-| `--port <port>` | Server port when opening the jar |
-
-**Artifact naming**
-
-Packed framework artifacts are named:
-
-```text
-framework_<brand>_<vendor>.jar
-```
-
-Artifact segments are resolved like this:
-
-1. `brand` is the detected device OEM for `collect/run`, or the resolved `oem` used by `process`
-2. `vendor` comes from the persisted `.artifact.json` record
-3. During `framework collect` / `framework run`, vendor is resolved from:
-   `adb shell getprop ro.product.model`
-4. If no artifact record exists, `vendor` falls back to `unknown`
-5. Framework artifact metadata is stored alongside the output under `.artifact.json`
-6. `framework open` and `framework run` create normal DECX process sessions with the default session name `framework_<brand>_<vendor>`
-7. `framework collect` and `framework process` only prepare artifacts; they do not create a running session
-
-**Platform notes**
-
-- Windows is not supported for `decx android framework` yet
-- Framework tooling checks the current system first: `adb` or `--adb-path`, system `debugfs`, then system `fsck.erofs` / `extract.erofs`
-- If a required framework tool is missing, the CLI falls back to packaged native tools for supported Darwin/Linux targets
-- Packaged native tools are distributed as `dist/bin.tar.gz`; they are not unpacked during `npm install`
-- Packaged tools are unpacked lazily when needed into `$DECX_HOME/cache/bin/decx-cli/<archive-hash>/`, or `~/.decx/cache/bin/decx-cli/<archive-hash>/` when `DECX_HOME` is not set
-- `framework open` and `framework run` reuse the normal `decx process open` flow
-- After a framework jar is opened, use the existing `decx process` commands to inspect or close that session
-- `framework open` uses an explicit jar path when provided; otherwise it resolves the jar for the currently connected device OEM
-- Temporary processing directories are removed only after the command reaches its final step
-- `source/` is preserved by default and is removed only when `--clean-source` is set
-- If `adb devices` reports exactly one connected device, framework commands use it automatically
-- If multiple devices are connected, pass `--serial <serial>` to select the target device
-- `collect` and `run` detect the device OEM from adb properties; `process [oem]` uses an explicit value, `.artifact.json`, or a connected device in that order
-
-### self update notes
-
-- `decx self update` updates the DECX server JAR first, then runs `npm install -g <current-package-name>@latest`
-- The CLI package name is resolved from the installed package metadata instead of being hardcoded
-- `-p/--prerelease` currently affects the server JAR update path only
-- The CLI update step assumes the CLI was installed with global `npm`; if you installed it another way, update the package manager command yourself
-- On Windows, CLI versions older than v4.0.1 can fail with `spawnSync npm.cmd EINVAL`. Because the affected updater cannot bootstrap its own fix, run `npm.cmd install -g @jygzyc/decx-cli@latest` once from PowerShell or CMD, reopen the terminal, and verify `decx --version` reports v4.0.1 or newer. Use `where.exe decx` if PATH still selects an older installation
-
-### code
-
-```bash
-decx code classes                    # Get classes; supports --include-package/--exclude-package
-decx code class-context <class>          # Get class information
-decx code class-source <class> [--limit <n>] # Get class source code (--smali for Smali)
-decx code method-source <sig>            # Get method source (--smali for Smali)
-decx code method-context <sig>           # Get method signature, callers, and callees
-decx code method-cfg <sig>               # Get method control flow graph as DOT source
-decx code search-global <keyword> [--limit <n>]  # Regex by default; supports --no-regex
-decx code search-class <class> <pattern> --limit <n>  # Regex by default; supports --no-regex
-decx code search-method <name>           # Search methods by name
-decx code xref-method <sig>              # Find method callers
-decx code xref-class <class>             # Find class usages
-decx code xref-field <field>             # Find field usages
-decx code implementations <interface>          # Find implementations
-decx code subclasses <class>               # Find subclasses
-```
-
-### Global options
-
-| Option | Description |
-|--------|-------------|
-| `-s, --session <name>` | Target session name |
-| `--port <port>` | Server port (default: auto-assigned in 30000–40000) |
-| `--page <n>` | Page number (default: 1) |
-
-## Method signature format
-
-For `code method-source` and `code xref-method`:
-
-```
-package.Class.methodName(paramType1,paramType2):returnType
-```
-
-Example: `com.example.MainActivity.onCreate(android.os.Bundle):void`
-
-## Development
-
-```bash
-npm install       # install dependencies
-npm run build     # build to dist/
-npm test          # run tests
-npm run lint      # lint check
-npm run dev       # run locally
-```
-
-`npm run build` type-checks the TypeScript sources, then writes a compact runtime package under `dist/`:
-
-```text
-dist/index.js      # CLI entry
-dist/sdk/index.js  # SDK import entry
-dist/bin.tar.gz    # packaged native framework tools
-dist/package.json  # package metadata for the built artifact
-```
-
-The published npm package is limited to the built `dist/` artifact plus npm's required package metadata and README.
-
-## License
-
-GNU-3.0
+Not ported yet (fail with a clear `NOT_PORTED` error): the framework
+`collect`/`process`/`run` device-pull and image-extraction pipeline, and the
+`self skills` installer. The npm update-notifier is intentionally dropped
+(Rust builds distribute via cargo/release binaries).

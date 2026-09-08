@@ -192,7 +192,7 @@ DECX returns the same structured error format from plugin and standalone server 
 | `decx/decx-core/` | Shared Kotlin API, HTTP + MCP transport, services, models, and utilities |
 | `decx/decx-plugin/` | JADX GUI plugin: lifecycle, UI, and in-process MCP server wiring |
 | `decx/decx-server/` | Standalone headless server entry point and fat JAR packaging |
-| `decx-cli/` | TypeScript CLI for sessions, code analysis, Android helpers, framework processing, and self-management |
+| `decx-cli/` | Rust CLI (rewritten on the decx-cli-dev branch): project manager, background monitoring, pluggable tool integration |
 | `skills/` | AI agent skills for DECX analysis, app/framework vulnerability hunting, reporting, and PoC construction |
 
 Core request path:
@@ -211,9 +211,9 @@ cd decx
 ./gradlew dist
 
 cd ../decx-cli
-npm install
-npm run build
-npm test
+cargo build --release
+cargo test
+
 ```
 
 ### Contributing

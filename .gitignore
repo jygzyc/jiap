@@ -77,3 +77,6 @@ CLAUDE.md
 .env
 .zcode/
 decx-cli/package-lock.json
+
+# Rust CLI build output
+decx-cli/target/
