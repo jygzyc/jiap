@@ -86,12 +86,22 @@ redesigned around three pieces, following the opencli adapter/registry model:
   -- <command...>` (stored in `DECX_HOME/tools.json`) and become reachable as
   top-level `decx <name> [args...]` passthrough with inherited stdio and
   propagated exit codes.
-- **Pluggable analysis engines** (`decx-cli-core::engine`): `jvm` and
-  `native` implement the `Engine` trait (binary discovery + spawn assembly);
-  select with `--engine` or `DECX_ENGINE` (default `jvm`).
+- **Pluggable analysis engines** (`decx-cli-core::engine`), two kinds behind
+  one `Engine` trait: *server* engines (built-in `jvm` decx-server.jar and
+  `native` decx-native-server — long-lived DECX-contract HTTP servers) and
+  *command* engines (one-shot CLI decompilers such as kuna). External
+  engines register declaratively via `decx engine register` into
+  `DECX_HOME/engines.json` (argv templates with `{target}`/`{port}`/`{key}`
+  placeholders; `decx engine query <id> <endpoint> -- <cmd>` maps analysis
+  endpoints to templates) — no recompilation. `project open` runs command
+  engines as monitored background analyze jobs (exit code → state machine);
+  `decx code`/`decx android app` route endpoints through `AnalysisClient`:
+  HTTP for server projects, the registered template otherwise (missing
+  templates fail with `UNSUPPORTED_BY_ENGINE` listing what is configured).
+  Select with `--engine` or `DECX_ENGINE` (default `jvm`).
 
 Current top-level commands: `project` (alias `process`), `code`, `android`,
-`tools`, `self`.
+`engine`, `tools`, `self`.
 
 Notable details:
 
@@ -342,7 +352,9 @@ Port coordination matters:
 | `decx-cli/crates/decx-cli-core/src/tools/project_tool.rs` | Project lifecycle commands (open/close/list/status/check/watch/events) |
 | `decx-cli/crates/decx-cli-core/src/project/manager.rs` | ProjectManager: records, probes, monitors, events |
 | `decx-cli/crates/decx-cli-core/src/project/monitor.rs` | Background monitor threads (state machine + event stream) |
-| `decx-cli/crates/decx-cli-core/src/engine/launcher.rs` | open flow: reuse decisions, detached spawn, health wait |
+| `decx-cli/crates/decx-cli-core/src/engine/launcher.rs` | open flow: reuse decisions, detached spawn, health/exit wait |
+| `decx-cli/crates/decx-cli-core/src/engine/foreign.rs` | External engine registry (`engines.json`, argv templates, PATH resolution) |
+| `decx-cli/crates/decx-cli-core/src/tools/engine_tool.rs` | `engine register/query/list/show/remove` command group |
 | `decx-cli/crates/decx-cli-core/src/tools/external.rs` | External CLI tool registry (opencli-style `tools register`) |
 | `decx-cli/crates/decx-cli-core/src/client.rs` | DecxClient: all 26 analysis endpoints |
 

@@ -222,6 +222,25 @@ impl ProjectTool {
 
     fn run_status(&self, ctx: &ToolContext, m: &ArgMatches) -> DecxResult<Value> {
         let (port, session) = super::resolve_target(ctx, m)?;
+        // Command-engine projects have no server to ask: report the recorded
+        // analysis outcome (state machine maintained by open/probe).
+        if port == 0 {
+            let name = session.clone().unwrap_or_default();
+            let project = ctx
+                .manager
+                .get(&name)
+                .ok_or_else(|| DecxError::not_found("SESSION_NOT_FOUND", format!("Project not found: {name}")))?;
+            let observed = &project.observed;
+            return Ok(json!({
+                "ok": observed.state == ProjectState::Healthy,
+                "project": project.name,
+                "engine": project.engine,
+                "kind": "command",
+                "state": observed.state.as_str(),
+                "detail": observed.detail,
+                "log": project.log_path.as_ref().map(|p| p.display().to_string()),
+            }));
+        }
         let client = crate::client::DecxClient::with_options(port, 10, None);
         match client.health_check() {
             Ok(health) => Ok(json!({ "ok": true, "port": port, "project": session, "health": health })),
@@ -245,7 +264,7 @@ impl ProjectTool {
         Ok(json!({
             "project": session.clone().map(|n| json!({ "name": n, "port": port })),
             "server": { "ok": server_ok, "info": server_info },
-            "binaries": engine_status(&ctx.home),
+            "binaries": engine_status(&ctx.home, &ctx.engines),
             "default_port": config.server.default_port,
             "port": { "ok": port_available, "info": port_info },
         }))

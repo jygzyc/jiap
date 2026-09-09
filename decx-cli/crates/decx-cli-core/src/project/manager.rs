@@ -1,9 +1,11 @@
 //! [`ProjectManager`] — the independent project manager.
 //!
-//! Owns every analysis project record, supervises background server processes,
-//! and exposes monitoring: deep health refreshes, per-project monitor threads,
-//! a bounded in-memory event ring (mirrored to disk), and event subscriptions
-//! for `project watch`.
+//! Owns every analysis project record, supervises background execution, and
+//! exposes monitoring: health/exit probes, per-project monitor threads, a
+//! bounded in-memory event ring (mirrored to disk), and event subscriptions
+//! for `project watch`. Both engine kinds are first-class: server projects
+//! live while their PID answers, command projects live while their analysis
+//! artifacts are ready.
 
 use std::collections::{HashMap, VecDeque};
 use std::path::{Path, PathBuf};
@@ -78,11 +80,15 @@ impl ProjectManager {
         self.store.list()
     }
 
-    /// Projects whose PID is still live (fast check, no HTTP probing).
+    /// Projects that are still usable: server projects whose PID is live,
+    /// command projects whose analysis finished successfully.
     pub fn list_alive(&self) -> Vec<Project> {
         self.list()
             .into_iter()
-            .filter(|p| spawn::pid_alive(p.pid))
+            .filter(|p| match p.is_command_kind() {
+                true => p.observed.state == ProjectState::Healthy,
+                false => spawn::pid_alive(p.pid),
+            })
             .collect()
     }
 
@@ -96,14 +102,20 @@ impl ProjectManager {
         }
     }
 
-    /// Drop records whose process is gone (or that expired). Returns how many
-    /// were removed.
+    /// Drop unusable records: server projects whose process is gone, command
+    /// projects whose analysis failed, and anything expired. Returns how
+    /// many were removed.
     pub fn cleanup_dead(&self) -> usize {
         let now = crate::fsx::now_ms();
         let mut removed = 0;
         for project in self.list() {
             let expired = now.saturating_sub(project.created_at_ms) > SESSION_MAX_AGE_MS;
-            if expired || !spawn::pid_alive(project.pid) {
+            let dead = if project.is_command_kind() {
+                project.observed.state == ProjectState::Stopped
+            } else {
+                !spawn::pid_alive(project.pid)
+            };
+            if expired || dead {
                 self.remove(&project.name);
                 removed += 1;
             }
@@ -113,9 +125,13 @@ impl ProjectManager {
 
     // ── Probing / monitoring ────────────────────────────────────────────────
 
-    /// One live probe of a project: PID liveness + `/health`, state machine,
-    /// persist observed state, record transitions.
+    /// One live probe of a project, routed by engine kind: server projects
+    /// probe PID liveness + `/health`; command projects only watch the
+    /// analyze job (terminal once it ran).
     pub fn probe(&self, project: &Project) -> Project {
+        if project.is_command_kind() {
+            return self.probe_command(project);
+        }
         let started = std::time::Instant::now();
         let client = DecxClient::with_options(project.port, 2, None);
         let health = client.health_check();
@@ -124,33 +140,43 @@ impl ProjectManager {
             health,
             latency_ms: started.elapsed().as_millis() as u64,
         };
-        let (state, detail, latency) =
-            evaluate_state(project.observed.ever_healthy, &probe);
-        let ever_healthy = project.observed.ever_healthy || state == ProjectState::Healthy;
+        let (state, detail, latency) = evaluate_state(project.observed.ever_healthy, &probe);
         let observed = ObservedState {
             state,
             checked_at_ms: crate::fsx::now_ms(),
             latency_ms: latency,
-            detail: detail.clone(),
-            ever_healthy,
+            detail,
+            ever_healthy: project.observed.ever_healthy || state == ProjectState::Healthy,
         };
-        self.store.update_observed(&project.name, &observed);
-        if let Some(mut updated) = self.store.load(&project.name) {
-            if updated.observed.state != project.observed.state {
-                self.record_event(
-                    &project.name,
-                    project.observed.state,
-                    updated.observed.state,
-                    updated.observed.detail.clone(),
-                );
-            }
-            updated.observed = observed;
-            updated
+        let mut fallback = project.clone();
+        fallback.observed = observed.clone();
+        self.set_observed(&project.name, observed);
+        self.get(&project.name).unwrap_or(fallback)
+    }
+
+    /// Command-engine probe: while the analyze pid lives the project is
+    /// `starting`; once it is gone the artifacts are ready (the exit code
+    /// was recorded by `project open` when it could observe it).
+    fn probe_command(&self, project: &Project) -> Project {
+        let (state, detail) = if project.observed.ever_healthy {
+            // Terminal state recorded at open time — nothing left to watch.
+            (project.observed.state, project.observed.detail.clone())
+        } else if spawn::pid_alive(project.pid) {
+            (ProjectState::Starting, Some("analyzing".to_string()))
         } else {
-            let mut clone = project.clone();
-            clone.observed = observed;
-            clone
-        }
+            (ProjectState::Healthy, Some("analyze exited (exit code unknown; see log)".to_string()))
+        };
+        let observed = ObservedState {
+            state,
+            checked_at_ms: crate::fsx::now_ms(),
+            latency_ms: None,
+            detail,
+            ever_healthy: project.observed.ever_healthy || state == ProjectState::Healthy,
+        };
+        let mut fallback = project.clone();
+        fallback.observed = observed.clone();
+        self.set_observed(&project.name, observed);
+        self.get(&project.name).unwrap_or(fallback)
     }
 
     /// Deep-refresh a named project (returns None when unknown).
@@ -158,11 +184,33 @@ impl ProjectManager {
         self.get(name).map(|p| self.probe(&p))
     }
 
-    /// Deep-refresh every project (used by `list --probe` / `status`).
+    /// Deep-refresh every project.
     pub fn refresh_all(&self) {
         let projects = self.list();
-        for p in projects {
-            self.probe(&p);
+        for project in &projects {
+            self.probe(project);
+        }
+    }
+
+    /// Persist an observed state, recording (and broadcasting) a transition
+    /// event when the state changed. The single write path for probes, the
+    /// launcher's analyze-job outcome, and monitors.
+    pub fn set_observed(&self, name: &str, observed: ObservedState) {
+        let Some(mut project) = self.store.load(name) else {
+            return;
+        };
+        let from = project.observed.state;
+        let to = observed.state;
+        let detail = observed.detail.clone();
+        project.observed = observed;
+        if let Err(e) = self.store.save(&project) {
+            if std::env::var("DECX_DEBUG").ok().as_deref() == Some("1") {
+                eprintln!("[DEBUG] failed to persist observed state for {name}: {e}");
+            }
+            return;
+        }
+        if from != to {
+            self.record_event(name, from, to, detail);
         }
     }
 
@@ -186,22 +234,6 @@ impl ProjectManager {
         });
     }
 
-    /// Broadcast an externally produced event (used by monitors).
-    pub(crate) fn broadcast(&self, event: &ProjectEvent) {
-        let mut inner = self.inner.lock().unwrap();
-        let ring = inner
-            .events
-            .entry(event.project.clone())
-            .or_default();
-        if ring.len() == EVENT_RING_CAPACITY {
-            ring.pop_front();
-        }
-        ring.push_back(event.clone());
-        inner.subscribers.retain(|(name, tx)| {
-            (name.as_str() == event.project.as_str() || name.as_str() == "*") && tx.send(event.clone()).is_ok()
-        });
-    }
-
     /// Recent events for a project: in-memory ring first, then the on-disk log.
     pub fn recent_events(&self, project: &str, limit: usize) -> Vec<ProjectEvent> {
         let mut events = self.store.read_events(project, EVENT_RING_CAPACITY);
@@ -214,12 +246,13 @@ impl ProjectManager {
         events
     }
 
-    /// Start a background monitor thread for one project (idempotent: an
-    /// existing monitor for the same project is stopped first).
+    /// Start a background monitor thread for one project (idempotent). The
+    /// monitor runs until stopped, the project record disappears, or the
+    /// project reaches a terminal state.
     pub fn start_monitor(self: &Arc<Self>, project: &str, interval: Duration) {
         self.stop_monitor(project);
         let weak: Weak<ProjectManager> = Arc::downgrade(self);
-        let handle = spawn_monitor(weak, project.to_string(), interval, None);
+        let handle = spawn_monitor(weak, project.to_string(), interval);
         self.inner.lock().unwrap().monitors.insert(project.to_string(), handle);
     }
 
@@ -229,7 +262,7 @@ impl ProjectManager {
         }
     }
 
-    /// Subscribe to state-transition events for one project (or `"*) for all.
+    /// Subscribe to state-transition events for one project (or `"*"` for all).
     pub fn subscribe(self: &Arc<Self>, project: &str) -> Receiver<ProjectEvent> {
         let (tx, rx) = channel();
         self.inner
@@ -268,6 +301,7 @@ mod tests {
             hash: format!("hash-{name}"),
             file: PathBuf::from("/tmp/demo.apk"),
             engine: "jvm".into(),
+            engine_kind: "server".into(),
             pid,
             port,
             scripts: vec![],
@@ -275,6 +309,18 @@ mod tests {
             created_at_ms: crate::fsx::now_ms(),
             observed: ObservedState::default(),
         }
+    }
+
+    fn command_sample(name: &str) -> Project {
+        let mut project = sample(name, 0, 4_000_000);
+        project.engine = "kuna".into();
+        project.engine_kind = "command".into();
+        project.observed = ObservedState {
+            state: ProjectState::Healthy,
+            ever_healthy: true,
+            ..Default::default()
+        };
+        project
     }
 
     #[test]
@@ -296,6 +342,22 @@ mod tests {
     }
 
     #[test]
+    fn command_projects_stay_alive_after_analyze_exits() {
+        let home = temp_home();
+        let mgr = ProjectManager::open(&home);
+        // A finished command project has a dead pid but healthy artifacts.
+        mgr.create(command_sample("kb")).unwrap();
+        assert_eq!(mgr.list_alive().len(), 1, "healthy command project is usable");
+        assert_eq!(mgr.cleanup_dead(), 0, "dead pid must not prune it");
+        // A failed analyze (stopped) is pruned.
+        let mut failed = command_sample("bad");
+        failed.observed.state = ProjectState::Stopped;
+        mgr.create(failed).unwrap();
+        assert_eq!(mgr.cleanup_dead(), 1);
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[test]
     fn probe_transitions_and_persists() {
         let home = temp_home();
         let mgr = ProjectManager::open(&home);
@@ -308,6 +370,23 @@ mod tests {
         let events = mgr.recent_events("dead", 10);
         assert!(events.iter().any(|e| e.to == ProjectState::Stopped));
         mgr.remove("dead");
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn probe_command_keeps_terminal_state() {
+        let home = temp_home();
+        let mgr = ProjectManager::open(&home);
+        mgr.create(command_sample("kb")).unwrap();
+        let after = mgr.probe(&mgr.get("kb").unwrap());
+        assert_eq!(after.observed.state, ProjectState::Healthy);
+        // a never-finished command project with a live analyze pid is starting
+        let mut running = command_sample("run");
+        running.observed = ObservedState::default();
+        running.pid = std::process::id();
+        mgr.create(running).unwrap();
+        let after = mgr.probe(&mgr.get("run").unwrap());
+        assert_eq!(after.observed.state, ProjectState::Starting);
         let _ = std::fs::remove_dir_all(&home);
     }
 

@@ -7,8 +7,7 @@ use serde_json::json;
 
 use crate::error::{DecxError, DecxResult};
 use super::launcher::{default_java_heap, normalize_jadx_passthrough_args};
-
-use super::{Engine, TargetSpec};
+use super::{Engine, EngineKind, TargetSpec};
 
 pub struct JvmEngine;
 
@@ -41,6 +40,10 @@ impl Engine for JvmEngine {
 
     fn description(&self) -> &'static str {
         "decx-server.jar under a JVM (JADX-based, supports --script)"
+    }
+
+    fn kind(&self) -> EngineKind {
+        EngineKind::Server
     }
 
     fn resolve_binary(&self, home: &Path) -> DecxResult<PathBuf> {

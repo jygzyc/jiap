@@ -11,15 +11,12 @@ use std::time::{Duration, Instant};
 
 use serde_json::{json, Value};
 
-use crate::engine::{EngineRegistry, TargetSpec};
+use crate::engine::{Engine, EngineKind, EngineRegistry, TargetSpec};
 use crate::error::{DecxError, DecxResult};
 use crate::fsx;
 use crate::hash::hash_file;
 use crate::ports::{parse_server_port, select_available_server_port};
 use crate::project::{Project, ProjectManager, ProjectState};
-
-use super::jvm::find_decx_server_jar;
-use super::native::find_decx_native_server;
 
 pub use crate::spawn::default_java_heap;
 
@@ -372,6 +369,7 @@ pub fn open_analysis_target(
                 "pid": reuse.pid,
                 "port": reuse.port,
                 "engine": reuse.engine,
+                "kind": reuse.engine_kind,
                 "file": resolved_file.display().to_string(),
                 "reused": true,
             }));
@@ -399,6 +397,12 @@ pub fn open_analysis_target(
         mgr.remove(&stale.name);
     }
 
+    // Command engines (one-shot decompilers like kuna): run the analyze job
+    // as a background child and record its exit — no HTTP server to wait for.
+    if engine.kind() == EngineKind::Command {
+        return open_command_engine(mgr, &engine, &binary, name, resolved_file, file_hash, scripts, req.timeout_secs, notice);
+    }
+
     let port = select_available_server_port(requested_port)?;
     let spec = TargetSpec {
         target: resolved_file.clone(),
@@ -417,6 +421,7 @@ pub fn open_analysis_target(
         hash: file_hash,
         file: resolved_file.clone(),
         engine: engine.id().to_string(),
+        engine_kind: EngineKind::Server.as_str().to_string(),
         pid,
         port,
         scripts,
@@ -477,6 +482,118 @@ pub fn open_analysis_target(
     )))
 }
 
+/// `project open` for command engines: spawn the analyze job (stdout/stderr
+/// appended to the project log), wait bounded for its exit code, and record
+/// the outcome through the project manager. On timeout the record is kept
+/// and the job keeps running.
+fn open_command_engine(
+    mgr: &Arc<ProjectManager>,
+    engine: &Arc<dyn Engine>,
+    binary: &Path,
+    name: String,
+    resolved_file: PathBuf,
+    file_hash: String,
+    scripts: Vec<String>,
+    timeout_secs: u64,
+    mut notice: impl FnMut(&str),
+) -> DecxResult<Value> {
+    let home = mgr.home();
+    let engine_id = engine.id().to_string();
+    let spec = TargetSpec {
+        target: resolved_file.clone(),
+        port: 0,
+        scripts,
+        passthrough: vec![],
+    };
+    engine.validate(&spec)?;
+    let mut command = engine.build_command(binary, &spec)?;
+
+    let log_path = home.join("logs").join(format!("{name}.log"));
+    let mut child = crate::spawn::spawn_logged_child(&mut command, &log_path)?;
+    let pid = child.id();
+
+    mgr.create(Project {
+        name: name.clone(),
+        hash: file_hash.clone(),
+        file: resolved_file.clone(),
+        engine: engine_id.clone(),
+        engine_kind: "command".into(),
+        pid,
+        port: 0,
+        scripts: vec![],
+        log_path: Some(log_path.clone()),
+        created_at_ms: fsx::now_ms(),
+        observed: crate::project::ObservedState {
+            state: ProjectState::Starting,
+            ..Default::default()
+        },
+    })?;
+
+    notice(&format!("Running {engine_id} analyze '{name}' (pid {pid})..."));
+    let timeout_secs = timeout_secs.max(1);
+    let started = Instant::now();
+    let deadline = started + Duration::from_secs(timeout_secs);
+    let mut last_heartbeat: Option<Instant> = None;
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) if status.success() => {
+                mgr.set_observed(
+                    &name,
+                    crate::project::ObservedState {
+                        state: ProjectState::Healthy,
+                        checked_at_ms: fsx::now_ms(),
+                        latency_ms: None,
+                        detail: Some("analyze finished (exit 0)".into()),
+                        ever_healthy: true,
+                    },
+                );
+                return Ok(json!({
+                    "name": name,
+                    "hash": file_hash,
+                    "pid": pid,
+                    "engine": engine_id,
+                    "kind": "command",
+                    "file": resolved_file.display().to_string(),
+                    "log": log_path.display().to_string(),
+                    "reused": false,
+                }));
+            }
+            Ok(Some(status)) => {
+                mgr.remove(&name);
+                let last = last_log_line(&log_path).unwrap_or_else(|| "<no log output>".to_string());
+                return Err(DecxError::process(format!(
+                    "engine '{engine_id}' analyze failed (exit {}). Last log line: {last}. Log: {}",
+                    status.code().map(|c| c.to_string()).unwrap_or_else(|| "<signal>".into()),
+                    log_path.display()
+                )));
+            }
+            Ok(None) if Instant::now() >= deadline => {
+                // Timed out but the job is alive: keep the record (starting,
+                // pid tracked) so it stays reachable and killable.
+                return Err(DecxError::process(format!(
+                    "analyze still running after {timeout_secs}s (pid {pid}); project '{name}' was kept — \
+                     poll with 'decx project status {name}' or stop with 'decx project close {name}'. Log: {}",
+                    log_path.display()
+                )));
+            }
+            Ok(None) => {
+                if last_heartbeat.is_none_or(|at| at.elapsed() >= HEARTBEAT_INTERVAL) {
+                    last_heartbeat = Some(Instant::now());
+                    let tail = last_log_line(&log_path)
+                        .map(|l| format!(" | {}", l.chars().take(120).collect::<String>()))
+                        .unwrap_or_default();
+                    notice(&format!(
+                        "Running {engine_id} analyze '{name}' (pid {pid})... {}s elapsed{tail}",
+                        started.elapsed().as_secs()
+                    ));
+                }
+                std::thread::sleep(Duration::from_millis(500));
+            }
+            Err(e) => return Err(DecxError::process(format!("failed to wait for analyze job: {e}"))),
+        }
+    }
+}
+
 fn default_project_name(path: &Path) -> String {
     path.file_stem()
         .map(|s| s.to_string_lossy().to_string())
@@ -497,20 +614,20 @@ pub fn check_server(port: u16, retries: u32) -> (bool, String) {
     (false, format!("No server on port {port}"))
 }
 
-/// Both engine binaries' discovery status (for `project check`).
-pub fn engine_status(home: &Path) -> Value {
-    json!({
-        "jvm": {
-            "jar": match find_decx_server_jar(home) {
-                Some(path) => json!({ "ok": true, "info": path.display().to_string() }),
-                None => json!({ "ok": false, "info": "Not found. Use 'decx self install' to install." }),
-            },
-        },
-        "native": match find_decx_native_server(home) {
-            Some(path) => json!({ "ok": true, "info": path.display().to_string() }),
-            None => json!({ "ok": false, "info": "Not found (set DECX_NATIVE_SERVER or build decx-native)." }),
-        },
-    })
+/// Discovery status for every registered engine — built-ins and foreign
+/// (for `project check` / `self status`).
+pub fn engine_status(home: &Path, engines: &EngineRegistry) -> Value {
+    let mut map = serde_json::Map::new();
+    for id in engines.ids() {
+        let Some(engine) = engines.get(id) else { continue };
+        let mut info = engine.status_info(home);
+        info["kind"] = json!(engine.kind().as_str());
+        if !engine.description().is_empty() {
+            info["description"] = json!(engine.description());
+        }
+        map.insert(id.to_string(), info);
+    }
+    Value::Object(map)
 }
 
 #[cfg(test)]
@@ -559,6 +676,7 @@ mod tests {
             hash: hash.to_string(),
             file: PathBuf::from("/tmp/x.apk"),
             engine: "jvm".into(),
+            engine_kind: "server".into(),
             pid,
             port: 30000,
             scripts: scripts.iter().map(|s| s.to_string()).collect(),

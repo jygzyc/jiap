@@ -57,16 +57,20 @@ pub struct ObservedState {
     pub ever_healthy: bool,
 }
 
-/// One managed analysis project: a target file loaded by a background DECX
-/// server plus everything needed to reach or stop it.
+/// One managed analysis project: a target file loaded by an analysis engine
+/// plus everything needed to reach or stop it.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Project {
     pub name: String,
     /// sha256 of the target file — the identity used for session reuse.
     pub hash: String,
     pub file: PathBuf,
-    /// Engine backend id: `jvm` or `native`.
+    /// Engine backend id: `jvm`, `native`, or a registered foreign id.
     pub engine: String,
+    /// `server` (long-lived HTTP engine) or `command` (one-shot decompiler
+    /// whose analyze job ran to completion).
+    #[serde(default = "default_engine_kind")]
+    pub engine_kind: String,
     pub pid: u32,
     pub port: u16,
     #[serde(default)]
@@ -78,13 +82,24 @@ pub struct Project {
     pub observed: ObservedState,
 }
 
+fn default_engine_kind() -> String {
+    "server".to_string()
+}
+
 impl Project {
+    /// A command-engine project is usable while its analysis artifacts are
+    /// ready, regardless of the (already exited) analyze pid.
+    pub fn is_command_kind(&self) -> bool {
+        self.engine_kind == "command"
+    }
+
     pub fn to_summary(&self) -> Value {
         let mut obj = serde_json::json!({
             "name": self.name,
             "hash": self.hash,
             "file": self.file.display().to_string(),
             "engine": self.engine,
+            "kind": self.engine_kind,
             "pid": self.pid,
             "port": self.port,
             "created_at": self.created_at_ms,

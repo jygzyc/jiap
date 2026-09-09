@@ -189,74 +189,81 @@ impl Tool for CodeTool {
                  implementations | subclasses)",
             ));
         };
-        let (port, _session) = super::resolve_target(ctx, m)?;
-        let client = crate::client::DecxClient::new(port);
+        let client = super::analysis_client(ctx, m)?;
         let page = matches_u64(m, "page").unwrap_or(1);
 
+        // Every endpoint routes through `call`: HTTP for server-engine
+        // projects, the engine's registered command template otherwise.
         match name {
-            "classes" => client.get_classes(&parse_class_filter(m), page),
-            "search-global" => client.search_global_key(
-                m.get_one::<String>("keyword").map(String::as_str).unwrap_or_default(),
-                &parse_global_search(m),
-                page,
-            ),
+            "classes" => super::call(&client, "get_classes", None, |c| {
+                c.get_classes(&parse_class_filter(m), page)
+            }),
+            "search-global" => {
+                let keyword = m.get_one::<String>("keyword").cloned().unwrap_or_default();
+                super::call(&client, "search_global_key", Some(&keyword), |c| {
+                    c.search_global_key(&keyword, &parse_global_search(m), page)
+                })
+            }
             "class-context" => {
-                client.get_class_context(m.get_one::<String>("class").map(String::as_str).unwrap_or_default(), page)
+                let class = m.get_one::<String>("class").cloned().unwrap_or_default();
+                super::call(&client, "get_class_context", Some(&class), |c| c.get_class_context(&class, page))
             }
-            "class-source" => client.get_class_source(
-                m.get_one::<String>("class").map(String::as_str).unwrap_or_default(),
-                matches_flag_local(m, "smali"),
-                &parse_source_filter(m),
-                page,
-            ),
+            "class-source" => {
+                let class = m.get_one::<String>("class").cloned().unwrap_or_default();
+                super::call(&client, "get_class_source", Some(&class), |c| {
+                    c.get_class_source(&class, matches_flag_local(m, "smali"), &parse_source_filter(m), page)
+                })
+            }
             "method-source" => {
-                if matches_u64(m, "limit").is_some() || m.get_one::<String>("language").is_some() {
-                    client.get_method_source_full(
-                        m.get_one::<String>("signature").map(String::as_str).unwrap_or_default(),
-                        matches_flag_local(m, "smali"),
-                        &parse_source_filter(m),
-                        page,
-                    )
-                } else {
-                    client.get_method_source(
-                        m.get_one::<String>("signature").map(String::as_str).unwrap_or_default(),
-                        matches_flag_local(m, "smali"),
-                        page,
-                    )
-                }
+                let sig = m.get_one::<String>("signature").cloned().unwrap_or_default();
+                super::call(&client, "get_method_source", Some(&sig), |c| {
+                    if matches_u64(m, "limit").is_some() || m.get_one::<String>("language").is_some() {
+                        c.get_method_source_full(&sig, matches_flag_local(m, "smali"), &parse_source_filter(m), page)
+                    } else {
+                        c.get_method_source(&sig, matches_flag_local(m, "smali"), page)
+                    }
+                })
             }
-            "method-context" => client.get_method_context(
-                m.get_one::<String>("signature").map(String::as_str).unwrap_or_default(),
-                page,
-            ),
+            "method-context" => {
+                let sig = m.get_one::<String>("signature").cloned().unwrap_or_default();
+                super::call(&client, "get_method_context", Some(&sig), |c| c.get_method_context(&sig, page))
+            }
             "method-cfg" => {
-                client.get_method_cfg(m.get_one::<String>("signature").map(String::as_str).unwrap_or_default(), page)
+                let sig = m.get_one::<String>("signature").cloned().unwrap_or_default();
+                super::call(&client, "get_method_cfg", Some(&sig), |c| c.get_method_cfg(&sig, page))
             }
-            "search-class" => client.search_class_key(
-                m.get_one::<String>("class").map(String::as_str).unwrap_or_default(),
-                m.get_one::<String>("pattern").map(String::as_str).unwrap_or_default(),
-                &parse_class_grep(m),
-                page,
-            ),
+            "search-class" => {
+                let class = m.get_one::<String>("class").cloned().unwrap_or_default();
+                let pattern = m.get_one::<String>("pattern").cloned().unwrap_or_default();
+                super::call(&client, "search_class_key", Some(&pattern), |c| {
+                    c.search_class_key(&class, &pattern, &parse_class_grep(m), page)
+                })
+            }
             "search-method" => {
-                client.search_method(m.get_one::<String>("name").map(String::as_str).unwrap_or_default(), page)
+                let method = m.get_one::<String>("name").cloned().unwrap_or_default();
+                super::call(&client, "search_method", Some(&method), |c| c.search_method(&method, page))
             }
-            "xref-method" => client.get_method_xref(
-                m.get_one::<String>("signature").map(String::as_str).unwrap_or_default(),
-                page,
-            ),
+            "xref-method" => {
+                let sig = m.get_one::<String>("signature").cloned().unwrap_or_default();
+                super::call(&client, "get_method_xref", Some(&sig), |c| c.get_method_xref(&sig, page))
+            }
             "xref-class" => {
-                client.get_class_xref(m.get_one::<String>("class").map(String::as_str).unwrap_or_default(), page)
+                let class = m.get_one::<String>("class").cloned().unwrap_or_default();
+                super::call(&client, "get_class_xref", Some(&class), |c| c.get_class_xref(&class, page))
             }
             "xref-field" => {
-                client.get_field_xref(m.get_one::<String>("field").map(String::as_str).unwrap_or_default(), page)
+                let field = m.get_one::<String>("field").cloned().unwrap_or_default();
+                super::call(&client, "get_field_xref", Some(&field), |c| c.get_field_xref(&field, page))
             }
-            "implementations" => client.get_implementations(
-                m.get_one::<String>("interface").map(String::as_str).unwrap_or_default(),
-                page,
-            ),
+            "implementations" => {
+                let iface = m.get_one::<String>("interface").cloned().unwrap_or_default();
+                super::call(&client, "get_implementations", Some(&iface), |c| {
+                    c.get_implementations(&iface, page)
+                })
+            }
             "subclasses" => {
-                client.get_subclasses(m.get_one::<String>("class").map(String::as_str).unwrap_or_default(), page)
+                let class = m.get_one::<String>("class").cloned().unwrap_or_default();
+                super::call(&client, "get_subclasses", Some(&class), |c| c.get_subclasses(&class, page))
             }
             other => Err(DecxError::usage(format!("Unknown code subcommand '{other}'"))),
         }

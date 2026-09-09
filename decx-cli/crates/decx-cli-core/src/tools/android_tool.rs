@@ -149,34 +149,55 @@ impl AndroidTool {
                  resources | resource-file | strings | aidl-interfaces)",
             ));
         };
-        let (port, _) = super::resolve_target(ctx, m)?;
-        let client = crate::client::DecxClient::new(port);
+        let client = super::analysis_client(ctx, m)?;
         let page = matches_u64(m, "page").unwrap_or(1);
+        // Endpoint names mirror the DECX HTTP API; command-engine projects
+        // answer whichever endpoints they registered templates for.
         match name {
-            "manifest" => client.get_app_manifest(page),
-            "launcher-activity" => client.get_main_activity(page),
-            "application" => client.get_application(page),
+            "manifest" => super::call(&client, "get_app_manifest", None, |c| c.get_app_manifest(page)),
+            "launcher-activity" => super::call(&client, "get_main_activity", None, |c| c.get_main_activity(page)),
+            "application" => super::call(&client, "get_application", None, |c| c.get_application(page)),
             "exported-components" => {
                 let filter = ComponentFilter {
                     includes: matches_many(m, "include"),
                     excludes: matches_many(m, "exclude"),
                     regex: if matches_flag(m, "no-regex") { Some(false) } else { None },
                 };
-                client.get_exported_components(&filter, page)
+                super::call(&client, "get_exported_components", None, |c| {
+                    c.get_exported_components(&filter, page)
+                })
             }
-            "deep-links" => client.get_deep_links(page),
-            "dynamic-receivers" => client.get_dynamic_receivers(&parse_class_filter(m), page),
+            "deep-links" => super::call(&client, "get_deep_links", None, |c| c.get_deep_links(page)),
+            "dynamic-receivers" => {
+                let filter = parse_class_filter(m);
+                super::call(&client, "get_dynamic_receivers", None, |c| {
+                    c.get_dynamic_receivers(&filter, page)
+                })
+            }
             "framework-service-implementation" => {
-                client.get_system_service_impl(&require(m, "interface"), page)
+                let iface = require(m, "interface");
+                super::call(&client, "get_system_service_impl", Some(&iface), |c| {
+                    c.get_system_service_impl(&iface, page)
+                })
             }
             "resources" => {
                 let includes = matches_many(m, "include");
                 let regex = if matches_flag(m, "no-regex") { Some(false) } else { None };
-                client.get_all_resources(&includes, regex, page)
+                super::call(&client, "get_all_resources", None, |c| {
+                    c.get_all_resources(&includes, regex, page)
+                })
             }
-            "resource-file" => client.get_resource_file(&require(m, "res"), page),
-            "strings" => client.get_strings(page),
-            "aidl-interfaces" => client.get_aidl_interfaces(&parse_class_filter(m), page),
+            "resource-file" => {
+                let res = require(m, "res");
+                super::call(&client, "get_resource_file", Some(&res), |c| c.get_resource_file(&res, page))
+            }
+            "strings" => super::call(&client, "get_strings", None, |c| c.get_strings(page)),
+            "aidl-interfaces" => {
+                let filter = parse_class_filter(m);
+                super::call(&client, "get_aidl_interfaces", None, |c| {
+                    c.get_aidl_interfaces(&filter, page)
+                })
+            }
             other => Err(DecxError::usage(format!("Unknown android app subcommand '{other}'"))),
         }
     }

@@ -12,6 +12,7 @@
 pub mod adb;
 pub mod android_tool;
 pub mod code_tool;
+pub mod engine_tool;
 pub mod external;
 pub mod project_tool;
 pub mod self_tool;
@@ -102,6 +103,7 @@ impl ToolRegistry {
         reg.register(Arc::new(project_tool::ProjectTool));
         reg.register(Arc::new(code_tool::CodeTool));
         reg.register(Arc::new(android_tool::AndroidTool));
+        reg.register(Arc::new(engine_tool::EngineTool));
         reg.register(Arc::new(tools_tool::ToolsTool));
         reg.register(Arc::new(self_tool::SelfTool));
         reg
@@ -215,4 +217,131 @@ pub fn repeatable_arg(id: &'static str, long: &'static str, help: &'static str) 
         .help(help)
         .action(ArgAction::Append)
         .num_args(1)
+}
+
+// ── Unified analysis query surface ──────────────────────────────────────────
+
+/// The query surface analysis commands talk to: the DECX HTTP server of a
+/// server-engine project, or the command templates of a command-engine
+/// project (kuna-style one-shot decompilers). Both return the same JSON
+/// envelope shape, so callers stay engine-agnostic.
+pub enum AnalysisClient {
+    Http(crate::client::DecxClient),
+    Command(CommandQuery),
+}
+
+/// Endpoint execution for command engines: render the registered template,
+/// spawn it with a hard timeout, and wrap stdout in the DECX envelope.
+pub struct CommandQuery {
+    pub engine: String,
+    pub queries: std::collections::BTreeMap<String, Vec<String>>,
+    pub target: PathBuf,
+}
+
+impl CommandQuery {
+    pub fn endpoints(&self) -> Vec<&str> {
+        self.queries.keys().map(String::as_str).collect()
+    }
+
+    pub fn query(&self, endpoint: &str, key: Option<&str>) -> DecxResult<Value> {
+        let template = self.queries.get(endpoint).ok_or_else(|| {
+            let configured = self.endpoints();
+            let configured = if configured.is_empty() {
+                "<none>".to_string()
+            } else {
+                configured.join(", ")
+            };
+            DecxError::server(
+                "UNSUPPORTED_BY_ENGINE",
+                format!(
+                    "engine '{}' (command) has no '{endpoint}' template; configured: {configured}",
+                    self.engine
+                ),
+            )
+        })?;
+        let argv = crate::engine::foreign::render_template(template, &self.target, 0, key);
+        let program = argv.first().cloned().unwrap_or_default();
+        let resolved = crate::engine::foreign::resolve_program(&program).ok_or_else(|| {
+            DecxError::file(
+                format!("engine '{}': command '{program}' not found on PATH", self.engine),
+                None,
+            )
+        })?;
+        let mut cmd = std::process::Command::new(resolved);
+        cmd.args(argv.iter().skip(1));
+        let output = crate::spawn::run_with_timeout(&mut cmd, std::time::Duration::from_secs(300))?;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            return Err(DecxError::server(
+                "ENGINE_QUERY_FAILED",
+                format!(
+                    "engine '{}' query failed (exit {}): {}",
+                    self.engine,
+                    output.status.code().unwrap_or(-1),
+                    if stderr.is_empty() { "<no stderr>" } else { &stderr }
+                ),
+            ));
+        }
+        Ok(serde_json::json!({
+            "code": "OK",
+            "data": { "source": String::from_utf8_lossy(&output.stdout) },
+            "meta": { "engine": self.engine, "mode": "command" },
+        }))
+    }
+}
+
+/// Route one endpoint call: HTTP for server projects, command template for
+/// command projects. Every analysis endpoint goes through here, so command
+/// engines can override any endpoint by registering a template for it.
+pub fn call(
+    client: &AnalysisClient,
+    endpoint: &str,
+    key: Option<&str>,
+    http: impl FnOnce(&crate::client::DecxClient) -> DecxResult<Value>,
+) -> DecxResult<Value> {
+    match client {
+        AnalysisClient::Http(client) => http(client),
+        AnalysisClient::Command(query) => query.query(endpoint, key),
+    }
+}
+
+/// Resolve the analysis client for the selected target: `--port` forces
+/// HTTP; `-s/--session` or auto-select may land on a command-engine project.
+pub fn analysis_client(ctx: &ToolContext, m: &ArgMatches) -> DecxResult<AnalysisClient> {
+    let port_opt = m.get_one::<String>("port").map(String::as_str).filter(|s| !s.is_empty());
+    let session_opt = m.get_one::<String>("session").map(String::as_str).filter(|s| !s.is_empty());
+    let project = match (port_opt, session_opt) {
+        (Some(_), Some(_)) => return Err(DecxError::usage("Cannot specify both --session and --port")),
+        (Some(port), None) => {
+            return Ok(AnalysisClient::Http(crate::client::DecxClient::new(
+                crate::ports::parse_server_port(port)?,
+            )))
+        }
+        (None, Some(name)) => ctx.manager.get(name),
+        (None, None) => ctx.manager.auto_select(),
+    };
+    let Some(project) = project else {
+        let config = crate::config::Config::load(&ctx.home);
+        return Ok(AnalysisClient::Http(crate::client::DecxClient::new(
+            config.server.default_port,
+        )));
+    };
+    if project.is_command_kind() {
+        let spec = ctx.engines.foreign_spec(&project.engine).ok_or_else(|| {
+            DecxError::not_found(
+                "ENGINE_NOT_FOUND",
+                format!(
+                    "project '{}' uses command engine '{}' which is no longer registered; \
+                     re-register it with 'decx engine register {} -- <command...>'",
+                    project.name, project.engine, project.engine
+                ),
+            )
+        })?;
+        return Ok(AnalysisClient::Command(CommandQuery {
+            engine: spec.id,
+            queries: spec.queries,
+            target: project.file,
+        }));
+    }
+    Ok(AnalysisClient::Http(crate::client::DecxClient::new(project.port)))
 }

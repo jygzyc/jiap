@@ -14,10 +14,14 @@ adapter/registry model:
    in by implementing one trait, and external CLI tools register through
    `decx tools register` and become reachable as `decx <name> [args...]`
    (opencli's `external register` equivalent).
-3. **Pluggable analysis engines** — `jvm` (decx-server.jar) and `native`
-   (decx-native-server) implement an `Engine` trait that owns binary
-   discovery and spawn-command assembly. Select with `--engine` or
-   `DECX_ENGINE`.
+3. **Pluggable analysis engines** — two kinds behind one `Engine` trait:
+   *server* engines (built-in `jvm` decx-server.jar and `native`
+   decx-native-server — long-lived HTTP servers speaking the DECX contract)
+   and *command* engines: one-shot CLI decompilers such as
+   [kuna](https://github.com/Noelo-Lab/kuna), registered declaratively with
+   `decx engine register` (no recompilation) and queried through the same
+   `decx code` surface via per-endpoint command templates. Select with
+   `--engine` or `DECX_ENGINE`.
 
 ## Build and test
 
@@ -59,6 +63,10 @@ decx tools register <name> -- <command...>
 decx tools list | remove <name> | run <name> [args...]
 decx <name> [args...]                # registered external tool passthrough
 
+decx engine register <id> [--server] [--description D] -- <command...>
+decx engine query <id> <endpoint> -- <command...>
+decx engine list | show <id> | remove <id>
+
 decx self install [--prerelease] | update | status
 ```
 
@@ -86,19 +94,21 @@ decx-cli/
 │       │   ├── manager.rs       #   ProjectManager: records, probes, events
 │       │   └── monitor.rs       #   background monitor threads
 │       ├── tools/               # ← unified tool integration surface
-│       │   ├── mod.rs           #   Tool trait + ToolRegistry + ToolContext
+│       │   ├── mod.rs           #   Tool trait, ToolRegistry, ToolContext, AnalysisClient
 │       │   ├── external.rs      #   external CLI registry (opencli-style)
 │       │   ├── project_tool.rs  #   project/process command group
 │       │   ├── code_tool.rs     #   code command group
 │       │   ├── android_tool.rs  #   android app/device/framework
+│       │   ├── engine_tool.rs   #   engine register/query/list/show/remove
 │       │   ├── tools_tool.rs    #   tools register/list/remove/run
 │       │   ├── self_tool.rs     #   self install/update/status
 │       │   └── adb.rs           #   adb client + output parsers
-│       ├── engine/              # ← pluggable analysis engines
-│       │   ├── mod.rs           #   Engine trait + EngineRegistry
+│       ├── engine/              # ← pluggable analysis engines (unified decompiler entry)
+│       │   ├── mod.rs           #   Engine trait (server/command kinds) + EngineRegistry
+│       │   ├── foreign.rs       #   externally registered engines (engines.json + templates)
 │       │   ├── jvm.rs           #   decx-server.jar spawn logic
 │       │   ├── native.rs        #   decx-native-server spawn logic
-│       │   └── launcher.rs      #   open flow, reuse decisions, health wait
+│       │   └── launcher.rs      #   open flow, reuse decisions, health/exit wait
 │       ├── client.rs            # DecxClient (all 26 endpoints)
 │       ├── net.rs               # std-only HTTP/1.1 client + curl downloads
 │       └── spawn.rs             # detached spawn, pid liveness, tree kill
@@ -152,15 +162,41 @@ the same unified-surface idea as opencli's `external register`.
 
 ### Engine adapters
 
-`Engine` implementations own binary discovery and spawn-assembly for an
-analysis backend. `jvm` mirrors the TypeScript launcher exactly (heap =
-2/3 of machine memory, jadx passthrough normalization: strip `--deobf`,
-inject `--show-bad-code --no-imports -Pdex-input.verify-checksum=no`,
-default `--rename-flags case,valid`, strip the `printable` token, positional
-`.jadx.kts` scripts). `native` rejects `--script` and ignores jadx flags.
-Servers spawn detached (Unix: own process group; Windows:
-`DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP`) with stdout/stderr appended to
-`DECX_HOME/logs/<name>.log`, and are killed with verified process-tree death.
+`Engine` implementations own binary discovery and launch assembly for an
+analysis backend. Two kinds exist:
+
+- **Server engines** run a long-lived HTTP server speaking the DECX contract.
+  `jvm` mirrors the TypeScript launcher exactly (heap = 2/3 of machine
+  memory, jadx passthrough normalization: strip `--deobf`, inject
+  `--show-bad-code --no-imports -Pdex-input.verify-checksum=no`, default
+  `--rename-flags case,valid`, strip the `printable` token, positional
+  `.jadx.kts` scripts). `native` rejects `--script` and ignores jadx flags.
+  Servers spawn detached (Unix: own process group; Windows:
+  `DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP`) with stdout/stderr appended
+  to `DECX_HOME/logs/<name>.log`, and are killed with verified process-tree
+  death.
+- **Command engines** are one-shot CLI decompilers (kuna-style). `project
+  open` runs the registered launch template as a background job with logs and
+  a stderr heartbeat, records the exit code through the project state machine
+  (`starting` → `healthy`/failed), and keeps the record on timeout.
+  `decx code` / `decx android app` route every endpoint through the
+  `AnalysisClient`: HTTP for server projects, the engine's registered
+  command template otherwise; endpoints without a template fail with
+  `UNSUPPORTED_BY_ENGINE` naming what is configured.
+
+External engines register declaratively (`DECX_HOME/engines.json`) — no
+recompilation. Templates are argv arrays spawned directly (no shell, no
+quoting); exact-match tokens may be `{target}` (absolute target path),
+`{port}` (server engines), and `{key}` (query templates: the function/class
+key):
+
+```text
+decx engine register kuna -- kuna decompile-project {target}
+decx engine query kuna get_method_source -- kuna decompile {target} {key}
+decx engine query kuna get_class_source -- kuna decompile-project {target}
+decx project open ./a.out --engine kuna
+decx code method-source main
+```
 
 Binary discovery:
 
@@ -168,6 +204,7 @@ Binary discovery:
 |---|---|
 | `jvm` | `DECX_SERVER_HOME` (file or dir) → `<DECX_HOME>/bin/decx-server.jar` |
 | `native` | `DECX_NATIVE_SERVER` (file or dir) → `<DECX_HOME>/bin/decx-native-server[.exe]` → dev checkout `decx-native/target/release/` near the working directory |
+| foreign | first template token resolved like a shell: paths pass through, bare names via PATH (`dir/<name>[.exe]`) |
 
 ## Parity with the TypeScript CLI
 
