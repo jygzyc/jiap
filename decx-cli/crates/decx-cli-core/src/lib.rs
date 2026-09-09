@@ -27,7 +27,7 @@ pub mod net;
 pub mod output;
 pub mod params;
 pub mod ports;
-pub mod project;
+pub mod session;
 pub mod spawn;
 pub mod tools;
 

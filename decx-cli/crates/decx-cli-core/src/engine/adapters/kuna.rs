@@ -16,7 +16,7 @@
 //!    job during `project open`; its exit code drives the project state)
 //! 4. endpoint handlers — `query` (DECX endpoint → engine invocation)
 //!
-//! plus one line in `adapters/mod.rs::builtin`. Project supervision,
+//! plus one line in `adapters/mod.rs::builtin`. Session supervision,
 //! monitoring, `project check`, and the `decx code` routing pick it up
 //! automatically.
 
@@ -26,7 +26,7 @@ use std::process::Command;
 use serde_json::Value;
 
 use crate::error::{DecxError, DecxResult};
-use crate::project::Project;
+use crate::session::Session;
 
 use crate::engine::{execute_query, unsupported_endpoint, Engine, EngineKind, TargetSpec};
 
@@ -86,7 +86,7 @@ impl Engine for Kuna {
 
     /// The unified query handlers: DECX endpoint → kuna invocation. stdout is
     /// wrapped in the DECX envelope by [`execute_query`].
-    fn query(&self, project: &Project, endpoint: &str, key: Option<&str>) -> DecxResult<Value> {
+    fn query(&self, project: &Session, endpoint: &str, key: Option<&str>) -> DecxResult<Value> {
         let mut cmd = match endpoint {
             "get_method_source" => {
                 let mut cmd = Command::new(self.resolve_binary(Path::new(""))?);
@@ -117,8 +117,8 @@ mod tests {
         }
     }
 
-    fn project() -> Project {
-        Project {
+    fn project() -> Session {
+        Session {
             name: "kb".into(),
             hash: "h".into(),
             file: PathBuf::from("/tmp/a.out"),
@@ -128,6 +128,7 @@ mod tests {
             port: 0,
             scripts: vec![],
             log_path: None,
+            origin: None,
             created_at_ms: 0,
             observed: Default::default(),
         }

@@ -1,9 +1,10 @@
-//! `project` tool — the project manager's CLI surface (legacy alias: `process`).
+//! `session` tool — the session layer.s CLI surface.
 //!
 //! Commands: open / close / list / status / check / watch / events. `watch`
 //! and `events` expose the background monitoring: `watch` attaches to the
-//! live event stream of one or all projects, `events` replays recorded state
-//! transitions from the project manager's event log.
+//! live event stream of one or all sessions, `events` replays recorded state
+//! transitions from the session manager.s event log. `project` and
+//! `process` remain as hidden aliases.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -11,19 +12,20 @@ use std::time::Duration;
 use clap::{Arg, ArgAction, ArgMatches, Command};
 use serde_json::{json, Value};
 
-use crate::engine::launcher::{check_server, engine_status, open_analysis_target, OpenRequest};
+use crate::engine::launcher::check_server;
+use crate::session::lifecycle::{open_session, OpenRequest};
 use crate::error::{DecxError, DecxResult};
-use crate::project::ProjectState;
+use crate::session::SessionState;
 
 use super::{matches_flag, matches_many, matches_u64, target_args, Tool, ToolContext};
 
-pub struct ProjectTool;
+pub struct SessionTool;
 
 fn open_command() -> Command {
     Command::new("open")
-        .about("Start a DECX server project for an APK, DEX, JAR, AAR, or framework jar")
+        .about("Start an analysis session for an APK, DEX, JAR, AAR, or framework jar")
         .long_about(
-            "Start a DECX server for a target file and record a reusable project. \
+            "Start an engine for a target file and record a reusable session. \
              Unknown options after <FILE> are forwarded to jadx-cli (jvm engine), \
              including `-P<key>=<value>` project properties. Known decx options must \
              come before <FILE>.",
@@ -39,7 +41,7 @@ fn open_command() -> Command {
             Arg::new("name")
                 .long("name")
                 .short('n')
-                .help("Project name (default: input filename without extension)"),
+                .help("Session name (default: input filename without extension)"),
         )
         .arg(
             Arg::new("script")
@@ -52,7 +54,7 @@ fn open_command() -> Command {
             Arg::new("force")
                 .long("force")
                 .action(ArgAction::SetTrue)
-                .help("Restart even when a matching project exists; alive servers for the same name or file are stopped first"),
+                .help("Restart even when a matching session exists; alive servers for the same name or file are stopped first"),
         )
         .arg(
             Arg::new("timeout")
@@ -69,13 +71,13 @@ fn open_command() -> Command {
         )
 }
 
-fn project_command(name: &'static str, hidden: bool) -> Command {
+fn session_command(name: &'static str, hidden: bool) -> Command {
     let cmd = Command::new(name)
-        .about("Manage analysis projects: start, inspect, monitor, and stop DECX server sessions")
+        .about("Manage analysis sessions: open, inspect, monitor, and stop engine runs")
         .subcommands([
             open_command(),
             Command::new("close")
-                .about("Stop one or more recorded DECX server projects")
+                .about("Stop one or more recorded sessions")
                 .args(target_args())
                 .arg(Arg::new("name").num_args(0..=1).value_name("NAME"))
                 .arg(
@@ -83,34 +85,34 @@ fn project_command(name: &'static str, hidden: bool) -> Command {
                         .long("all")
                         .short('a')
                         .action(ArgAction::SetTrue)
-                        .help("Stop all recorded running projects"),
+                        .help("Stop all running sessions"),
                 ),
             Command::new("list")
-                .about("List recorded DECX projects and their monitored state")
+                .about("List recorded sessions and their monitored state")
                 .arg(
                     Arg::new("probe")
                         .long("probe")
                         .action(ArgAction::SetTrue)
-                        .help("Deep health-check every project (default: fast PID liveness + last observed state)"),
+                        .help("Deep health-check every session (default: fast liveness + last observed state)"),
                 ),
             Command::new("status")
-                .about("Check health for one project or server port")
+                .about("Check health for one session or server port")
                 .args(target_args())
                 .arg(Arg::new("name").num_args(0..=1).value_name("NAME")),
             Command::new("check")
-                .about("Check installed server binaries, port availability, and server health")
+                .about("Check engine binaries, port availability, and server health")
                 .args(target_args()),
             Command::new("watch")
-                .about("Stream project state transitions until interrupted")
+                .about("Stream session state transitions until interrupted")
                 .arg(
                     Arg::new("name")
                         .num_args(0..=1)
                         .value_name("NAME")
-                        .help("Project to watch (default: all alive projects)"),
+                        .help("Session to watch (default: all alive sessions)"),
                 )
                 .arg(Arg::new("interval").long("interval").help("Monitor poll interval in seconds (default 5)")),
             Command::new("events")
-                .about("Show recent recorded state transitions for a project")
+                .about("Show recent recorded state transitions for a session")
                 .arg(Arg::new("name").num_args(0..=1).value_name("NAME"))
                 .arg(Arg::new("limit").long("limit").help("Maximum number of events (default 20)")),
         ]);
@@ -121,7 +123,7 @@ fn project_command(name: &'static str, hidden: bool) -> Command {
     }
 }
 
-impl ProjectTool {
+impl SessionTool {
     fn run_open(&self, ctx: &ToolContext, m: &ArgMatches) -> DecxResult<Value> {
         let req = OpenRequest {
             file: m.get_one::<String>("file").cloned().unwrap_or_default(),
@@ -132,11 +134,12 @@ impl ProjectTool {
             scripts: matches_many(m, "script"),
             passthrough: matches_many(m, "passthrough"),
             timeout_secs: matches_u64(m, "timeout").unwrap_or(300),
+            origin: "decx session open".into(),
         };
-        open_analysis_target(&ctx.manager, &ctx.engines, &req, |msg| ctx.notice(msg))
+        open_session(&ctx.manager, &ctx.engines, &req, |msg| ctx.notice(msg))
     }
 
-    fn resolve_close_target(ctx: &ToolContext, m: &ArgMatches) -> DecxResult<Vec<crate::project::Project>> {
+    fn resolve_close_target(ctx: &ToolContext, m: &ArgMatches) -> DecxResult<Vec<crate::session::Session>> {
         ctx.manager.cleanup_dead();
         let all = matches_flag(m, "all");
         let name = m.get_one::<String>("name").map(String::as_str).filter(|s| !s.is_empty());
@@ -144,12 +147,12 @@ impl ProjectTool {
 
         if all {
             if name.is_some() || port.is_some() {
-                return Err(DecxError::usage("Cannot combine --all with a project name or --port"));
+                return Err(DecxError::usage("Cannot combine --all with a session name or --port"));
             }
             return Ok(ctx.manager.list_alive());
         }
         if name.is_some() && port.is_some() {
-            return Err(DecxError::usage("Cannot specify both a project name and --port"));
+            return Err(DecxError::usage("Cannot specify both a session name and --port"));
         }
         if let Some(port) = port {
             let port = crate::ports::parse_server_port(port)?;
@@ -159,20 +162,20 @@ impl ProjectTool {
                 .into_iter()
                 .find(|p| p.port == port)
                 .map(|p| vec![p])
-                .ok_or_else(|| DecxError::not_found("SESSION_NOT_FOUND", format!("Project not found on port: {port}")));
+                .ok_or_else(|| DecxError::not_found("SESSION_NOT_FOUND", format!("Session not found on port: {port}")));
         }
         if let Some(name) = name {
             return ctx
                 .manager
                 .get(name)
                 .map(|p| vec![p])
-                .ok_or_else(|| DecxError::not_found("SESSION_NOT_FOUND", format!("Project not found: {name}")));
+                .ok_or_else(|| DecxError::not_found("SESSION_NOT_FOUND", format!("Session not found: {name}")));
         }
         let alive = ctx.manager.list_alive();
         match alive.len() {
             1 => Ok(alive),
-            0 => Err(DecxError::not_found("SESSION_NOT_FOUND", "No running projects")),
-            _ => Err(DecxError::usage("Multiple running projects: specify a name, --port, or use --all")),
+            0 => Err(DecxError::not_found("SESSION_NOT_FOUND", "No running sessions")),
+            _ => Err(DecxError::usage("Multiple running sessions: specify a name, --port, or use --all")),
         }
     }
 
@@ -201,7 +204,7 @@ impl ProjectTool {
         } else {
             let name = failed.join(", ");
             Err(DecxError::process(format!(
-                "Failed to stop project(s): {name}; the processes are still running. Kill them manually, then retry."
+                "Failed to stop session(s): {name}; the processes are still running. Kill them manually, then retry."
             ))
             .with_details(json!({ "cleaned": cleaned, "killed": killed, "dead": dead, "failed": failed })))
         }
@@ -212,11 +215,11 @@ impl ProjectTool {
         if matches_flag(m, "probe") {
             ctx.manager.refresh_all();
         }
-        let projects: Vec<Value> = ctx.manager.list().iter().map(crate::project::Project::to_summary).collect();
+        let sessions: Vec<Value> = ctx.manager.list().iter().map(crate::session::Session::to_summary).collect();
         Ok(json!({
             "cleaned": cleaned,
-            "projects": projects,
-            "monitored": ctx.manager.monitored_projects(),
+            "sessions": sessions,
+            "monitored": ctx.manager.monitored_sessions(),
         }))
     }
 
@@ -229,11 +232,11 @@ impl ProjectTool {
             let project = ctx
                 .manager
                 .get(&name)
-                .ok_or_else(|| DecxError::not_found("SESSION_NOT_FOUND", format!("Project not found: {name}")))?;
+                .ok_or_else(|| DecxError::not_found("SESSION_NOT_FOUND", format!("Session not found: {name}")))?;
             let observed = &project.observed;
             return Ok(json!({
-                "ok": observed.state == ProjectState::Healthy,
-                "project": project.name,
+                "ok": observed.state == SessionState::Healthy,
+                "session": project.name,
                 "engine": project.engine,
                 "kind": "command",
                 "state": observed.state.as_str(),
@@ -243,8 +246,8 @@ impl ProjectTool {
         }
         let client = crate::client::DecxClient::with_options(port, 10, None);
         match client.health_check() {
-            Ok(health) => Ok(json!({ "ok": true, "port": port, "project": session, "health": health })),
-            Err(err) => Err(err.with_details(json!({ "port": port, "project": session }))),
+            Ok(health) => Ok(json!({ "ok": true, "port": port, "session": session, "health": health })),
+            Err(err) => Err(err.with_details(json!({ "port": port, "session": session }))),
         }
     }
 
@@ -256,15 +259,15 @@ impl ProjectTool {
         let port_info = if port_available {
             format!("Port {port} is available")
         } else if let Some(name) = &session {
-            format!("Port {port} is in use by project '{name}'")
+            format!("Port {port} is in use by session '{name}'")
         } else {
             format!("Port {port} is already in use")
         };
         let config = crate::config::Config::load(&ctx.home);
         Ok(json!({
-            "project": session.clone().map(|n| json!({ "name": n, "port": port })),
+            "session": session.clone().map(|n| json!({ "name": n, "port": port })),
             "server": { "ok": server_ok, "info": server_info },
-            "binaries": engine_status(&ctx.home, &ctx.engines),
+            "engines": ctx.engines.status(&ctx.home),
             "default_port": config.server.default_port,
             "port": { "ok": port_available, "info": port_info },
         }))
@@ -279,12 +282,12 @@ impl ProjectTool {
             Some(name) => vec![ctx
                 .manager
                 .get(name)
-                .ok_or_else(|| DecxError::not_found("SESSION_NOT_FOUND", format!("Project not found: {name}")))?
+                .ok_or_else(|| DecxError::not_found("SESSION_NOT_FOUND", format!("Session not found: {name}")))?
                 .name],
             None => ctx.manager.list_alive().into_iter().map(|p| p.name).collect(),
         };
         if targets.is_empty() {
-            return Err(DecxError::not_found("SESSION_NOT_FOUND", "No running projects to watch"));
+            return Err(DecxError::not_found("SESSION_NOT_FOUND", "No running sessions to watch"));
         }
 
         let mgr = Arc::clone(&ctx.manager);
@@ -315,7 +318,7 @@ impl ProjectTool {
                         println!(
                             "[{}] {} {} -> {}{}",
                             event.at_ms,
-                            event.project,
+                            event.session,
                             event.from.as_str(),
                             event.to.as_str(),
                             event.detail.as_deref().map(|d| format!(" ({d})")).unwrap_or_default()
@@ -326,7 +329,7 @@ impl ProjectTool {
                     // Quiet keepalive: end the watch once every watched project stopped.
                     for target in &targets {
                         if let Some(project) = mgr.get(target) {
-                            if project.observed.state == ProjectState::Stopped {
+                            if project.observed.state == SessionState::Stopped {
                                 return Ok(json!({ "watching": targets, "ended": target }));
                             }
                         }
@@ -351,11 +354,11 @@ impl ProjectTool {
                 .ok_or_else(|| DecxError::usage("Specify a project name (no single running project to default to)"))?,
         };
         let events = ctx.manager.recent_events(&name, limit);
-        Ok(json!({ "project": name, "events": events }))
+        Ok(json!({ "session": name, "events": events }))
     }
 }
 
-impl Tool for ProjectTool {
+impl Tool for SessionTool {
     fn id(&self) -> &'static str {
         "project"
     }
@@ -363,7 +366,11 @@ impl Tool for ProjectTool {
     fn commands(&self) -> Vec<Command> {
         // `project` is the primary name; `process` stays as a hidden alias so
         // existing scripts keep working.
-        vec![project_command("project", false), project_command("process", true)]
+        vec![
+            session_command("session", false),
+            session_command("project", true),
+            session_command("process", true),
+        ]
     }
 
     fn run(&self, _ctx: &ToolContext, matches: &ArgMatches) -> DecxResult<Value> {

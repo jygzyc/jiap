@@ -13,7 +13,7 @@ use clap::error::ErrorKind as ClapErrorKind;
 use decx_cli_core::error::{DecxError, EX_OK, EX_USAGE};
 use decx_cli_core::output::{Formatter, OutputFormat};
 use decx_cli_core::tools::{ToolContext, ToolRegistry};
-use decx_cli_core::{config, engine, project};
+use decx_cli_core::{config, engine, session};
 
 const ROOT_ABOUT: &str =
     "DECX - Decompiler + X, CLI for deeper analysis of decompiled Java code, powered by JADX and custom extensions";
@@ -48,7 +48,7 @@ fn run() -> i32 {
         },
         None => OutputFormat::default(),
     };
-    let manager = project::ProjectManager::open(&home);
+    let manager = session::SessionManager::open(&home);
     let ctx = ToolContext {
         home: home.clone(),
         format,
@@ -133,9 +133,10 @@ fn first_command_index(argv: &[String]) -> Option<usize> {
 }
 
 fn after_help_text() -> &'static str {
-    "Project manager:\n  decx project open <file> [--engine native]   start + supervise a server\n  \
-     decx project watch [name]                     stream background state transitions\n  \
-     decx project events [name]                    replay recorded transitions\n  \
-     decx project list --probe                     deep health-check every project\n\n\
-     Extension:\n  decx tools register <name> -- <command...>    plug any CLI into the decx surface\n"
+    "Session manager:\n  decx session open <file> [--engine ...]   start a session, supervise the engine run\n  \
+     decx session watch [name]                   stream background state transitions\n  \
+     decx session events [name]                  replay recorded transitions\n  \
+     decx session list --probe                   deep health-check every session\n\n\
+     Extension:\n  decx tools register <name> -- <command...>  plug any CLI into the decx surface\n  \
+     engine adapters:                            one file + one line in engine/adapters\n"
 }

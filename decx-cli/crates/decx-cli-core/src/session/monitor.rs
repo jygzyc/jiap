@@ -1,14 +1,14 @@
-//! Background monitors: one thread per supervised project, driving the
+//! Background monitors: one thread per supervised session, driving the
 //! engine-kind-aware probe on a fixed interval. State transitions are
-//! persisted and delivered to subscribers by the project manager's single
+//! persisted and delivered to subscribers by the session manager's single
 //! event path (`set_observed` → `record_event`), so monitors never
 //! double-report.
 
 use std::sync::{Arc, Weak};
 use std::time::Duration;
 
-use super::manager::ProjectManager;
-use super::model::ProjectState;
+use super::manager::SessionManager;
+use super::model::SessionState;
 
 /// Default monitor polling interval.
 pub const DEFAULT_MONITOR_INTERVAL: Duration = Duration::from_secs(5);
@@ -37,13 +37,13 @@ impl Drop for MonitorHandle {
     }
 }
 
-/// Spawn a monitor thread for one project. Runs until stopped, the record
-/// disappears, or the project reaches a terminal state.
-pub fn spawn_monitor(manager: Weak<ProjectManager>, project: String, interval: Duration) -> MonitorHandle {
+/// Spawn a monitor thread for one session. Runs until stopped, the record
+/// disappears, or the session reaches a terminal state.
+pub fn spawn_monitor(manager: Weak<SessionManager>, session_name: String, interval: Duration) -> MonitorHandle {
     let stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let stop_flag = Arc::clone(&stop);
     let thread = std::thread::Builder::new()
-        .name(format!("decx-monitor-{project}"))
+        .name(format!("decx-monitor-{session_name}"))
         .spawn(move || {
             loop {
                 if stop_flag.load(std::sync::atomic::Ordering::Relaxed) {
@@ -52,15 +52,15 @@ pub fn spawn_monitor(manager: Weak<ProjectManager>, project: String, interval: D
                 let Some(manager) = manager.upgrade() else {
                     return; // manager dropped — CLI is exiting
                 };
-                let Some(record) = manager.store().load(&project) else {
-                    return; // project removed — monitoring ends
+                let Some(record) = manager.store().load(&session_name) else {
+                    return; // session removed — monitoring ends
                 };
                 let updated = manager.probe(&record);
                 // Server projects end at Stopped; command projects end once
                 // their analysis finished (probe keeps the terminal state).
                 let terminal = match updated.is_command_kind() {
                     true => updated.observed.ever_healthy,
-                    false => updated.observed.state == ProjectState::Stopped,
+                    false => updated.observed.state == SessionState::Stopped,
                 };
                 if terminal {
                     return;

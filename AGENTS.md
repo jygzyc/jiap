@@ -30,7 +30,7 @@ AI Assistant / CLI
 | `decx/decx-core/` | Kotlin, JVM 17 | Shared API, HTTP transport, services, models, utilities |
 | `decx/decx-plugin/` | Kotlin, Shadow JAR | JADX GUI plugin, lifecycle, UI, in-process MCP server management |
 | `decx/decx-server/` | Kotlin, Shadow JAR | Standalone headless server with `DecxServerApp` main class |
-| `decx-cli/` | Rust (workspace, no external C deps) | User CLI: project manager with background monitoring, analysis commands, pluggable tool registry |
+| `decx-cli/` | Rust (workspace, no external C deps) | User CLI: three layers — tool surface (capabilities), session manager (background monitoring), engine adapters (tool server backends) |
 | `skills/decx-cli/` | Skill `decx-cli` | DECX CLI usage, general analysis, and workflow routing |
 | `skills/decx-vulnhunt/` | Skill `decx-vulnhunt` | Android vulnerability hunting workflow (App + Framework tracks) |
 | `skills/decx-report/` | Skill `decx-report` | Report generation from finalized DECX analysis graph findings |
@@ -71,44 +71,48 @@ The JADX plugin does more than just expose the server:
 `decx-cli/` is a Rust workspace (crate `decx-cli-core` + binary `decx`)
 redesigned around three pieces, following the opencli adapter/registry model:
 
-- An **independent project manager** (`decx-cli-core::project`): every
-  analysis target is a project record under `DECX_HOME/projects/<name>.json`
-  (file, sha256, engine, pid, port, scripts, log path, observed state),
-  supervised by background monitor threads that poll PID liveness + `/health`
-  and drive a state machine (`starting | healthy | unreachable | stopped`).
-  State transitions append to `<name>.events.jsonl` and surface through
-  `decx project list --probe`, `decx project status`, `decx project events`,
-  and the live `decx project watch` stream.
-- A **unified tool integration surface** (`decx-cli-core::tools`): every
-  command group implements the `Tool` trait (`id`, `commands`, `run`) and
-  registers in the `ToolRegistry`, which assembles the clap tree and routes
-  dispatch; external CLI tools register through `decx tools register <name>
-  -- <command...>` (stored in `DECX_HOME/tools.json`) and become reachable as
-  top-level `decx <name> [args...]` passthrough with inherited stdio and
-  propagated exit codes.
-- **Pluggable analysis engines** (`decx-cli-core::engine`), opencli adapter
-  model: one self-contained adapter file per engine under
-  `engine/adapters/` plus one line in the `builtin()` manifest (the manifest
-  lives in `engine/adapters/mod.rs`; `adapters/kuna.rs` is the documented
-  copy-me template). The unified protocol is the `Engine` trait: identity,
-  `kind()` (Server = long-lived DECX-contract HTTP; Command = one-shot CLI
-  decompiler), `capabilities()`, `resolve_binary`, `build_command` (server
-  spawn / analyze job), and `query(project, endpoint, key)` — the
-  `func(args)` of engines, with stdout wrapped in the DECX envelope by
-  `execute_query`. `project open` runs command engines as monitored
-  background analyze jobs (exit code → state machine);
-  `decx code`/`decx android app` route endpoints through `AnalysisClient`:
-  HTTP for server projects, the adapter query handler otherwise
-  (unimplemented endpoints fail with `UNSUPPORTED_BY_ENGINE` listing the
-  adapter capabilities). `decx engine list|show` introspects adapters.
-  Select with `--engine` or `DECX_ENGINE` (default `jvm`).
+- **Tool layer** (`decx-cli-core::tools`) — capabilities and interfaces:
+  every command group is an internal, self-implemented `Tool` (`id`,
+  `commands`, `run`) registered in the `ToolRegistry`, which assembles the
+  clap tree and routes dispatch; external CLI tools register through
+  `decx tools register <name> -- <command...>` (stored in
+  `DECX_HOME/tools.json`) and become reachable as top-level
+  `decx <name> [args...]` passthrough with inherited stdio and propagated
+  exit codes.
+- **Session layer** (`decx-cli-core::session`) — manages the sessions
+  produced by tool invocations: every engine run opened through any tool is
+  one session record under `DECX_HOME/sessions/<name>.json` (file, sha256,
+  engine + kind, pid, port, scripts, log path, invoking tool `origin`,
+  observed state), supervised by background monitor threads that probe
+  PID/health and drive a state machine (`starting | healthy | unreachable |
+  stopped`). Transitions append to `<name>.events.jsonl` and surface through
+  `decx session list --probe`, `decx session status`, `decx session events`,
+  and the live `decx session watch` stream. The open flow (target URL
+  resolution, reuse policy, `--force` verified replacement) lives in
+  `session::lifecycle`.
+- **Engine layer** (`decx-cli-core::engine`) — governs the plugged-in tool
+  server backends, opencli adapter model: one self-contained adapter file
+  per engine under `engine/adapters/` plus one line in the `builtin()`
+  manifest (the manifest lives in `engine/adapters/mod.rs`;
+  `adapters/kuna.rs` is the documented copy-me template). The unified
+  protocol is the `Engine` trait: identity, `kind()` (Server = long-lived
+  DECX-contract HTTP; Command = one-shot CLI decompiler), `capabilities()`,
+  `resolve_binary`, `build_command` (server spawn / analyze job), and
+  `query(session, endpoint, key)` — the `func(args)` of engines, with
+  stdout wrapped in the DECX envelope by `execute_query`. `session open`
+  runs command engines as monitored background analyze jobs (exit code →
+  state machine); `decx code`/`decx android app` route endpoints through
+  `AnalysisClient`: HTTP for server sessions, the adapter query handler
+  otherwise (unimplemented endpoints fail with `UNSUPPORTED_BY_ENGINE`
+  listing the adapter capabilities). `decx engine list|show` introspects
+  adapters. Select with `--engine` or `DECX_ENGINE` (default `jvm`).
 
-Current top-level commands: `project` (alias `process`), `code`, `android`,
+Current top-level commands: `session` (hidden aliases `project`/`process`), `code`, `android`,
 `engine`, `tools`, `self`.
 
 Notable details:
 
-- `decx project open <file>` launches `java -jar decx-server.jar ...` (jvm)
+- `decx session open <file>` launches `java -jar decx-server.jar ...` (jvm)
   or `decx-native-server <target> --port N` (native); the JVM gets `-Xmx` =
   2/3 of machine memory rounded down
 - `open` accepts `--script <s.jadx.kts>` (repeatable, JVM engine only —
@@ -117,12 +121,12 @@ Notable details:
 - Session reuse is keyed on the target file hash **plus** the exact script
   set; opening the same file with a different script set errors until
   `--force`
-- `--force` replaces alive projects matching the same name **or** the same
+- `--force` replaces alive sessions matching the same name **or** the same
   file hash: their process trees are killed with verified death before the
   new server starts. A failed kill aborts the spawn (record kept, pid
-  reported) instead of leaking orphan processes; `project close` keeps the
+  reported) instead of leaking orphan processes; `session close` keeps the
   record on failed kills too
-- While waiting for the server to become healthy, `project open` prints a
+- While waiting for the server to become healthy, `session open` prints a
   heartbeat to stderr roughly every 15s (elapsed + last server log line);
   stdout stays JSON-only. `--timeout <seconds>` bounds the wait (default
   300s); on timeout with the process still alive the record is **kept** so
@@ -137,10 +141,10 @@ Notable details:
   `30000-40000`; `-P<key>=<value>` tokens after `<file>` forward to jadx-cli
 - Output contract: JSON on stdout (`--format json|table`), notices/errors on
   stderr, and sysexits-style exit codes (`0` ok, `64` usage, `66` missing
-  input/project, `69` server unavailable, `70` internal, `75` timeout);
+  input/session, `69` server unavailable, `70` internal, `75` timeout);
   `DECX_DEBUG=1` enables HTTP/debug logging on stderr
 - CLI data defaults to `~/.decx`; set `DECX_HOME` to redirect config,
-  projects, logs, tmp downloads, tools.json, and installed server binaries
+  sessions, logs, tmp downloads, tools.json, and installed server binaries
 - `decx self install` installs or updates `decx-server.jar`; the
   skip-if-current check reads the version baked into the installed jar
   (`version.properties`) and prefers it over the config record. Release
@@ -352,10 +356,10 @@ Port coordination matters:
 | `decx/decx-plugin/src/main/kotlin/jadx/plugins/decx/ui/DecxUIManager.kt` | Plugin UI and restart actions |
 | `decx/decx-server/src/main/kotlin/jadx/plugins/decx/server/DecxServerApp.kt` | Headless entry point |
 | `decx-cli/crates/decx-cli-core/src/tools/mod.rs` | Tool trait, ToolRegistry, ToolContext (CLI assembly + dispatch) |
-| `decx-cli/crates/decx-cli-core/src/tools/project_tool.rs` | Project lifecycle commands (open/close/list/status/check/watch/events) |
-| `decx-cli/crates/decx-cli-core/src/project/manager.rs` | ProjectManager: records, probes, monitors, events |
-| `decx-cli/crates/decx-cli-core/src/project/monitor.rs` | Background monitor threads (state machine + event stream) |
-| `decx-cli/crates/decx-cli-core/src/engine/launcher.rs` | open flow: reuse decisions, detached spawn, health/exit wait |
+| `decx-cli/crates/decx-cli-core/src/tools/session_tool.rs` | Session lifecycle commands (open/close/list/status/check/watch/events) |
+| `decx-cli/crates/decx-cli-core/src/session/manager.rs` | SessionManager: records, probes, monitors, events |
+| `decx-cli/crates/decx-cli-core/src/session/monitor.rs` | Background monitor threads (state machine + event stream) |
+| `decx-cli/crates/decx-cli-core/src/session/lifecycle.rs` | Session open flow: target resolution, reuse policy, orchestration |
 | `decx-cli/crates/decx-cli-core/src/engine/adapters/mod.rs` | Engine adapter manifest (`builtin()`: one line per engine) |
 | `decx-cli/crates/decx-cli-core/src/engine/adapters/kuna.rs` | Command-engine adapter template (copy to add a new engine) |
 | `decx-cli/crates/decx-cli-core/src/tools/engine_tool.rs` | `engine list/show` adapter introspection |

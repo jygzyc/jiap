@@ -116,7 +116,7 @@ fn command() -> Command {
                         .args([
                             Arg::new("engine").long("engine").help("Analysis engine backend (jvm | native)"),
                             Arg::new("port").long("port").help("DECX HTTP server port to bind"),
-                            Arg::new("name").long("name").short('n').help("Project name"),
+                            Arg::new("name").long("name").short('n').help("Session name"),
                             Arg::new("force").long("force").action(ArgAction::SetTrue).help("Restart matching projects first"),
                             Arg::new("timeout").long("timeout").help("Seconds to wait for server health (default 300)"),
                             Arg::new("serial").long("serial").num_args(1).help("adb device serial (for OEM auto-detection)"),
@@ -252,7 +252,7 @@ impl AndroidTool {
                         path.display().to_string()
                     }
                 };
-                let req = crate::engine::launcher::OpenRequest {
+                let req = crate::session::lifecycle::OpenRequest {
                     file: jar,
                     engine_id: m.get_one::<String>("engine").cloned(),
                     port: m.get_one::<String>("port").cloned(),
@@ -261,8 +261,9 @@ impl AndroidTool {
                     scripts: vec![],
                     passthrough: matches_many(m, "passthrough"),
                     timeout_secs: matches_u64(m, "timeout").unwrap_or(300),
+                    origin: "decx android framework open".into(),
                 };
-                crate::engine::launcher::open_analysis_target(&ctx.manager, &ctx.engines, &req, |msg| ctx.notice(msg))
+                crate::session::lifecycle::open_session(&ctx.manager, &ctx.engines, &req, |msg| ctx.notice(msg))
             }
             "collect" | "process" | "run" => Err(DecxError::not_ported(format!("android framework {name}"))),
             other => Err(DecxError::usage(format!("Unknown android framework subcommand '{other}'"))),

@@ -1,4 +1,4 @@
-//! Project data model: records, observed execution state, and the state
+//! Session data model: records, observed execution state, and the state
 //! machine that turns raw probes into monitored states.
 
 use std::path::PathBuf;
@@ -13,7 +13,7 @@ use crate::fsx;
 /// project manager's monitors.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
-pub enum ProjectState {
+pub enum SessionState {
     /// Process is alive but the health endpoint has never answered yet.
     #[default]
     Starting,
@@ -29,14 +29,14 @@ pub enum ProjectState {
     Unknown,
 }
 
-impl ProjectState {
+impl SessionState {
     pub fn as_str(&self) -> &'static str {
         match self {
-            ProjectState::Starting => "starting",
-            ProjectState::Healthy => "healthy",
-            ProjectState::Unreachable => "unreachable",
-            ProjectState::Stopped => "stopped",
-            ProjectState::Unknown => "unknown",
+            SessionState::Starting => "starting",
+            SessionState::Healthy => "healthy",
+            SessionState::Unreachable => "unreachable",
+            SessionState::Stopped => "stopped",
+            SessionState::Unknown => "unknown",
         }
     }
 }
@@ -45,7 +45,7 @@ impl ProjectState {
 /// invocations can surface monitored state without re-probing.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct ObservedState {
-    pub state: ProjectState,
+    pub state: SessionState,
     pub checked_at_ms: u64,
     #[serde(default)]
     pub latency_ms: Option<u64>,
@@ -60,7 +60,7 @@ pub struct ObservedState {
 /// One managed analysis project: a target file loaded by an analysis engine
 /// plus everything needed to reach or stop it.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Project {
+pub struct Session {
     pub name: String,
     /// sha256 of the target file — the identity used for session reuse.
     pub hash: String,
@@ -78,6 +78,10 @@ pub struct Project {
     #[serde(default)]
     pub log_path: Option<PathBuf>,
     pub created_at_ms: u64,
+    /// Which tool invocation created this session (`decx session open`,
+    /// `decx android framework open`, ...).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origin: Option<String>,
     #[serde(default)]
     pub observed: ObservedState,
 }
@@ -86,7 +90,7 @@ fn default_engine_kind() -> String {
     "server".to_string()
 }
 
-impl Project {
+impl Session {
     /// A command-engine project is usable while its analysis artifacts are
     /// ready, regardless of the (already exited) analyze pid.
     pub fn is_command_kind(&self) -> bool {
@@ -109,6 +113,9 @@ impl Project {
         if let Some(latency) = self.observed.latency_ms {
             obj["latency_ms"] = serde_json::json!(latency);
         }
+        if let Some(origin) = &self.origin {
+            obj["origin"] = serde_json::json!(origin);
+        }
         if let Some(detail) = &self.observed.detail {
             obj["detail"] = serde_json::json!(detail);
         }
@@ -121,11 +128,11 @@ impl Project {
 
 /// A recorded state transition emitted by monitors.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ProjectEvent {
-    pub project: String,
+pub struct SessionEvent {
+    pub session: String,
     pub at_ms: u64,
-    pub from: ProjectState,
-    pub to: ProjectState,
+    pub from: SessionState,
+    pub to: SessionState,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub detail: Option<String>,
 }
@@ -145,17 +152,17 @@ pub struct ProbeOutcome {
 /// - process alive, health answered with another status → `Unreachable`
 /// - process alive, health unreachable → `Starting` until first success,
 ///   `Unreachable` afterwards
-pub fn evaluate_state(ever_healthy: bool, probe: &ProbeOutcome) -> (ProjectState, Option<String>, Option<u64>) {
+pub fn evaluate_state(ever_healthy: bool, probe: &ProbeOutcome) -> (SessionState, Option<String>, Option<u64>) {
     if !probe.pid_alive {
-        return (ProjectState::Stopped, Some("process exited".to_string()), None);
+        return (SessionState::Stopped, Some("process exited".to_string()), None);
     }
     match &probe.health {
         Ok(value) => {
             let latency = Some(probe.latency_ms);
             match value.get("status").and_then(Value::as_str) {
-                Some("running") => (ProjectState::Healthy, None, latency),
+                Some("running") => (SessionState::Healthy, None, latency),
                 other => (
-                    ProjectState::Unreachable,
+                    SessionState::Unreachable,
                     Some(format!("health status: {}", other.unwrap_or("<missing>"))),
                     latency,
                 ),
@@ -164,13 +171,13 @@ pub fn evaluate_state(ever_healthy: bool, probe: &ProbeOutcome) -> (ProjectState
         Err(err) => {
             if ever_healthy {
                 (
-                    ProjectState::Unreachable,
+                    SessionState::Unreachable,
                     Some(format!("health check failed: {}", err.message)),
                     Some(probe.latency_ms),
                 )
             } else {
                 (
-                    ProjectState::Starting,
+                    SessionState::Starting,
                     Some(format!("waiting for server ({})", err.message)),
                     Some(probe.latency_ms),
                 )
@@ -204,7 +211,7 @@ mod tests {
             true,
             &probe(false, Err(DecxError::connection("refused"))),
         );
-        assert_eq!(state, ProjectState::Stopped);
+        assert_eq!(state, SessionState::Stopped);
     }
 
     #[test]
@@ -213,7 +220,7 @@ mod tests {
             false,
             &probe(true, Ok(json!({ "status": "running" }))),
         );
-        assert_eq!(state, ProjectState::Healthy);
+        assert_eq!(state, SessionState::Healthy);
         assert!(detail.is_none());
         assert_eq!(latency, Some(12));
     }
@@ -224,7 +231,7 @@ mod tests {
             false,
             &probe(true, Err(DecxError::connection("refused"))),
         );
-        assert_eq!(state, ProjectState::Starting);
+        assert_eq!(state, SessionState::Starting);
     }
 
     #[test]
@@ -233,7 +240,7 @@ mod tests {
             true,
             &probe(true, Err(DecxError::timeout("timed out"))),
         );
-        assert_eq!(state, ProjectState::Unreachable);
+        assert_eq!(state, SessionState::Unreachable);
         assert!(detail.unwrap().contains("timed out"));
     }
 
@@ -243,6 +250,6 @@ mod tests {
             true,
             &probe(true, Ok(json!({ "status": "loading" }))),
         );
-        assert_eq!(state, ProjectState::Unreachable);
+        assert_eq!(state, SessionState::Unreachable);
     }
 }

@@ -14,7 +14,7 @@ pub mod android_tool;
 pub mod code_tool;
 pub mod engine_tool;
 pub mod external;
-pub mod project_tool;
+pub mod session_tool;
 pub mod self_tool;
 pub mod tools_tool;
 
@@ -27,13 +27,13 @@ use serde_json::Value;
 use crate::engine::EngineRegistry;
 use crate::error::{DecxError, DecxResult};
 use crate::output::OutputFormat;
-use crate::project::ProjectManager;
+use crate::session::SessionManager;
 
 /// Shared execution context handed to every tool.
 pub struct ToolContext {
     pub home: PathBuf,
     pub format: OutputFormat,
-    pub manager: Arc<ProjectManager>,
+    pub manager: Arc<SessionManager>,
     pub engines: Arc<EngineRegistry>,
 }
 
@@ -100,7 +100,7 @@ impl ToolRegistry {
             index: Vec::new(),
             external: external::ExternalRegistry::new(home),
         };
-        reg.register(Arc::new(project_tool::ProjectTool));
+        reg.register(Arc::new(session_tool::SessionTool));
         reg.register(Arc::new(code_tool::CodeTool));
         reg.register(Arc::new(android_tool::AndroidTool));
         reg.register(Arc::new(engine_tool::EngineTool));
@@ -229,7 +229,7 @@ pub enum AnalysisClient {
     Http(crate::client::DecxClient),
     Command {
         engine: Arc<dyn crate::engine::Engine>,
-        project: crate::project::Project,
+        project: crate::session::Session,
     },
 }
 

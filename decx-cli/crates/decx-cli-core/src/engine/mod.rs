@@ -32,7 +32,7 @@ use std::time::Duration;
 use serde_json::{json, Value};
 
 use crate::error::{DecxError, DecxResult};
-use crate::project::Project;
+use crate::session::Session;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EngineKind {
@@ -98,7 +98,7 @@ pub trait Engine: Send + Sync {
     /// Answer one analysis endpoint for a command-engine project (stdout is
     /// expected to be the decompiled artifact). Server engines serve over
     /// HTTP and keep this default.
-    fn query(&self, _project: &Project, endpoint: &str, _key: Option<&str>) -> DecxResult<Value> {
+    fn query(&self, _project: &Session, endpoint: &str, _key: Option<&str>) -> DecxResult<Value> {
         Err(unsupported_endpoint(self.id(), self.capabilities(), endpoint))
     }
 
@@ -234,5 +234,24 @@ impl EngineRegistry {
 
     pub fn ids(&self) -> Vec<&str> {
         self.engines.iter().map(|e| e.id()).collect()
+    }
+
+    /// Discovery status for every adapter (for `session check` /
+    /// `self status`): binary path / kind / capabilities per engine id.
+    pub fn status(&self, home: &Path) -> Value {
+        let mut map = serde_json::Map::new();
+        for id in self.ids() {
+            let Some(engine) = self.get(id) else { continue };
+            let mut info = engine.status_info(home);
+            info["kind"] = json!(engine.kind().as_str());
+            if engine.kind() == EngineKind::Command {
+                info["capabilities"] = json!(engine.capabilities());
+            }
+            if !engine.description().is_empty() {
+                info["description"] = json!(engine.description());
+            }
+            map.insert(id.to_string(), info);
+        }
+        Value::Object(map)
     }
 }

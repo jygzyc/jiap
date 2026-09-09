@@ -83,7 +83,7 @@ impl Tool for SelfTool {
                         "path": crate::engine::adapters::jvm::find_decx_server_jar(&ctx.home)
                             .map(|p| p.display().to_string()),
                     },
-                    "engines": crate::engine::launcher::engine_status(&ctx.home, &ctx.engines),
+                    "engines": ctx.engines.status(&ctx.home),
                     "decx_home": ctx.home.display().to_string(),
                 }))
             }

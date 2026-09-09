@@ -1,5 +1,5 @@
-//! On-disk project persistence: one JSON file per project under
-//! `<home>/projects/`, plus an append-only `events.jsonl` per project.
+//! On-disk session persistence: one JSON file per session under
+//! `<home>/projects/`, plus an append-only `events.jsonl` per session.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -7,16 +7,16 @@ use std::path::{Path, PathBuf};
 use crate::error::{DecxError, DecxResult};
 use crate::fsx;
 
-use super::model::{Project, ProjectEvent};
+use super::model::{Session, SessionEvent};
 
-pub struct ProjectStore {
+pub struct SessionStore {
     dir: PathBuf,
 }
 
-impl ProjectStore {
+impl SessionStore {
     pub fn new(home: &Path) -> Self {
         Self {
-            dir: home.join("projects"),
+            dir: home.join("sessions"),
         }
     }
 
@@ -28,15 +28,15 @@ impl ProjectStore {
         self.dir.join(format!("{name}.events.jsonl"))
     }
 
-    pub fn save(&self, project: &Project) -> DecxResult<()> {
+    pub fn save(&self, session: &Session) -> DecxResult<()> {
         fsx::atomic_write_json(
-            &self.project_path(&project.name),
-            &serde_json::to_value(project)
-                .map_err(|e| DecxError::internal(format!("cannot serialize project: {e}")))?,
+            &self.project_path(&session.name),
+            &serde_json::to_value(session)
+                .map_err(|e| DecxError::internal(format!("cannot serialize session: {e}")))?,
         )
     }
 
-    pub fn load(&self, name: &str) -> Option<Project> {
+    pub fn load(&self, name: &str) -> Option<Session> {
         let bytes = fs::read(self.project_path(name)).ok()?;
         serde_json::from_slice(&bytes).ok()
     }
@@ -46,7 +46,7 @@ impl ProjectStore {
         let _ = fs::remove_file(self.events_path(name));
     }
 
-    pub fn list(&self) -> Vec<Project> {
+    pub fn list(&self) -> Vec<Session> {
         let mut out = Vec::new();
         let Ok(entries) = fs::read_dir(&self.dir) else {
             return out;
@@ -60,8 +60,8 @@ impl ProjectStore {
                 continue;
             }
             if let Ok(bytes) = fs::read(&path) {
-                if let Ok(project) = serde_json::from_slice::<Project>(&bytes) {
-                    out.push(project);
+                if let Ok(session) = serde_json::from_slice::<Session>(&bytes) {
+                    out.push(session);
                 }
             }
         }
@@ -72,23 +72,23 @@ impl ProjectStore {
     /// Persist observed state after a probe; loads fresh, mutates, saves to
     /// avoid clobbering concurrent edits.
     pub fn update_observed(&self, name: &str, observed: &super::model::ObservedState) {
-        let Some(mut project) = self.load(name) else {
+        let Some(mut session) = self.load(name) else {
             return;
         };
-        project.observed = observed.clone();
-        if let Err(e) = self.save(&project) {
+        session.observed = observed.clone();
+        if let Err(e) = self.save(&session) {
             if std::env::var("DECX_DEBUG").ok().as_deref() == Some("1") {
                 eprintln!("[DEBUG] failed to persist observed state for {name}: {e}");
             }
         }
     }
 
-    pub fn append_event(&self, event: &ProjectEvent) {
+    pub fn append_event(&self, event: &SessionEvent) {
         let _ = fs::create_dir_all(&self.dir);
         let Ok(mut f) = fs::OpenOptions::new()
             .create(true)
             .append(true)
-            .open(self.events_path(&event.project))
+            .open(self.events_path(&event.session))
         else {
             return;
         };
@@ -98,11 +98,11 @@ impl ProjectStore {
         }
     }
 
-    pub fn read_events(&self, name: &str, limit: usize) -> Vec<ProjectEvent> {
+    pub fn read_events(&self, name: &str, limit: usize) -> Vec<SessionEvent> {
         let Ok(content) = fs::read_to_string(self.events_path(name)) else {
             return Vec::new();
         };
-        let mut events: Vec<ProjectEvent> = content
+        let mut events: Vec<SessionEvent> = content
             .lines()
             .filter(|l| !l.trim().is_empty())
             .filter_map(|l| serde_json::from_str(l).ok())
@@ -117,10 +117,10 @@ impl ProjectStore {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::project::model::{ObservedState, ProjectState};
+    use crate::session::model::{ObservedState, SessionState};
 
-    fn sample(name: &str) -> Project {
-        Project {
+    fn sample(name: &str) -> Session {
+        Session {
             name: name.to_string(),
             hash: "deadbeef".into(),
             file: PathBuf::from("/tmp/demo.apk"),
@@ -130,6 +130,7 @@ mod tests {
             port: 30001,
             scripts: vec![],
             log_path: None,
+            origin: None,
             created_at_ms: 1_700_000_000_000,
             observed: ObservedState::default(),
         }
@@ -146,7 +147,7 @@ mod tests {
     #[test]
     fn save_load_remove_roundtrip() {
         let home = temp_home();
-        let store = ProjectStore::new(&home);
+        let store = SessionStore::new(&home);
         store.save(&sample("demo")).unwrap();
         let loaded = store.load("demo").unwrap();
         assert_eq!(loaded.hash, "deadbeef");
@@ -159,7 +160,7 @@ mod tests {
     #[test]
     fn list_skips_corrupt_and_event_files() {
         let home = temp_home();
-        let store = ProjectStore::new(&home);
+        let store = SessionStore::new(&home);
         store.save(&sample("a")).unwrap();
         store.save(&sample("b")).unwrap();
         fs::write(store.project_path("corrupt"), "{not json").unwrap();
@@ -172,13 +173,13 @@ mod tests {
     #[test]
     fn events_append_and_bounded_read() {
         let home = temp_home();
-        let store = ProjectStore::new(&home);
+        let store = SessionStore::new(&home);
         for i in 0..5 {
-            store.append_event(&ProjectEvent {
-                project: "demo".into(),
+            store.append_event(&SessionEvent {
+                session: "demo".into(),
                 at_ms: i,
-                from: ProjectState::Starting,
-                to: ProjectState::Healthy,
+                from: SessionState::Starting,
+                to: SessionState::Healthy,
                 detail: None,
             });
         }
@@ -191,12 +192,12 @@ mod tests {
     #[test]
     fn update_observed_persists() {
         let home = temp_home();
-        let store = ProjectStore::new(&home);
+        let store = SessionStore::new(&home);
         store.save(&sample("demo")).unwrap();
         store.update_observed(
             "demo",
             &ObservedState {
-                state: ProjectState::Healthy,
+                state: SessionState::Healthy,
                 checked_at_ms: 42,
                 latency_ms: Some(7),
                 detail: None,
@@ -204,7 +205,7 @@ mod tests {
             },
         );
         let loaded = store.load("demo").unwrap();
-        assert_eq!(loaded.observed.state, ProjectState::Healthy);
+        assert_eq!(loaded.observed.state, SessionState::Healthy);
         assert!(loaded.observed.ever_healthy);
         assert_eq!(loaded.pid, 4242, "other fields preserved");
         let _ = fs::remove_dir_all(&home);
