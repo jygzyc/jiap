@@ -14,14 +14,15 @@ adapter/registry model:
    in by implementing one trait, and external CLI tools register through
    `decx tools register` and become reachable as `decx <name> [args...]`
    (opencli's `external register` equivalent).
-3. **Pluggable analysis engines** — two kinds behind one `Engine` trait:
-   *server* engines (built-in `jvm` decx-server.jar and `native`
-   decx-native-server — long-lived HTTP servers speaking the DECX contract)
-   and *command* engines: one-shot CLI decompilers such as
-   [kuna](https://github.com/Noelo-Lab/kuna), registered declaratively with
-   `decx engine register` (no recompilation) and queried through the same
-   `decx code` surface via per-endpoint command templates. Select with
-   `--engine` or `DECX_ENGINE`.
+3. **Pluggable analysis engines (adapter model)** — the opencli pattern
+   applied to decompiler backends: every engine is one self-contained
+   adapter file under `engine/adapters/` plus one line in the
+   [`builtin()`](crates/decx-cli-core/src/engine/adapters/mod.rs) manifest.
+   Two kinds behind one `Engine` trait: *server* engines (`jvm`
+   decx-server.jar, `native` decx-native-server — long-lived DECX-contract
+   HTTP servers) and *command* engines — one-shot CLI decompilers, with
+   [kuna](https://github.com/Noelo-Lab/kuna) built in as the documented
+   template. Select with `--engine` or `DECX_ENGINE`.
 
 ## Build and test
 
@@ -63,9 +64,7 @@ decx tools register <name> -- <command...>
 decx tools list | remove <name> | run <name> [args...]
 decx <name> [args...]                # registered external tool passthrough
 
-decx engine register <id> [--server] [--description D] -- <command...>
-decx engine query <id> <endpoint> -- <command...>
-decx engine list | show <id> | remove <id>
+decx engine list | show <id>         # inspect engine adapters (kind, capabilities, discovery)
 
 decx self install [--prerelease] | update | status
 ```
@@ -99,15 +98,16 @@ decx-cli/
 │       │   ├── project_tool.rs  #   project/process command group
 │       │   ├── code_tool.rs     #   code command group
 │       │   ├── android_tool.rs  #   android app/device/framework
-│       │   ├── engine_tool.rs   #   engine register/query/list/show/remove
+│       │   ├── engine_tool.rs   #   engine list/show (adapter introspection)
 │       │   ├── tools_tool.rs    #   tools register/list/remove/run
 │       │   ├── self_tool.rs     #   self install/update/status
 │       │   └── adb.rs           #   adb client + output parsers
-│       ├── engine/              # ← pluggable analysis engines (unified decompiler entry)
-│       │   ├── mod.rs           #   Engine trait (server/command kinds) + EngineRegistry
-│       │   ├── foreign.rs       #   externally registered engines (engines.json + templates)
-│       │   ├── jvm.rs           #   decx-server.jar spawn logic
-│       │   ├── native.rs        #   decx-native-server spawn logic
+│       ├── engine/              # ← unified decompiler entry (adapter model)
+│       │   ├── mod.rs           #   Engine protocol (query/capabilities) + EngineRegistry
+│       │   ├── adapters/        #   one file per engine + the builtin() manifest
+│       │   │   ├── jvm.rs       #     decx-server.jar server engine
+│       │   │   ├── native.rs    #     decx-native-server server engine
+│       │   │   └── kuna.rs      #     command-engine template (copy me)
 │       │   └── launcher.rs      #   open flow, reuse decisions, health/exit wait
 │       ├── client.rs            # DecxClient (all 26 endpoints)
 │       ├── net.rs               # std-only HTTP/1.1 client + curl downloads
@@ -160,10 +160,37 @@ stores the registration in `DECX_HOME/tools.json` and the entrypoint spawns
 it as `decx <name> [args...]` with inherited stdio and propagated exit code —
 the same unified-surface idea as opencli's `external register`.
 
-### Engine adapters
+### Engine adapters (unified decompiler entry)
 
-`Engine` implementations own binary discovery and launch assembly for an
-analysis backend. Two kinds exist:
+Engines follow the opencli adapter model — the `cli({ ... func })` declaration
+of engines. One self-contained file per engine under
+`crates/decx-cli-core/src/engine/adapters/`, one line in the `builtin()`
+manifest; the runtime owns project supervision, background monitoring,
+argument parsing, the DECX envelope, and exit codes. Adapters are pure:
+they locate their binary, build launch commands, and answer queries.
+
+The protocol (`engine/mod.rs`):
+
+```rust
+pub trait Engine: Send + Sync {
+    fn id(&self) -> &'static str;              // "jvm" | "native" | "kuna" | ...
+    fn description(&self) -> &'static str;
+    fn kind(&self) -> EngineKind;              // Server (HTTP) | Command (one-shot)
+    fn capabilities(&self) -> &'static [&'static str];  // endpoints a command engine answers
+
+    fn resolve_binary(&self, home: &Path) -> DecxResult<PathBuf>;   // discovery
+    fn validate(&self, spec: &TargetSpec) -> DecxResult<()>;        // unsupported options
+    fn build_command(&self, binary: &Path, spec: &TargetSpec) -> DecxResult<Command>;
+    // launch plan: server spawn line, or the analyze job run as a
+    // monitored background process whose exit code drives the project state
+
+    fn query(&self, project: &Project, endpoint: &str, key: Option<&str>) -> DecxResult<Value>;
+    // the func(args) of engines: DECX endpoint → invocation; stdout is
+    // wrapped in the DECX envelope by execute_query()
+}
+```
+
+Two kinds:
 
 - **Server engines** run a long-lived HTTP server speaking the DECX contract.
   `jvm` mirrors the TypeScript launcher exactly (heap = 2/3 of machine
@@ -174,28 +201,46 @@ analysis backend. Two kinds exist:
   Servers spawn detached (Unix: own process group; Windows:
   `DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP`) with stdout/stderr appended
   to `DECX_HOME/logs/<name>.log`, and are killed with verified process-tree
-  death.
-- **Command engines** are one-shot CLI decompilers (kuna-style). `project
-  open` runs the registered launch template as a background job with logs and
-  a stderr heartbeat, records the exit code through the project state machine
-  (`starting` → `healthy`/failed), and keeps the record on timeout.
+  death. Queries flow through the HTTP client.
+- **Command engines** are one-shot CLI decompilers. `project open` runs the
+  adapter's analyze command as a background job with logs and a stderr
+  heartbeat; the exit code drives the project state machine (`starting` →
+  `healthy`/failed), and on timeout the record is kept with the pid tracked.
   `decx code` / `decx android app` route every endpoint through the
-  `AnalysisClient`: HTTP for server projects, the engine's registered
-  command template otherwise; endpoints without a template fail with
-  `UNSUPPORTED_BY_ENGINE` naming what is configured.
+  `AnalysisClient`: HTTP for server projects, the adapter's `query` handler
+  otherwise; unimplemented endpoints fail with `UNSUPPORTED_BY_ENGINE`
+  listing the adapter's capabilities.
 
-External engines register declaratively (`DECX_HOME/engines.json`) — no
-recompilation. Templates are argv arrays spawned directly (no shell, no
-quoting); exact-match tokens may be `{target}` (absolute target path),
-`{port}` (server engines), and `{key}` (query templates: the function/class
-key):
+**Adding an engine = copy the template + one manifest line.**
+`adapters/kuna.rs` is the documented reference (identity, binary discovery,
+analyze command, two query handlers — ~100 lines with comments). Copy it,
+adjust four things, add one line to `adapters::builtin()`:
+
+```rust
+// engine/adapters/mydec.rs        ← copy of kuna.rs, adjusted
+pub struct MyDec;
+impl Engine for MyDec { /* id/kind/capabilities, find_binary, build_command, query */ }
+
+// engine/adapters/mod.rs
+pub fn builtin() -> Vec<Arc<dyn Engine>> {
+    vec![
+        Arc::new(jvm::JvmEngine),
+        Arc::new(native::NativeEngine),
+        Arc::new(kuna::Kuna),
+        Arc::new(mydec::MyDec),    // ← the one line
+    ]
+}
+```
+
+Project supervision, monitoring, `project check`, and the `decx code`
+routing pick it up automatically.
+
+Usage with the built-in kuna adapter:
 
 ```text
-decx engine register kuna -- kuna decompile-project {target}
-decx engine query kuna get_method_source -- kuna decompile {target} {key}
-decx engine query kuna get_class_source -- kuna decompile-project {target}
 decx project open ./a.out --engine kuna
 decx code method-source main
+decx engine show kuna        # kind, capabilities, binary discovery
 ```
 
 Binary discovery:
@@ -204,7 +249,8 @@ Binary discovery:
 |---|---|
 | `jvm` | `DECX_SERVER_HOME` (file or dir) → `<DECX_HOME>/bin/decx-server.jar` |
 | `native` | `DECX_NATIVE_SERVER` (file or dir) → `<DECX_HOME>/bin/decx-native-server[.exe]` → dev checkout `decx-native/target/release/` near the working directory |
-| foreign | first template token resolved like a shell: paths pass through, bare names via PATH (`dir/<name>[.exe]`) |
+| `kuna` | `DECX_KUNA` (file or dir) → `kuna` on PATH |
+| your adapter | whatever `resolve_binary` implements (`engine::resolve_program` gives shell-like PATH lookup with `.exe` fallback) |
 
 ## Parity with the TypeScript CLI
 

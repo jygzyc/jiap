@@ -6,8 +6,8 @@ use std::process::Command;
 use serde_json::json;
 
 use crate::error::{DecxError, DecxResult};
-use super::launcher::{default_java_heap, normalize_jadx_passthrough_args};
-use super::{Engine, EngineKind, TargetSpec};
+use crate::engine::launcher::{default_java_heap, normalize_jadx_passthrough_args};
+use crate::engine::{Engine, EngineKind, TargetSpec};
 
 pub struct JvmEngine;
 

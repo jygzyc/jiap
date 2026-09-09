@@ -614,14 +614,17 @@ pub fn check_server(port: u16, retries: u32) -> (bool, String) {
     (false, format!("No server on port {port}"))
 }
 
-/// Discovery status for every registered engine — built-ins and foreign
-/// (for `project check` / `self status`).
+/// Discovery status for every engine adapter (for `project check` /
+/// `self status`).
 pub fn engine_status(home: &Path, engines: &EngineRegistry) -> Value {
     let mut map = serde_json::Map::new();
     for id in engines.ids() {
         let Some(engine) = engines.get(id) else { continue };
         let mut info = engine.status_info(home);
         info["kind"] = json!(engine.kind().as_str());
+        if engine.kind() == EngineKind::Command {
+            info["capabilities"] = json!(engine.capabilities());
+        }
         if !engine.description().is_empty() {
             info["description"] = json!(engine.description());
         }

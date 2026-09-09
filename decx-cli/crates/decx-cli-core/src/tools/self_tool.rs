@@ -77,10 +77,10 @@ impl Tool for SelfTool {
                     "cli_version": env!("CARGO_PKG_VERSION"),
                     "server_jar": {
                         "recorded_version": config.server_jar.version,
-                        "installed_version": crate::engine::jvm::find_decx_server_jar(&ctx.home)
+                        "installed_version": crate::engine::adapters::jvm::find_decx_server_jar(&ctx.home)
                             .as_deref()
                             .and_then(installer::read_jar_version_property),
-                        "path": crate::engine::jvm::find_decx_server_jar(&ctx.home)
+                        "path": crate::engine::adapters::jvm::find_decx_server_jar(&ctx.home)
                             .map(|p| p.display().to_string()),
                     },
                     "engines": crate::engine::launcher::engine_status(&ctx.home, &ctx.engines),

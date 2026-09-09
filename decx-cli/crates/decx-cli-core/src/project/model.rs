@@ -65,7 +65,7 @@ pub struct Project {
     /// sha256 of the target file — the identity used for session reuse.
     pub hash: String,
     pub file: PathBuf,
-    /// Engine backend id: `jvm`, `native`, or a registered foreign id.
+    /// Engine backend id: `jvm`, `native`, `kuna`, or another adapter id.
     pub engine: String,
     /// `server` (long-lived HTTP engine) or `command` (one-shot decompiler
     /// whose analyze job ran to completion).

@@ -6,7 +6,7 @@ use std::process::Command;
 
 use crate::error::{DecxError, DecxResult};
 
-use super::{Engine, EngineKind, TargetSpec};
+use crate::engine::{Engine, EngineKind, TargetSpec};
 
 pub struct NativeEngine;
 

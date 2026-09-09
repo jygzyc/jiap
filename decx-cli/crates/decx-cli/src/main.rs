@@ -53,7 +53,7 @@ fn run() -> i32 {
         home: home.clone(),
         format,
         manager,
-        engines: Arc::new(engine::EngineRegistry::load(&home)),
+        engines: Arc::new(engine::EngineRegistry::new()),
     };
     let fmt = Formatter::new(format);
 

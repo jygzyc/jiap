@@ -1,42 +1,44 @@
-//! Pluggable analysis engine backends — the unified decompiler entry point.
+//! Pluggable analysis engine adapters — the unified decompiler entry point.
 //!
-//! An [`Engine`] knows how to launch one analysis backend for a target.
-//! Two kinds exist:
+//! The opencli adapter model applied to decompiler backends: every engine is
+//! one self-contained adapter file under [`adapters`] (identity, binary
+//! discovery, launch command, and — for command engines — endpoint handlers),
+//! registered with a single line in [`adapters::builtin`]. The runtime owns
+//! everything else: project supervision, background monitoring, argument
+//! parsing, the DECX result envelope, and exit codes.
+//!
+//! Two adapter kinds:
 //!
 //! - [`EngineKind::Server`] — a long-lived HTTP server speaking the DECX
-//!   contract (`/health`, `/api/decx/*`). Built-ins: `jvm` (decx-server.jar)
-//!   and `native` (decx-native-server).
-//! - [`EngineKind::Command`] — a one-shot CLI decompiler such as kuna
-//!   (<https://github.com/Noelo-Lab/kuna>). `project open` runs the analyze
-//!   command as a monitored background job; `code` queries map to
-//!   per-endpoint command templates and return the same JSON envelope.
+//!   contract (built-ins: `jvm` decx-server.jar, `native`
+//!   decx-native-server). Queries flow through [`crate::client::DecxClient`].
+//! - [`EngineKind::Command`] — a one-shot CLI decompiler (built-in: `kuna`,
+//!   the documented template). `project open` runs the adapter's analyze
+//!   command as a monitored background job whose exit code drives the
+//!   project state machine; each analysis endpoint maps to a [`Engine::query`]
+//!   handler whose stdout is wrapped in the DECX envelope.
 //!
-//! Engines plug in without recompiling: `decx engine register` stores a
-//! declarative [`EngineSpec`](foreign::EngineSpec) under
-//! `DECX_HOME/engines.json` and [`EngineRegistry`] merges it with the
-//! built-ins (the opencli `external register` idea, applied to engines).
+//! To add an engine: copy `adapters/kuna.rs`, adjust identity / discovery /
+//! analyze command / handlers, and add one line to `adapters::builtin()`.
 
-pub mod foreign;
-pub mod jvm;
+pub mod adapters;
 pub mod launcher;
-pub mod native;
 
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::sync::Arc;
+use std::time::Duration;
 
 use serde_json::{json, Value};
 
 use crate::error::{DecxError, DecxResult};
-
-pub use foreign::{EngineSpec, EngineStore, ForeignEngine};
-pub use jvm::JvmEngine;
-pub use native::NativeEngine;
+use crate::project::Project;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EngineKind {
     /// Long-lived HTTP server speaking the DECX contract.
     Server,
-    /// One-shot CLI decompiler; queries map to command templates.
+    /// One-shot CLI decompiler; endpoints map to [`Engine::query`] handlers.
     Command,
 }
 
@@ -49,7 +51,7 @@ impl EngineKind {
     }
 }
 
-/// Everything an engine needs to build one launch.
+/// Everything an adapter needs to build one launch.
 pub struct TargetSpec {
     pub target: PathBuf,
     pub port: u16,
@@ -58,34 +60,46 @@ pub struct TargetSpec {
     pub passthrough: Vec<String>,
 }
 
+/// The unified engine protocol — the `cli({ ... func })` declaration of
+/// engines. Adapters are pure: they locate their binary, build commands, and
+/// answer queries; the runtime supervises what it spawned.
 pub trait Engine: Send + Sync {
     /// Engine id used on the wire and in project records (`jvm`, `native`,
-    /// or a registered foreign id like `kuna`).
-    fn id(&self) -> &str;
+    /// `kuna`, ...).
+    fn id(&self) -> &'static str;
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         ""
     }
 
     fn kind(&self) -> EngineKind;
 
+    /// Analysis endpoints this adapter answers (command engines); used by
+    /// `decx engine show` and unsupported-endpoint errors. Server engines
+    /// answer the full DECX endpoint set over HTTP.
+    fn capabilities(&self) -> &'static [&'static str] {
+        &[]
+    }
+
     /// Locate the engine binary; fail with an actionable message when absent.
     fn resolve_binary(&self, home: &Path) -> DecxResult<PathBuf>;
 
-    /// Validate options that not every engine supports (e.g. `--script` is
-    /// JVM-only).
+    /// Validate launch options the adapter does not support (e.g. `--script`
+    /// is JVM-only).
     fn validate(&self, spec: &TargetSpec) -> DecxResult<()> {
         let _ = spec;
         Ok(())
     }
 
-    /// Assemble the launch command: the server spawn for Server kind, the
+    /// The launch command: the server spawn line for Server kind, the
     /// analyze job for Command kind.
-    fn build_command(&self, binary: &Path, spec: &TargetSpec) -> DecxResult<std::process::Command>;
+    fn build_command(&self, binary: &Path, spec: &TargetSpec) -> DecxResult<Command>;
 
-    /// Downcast hook for foreign-engine capabilities (query templates).
-    fn as_foreign(&self) -> Option<&ForeignEngine> {
-        None
+    /// Answer one analysis endpoint for a command-engine project (stdout is
+    /// expected to be the decompiled artifact). Server engines serve over
+    /// HTTP and keep this default.
+    fn query(&self, _project: &Project, endpoint: &str, _key: Option<&str>) -> DecxResult<Value> {
+        Err(unsupported_endpoint(self.id(), self.capabilities(), endpoint))
     }
 
     /// Discovery status for `project check` / `self status`.
@@ -97,8 +111,87 @@ pub trait Engine: Send + Sync {
     }
 }
 
-/// Registry of engine backends: built-ins plus every engine registered
-/// through `decx engine register` (persisted in `engines.json`).
+/// The standard error for an endpoint an adapter does not implement.
+pub fn unsupported_endpoint(engine_id: &str, capabilities: &[&str], endpoint: &str) -> DecxError {
+    DecxError::server(
+        "UNSUPPORTED_BY_ENGINE",
+        format!(
+            "engine '{engine_id}' does not implement '{endpoint}'{}",
+            if capabilities.is_empty() {
+                String::new()
+            } else {
+                format!("; supported: {}", capabilities.join(", "))
+            }
+        ),
+    )
+}
+
+/// Run one command-engine query handler and wrap stdout in the DECX envelope
+/// — the opencli `func(args) → rows` contract: handlers only produce output.
+pub fn execute_query(engine_id: &str, cmd: &mut Command) -> DecxResult<Value> {
+    let output = crate::spawn::run_with_timeout(cmd, Duration::from_secs(300))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        return Err(DecxError::server(
+            "ENGINE_QUERY_FAILED",
+            format!(
+                "engine '{engine_id}' query failed (exit {}): {}",
+                output.status.code().unwrap_or(-1),
+                if stderr.is_empty() { "<no stderr>" } else { &stderr }
+            ),
+        ));
+    }
+    Ok(json!({
+        "code": "OK",
+        "data": { "source": String::from_utf8_lossy(&output.stdout) },
+        "meta": { "engine": engine_id, "mode": "command" },
+    }))
+}
+
+/// Resolve a program the way a shell would: paths pass through, bare names
+/// are looked up on PATH (Windows: current directory + `.exe` fallback).
+/// std-only.
+pub fn resolve_program(program: &str) -> Option<PathBuf> {
+    if program.is_empty() {
+        return None;
+    }
+    if program.contains('/') || program.contains('\\') || Path::new(program).is_absolute() {
+        return is_executable_file(Path::new(program)).then(|| PathBuf::from(program));
+    }
+    let path_var = std::env::var("PATH").ok()?;
+    let mut dirs: Vec<PathBuf> = std::env::split_paths(&path_var).collect();
+    if cfg!(windows) {
+        // Windows CreateProcess falls back to the current directory.
+        dirs.extend(std::env::current_dir().ok());
+    }
+    dirs.into_iter().find_map(|dir| {
+        let direct = dir.join(program);
+        is_executable_file(&direct).then_some(direct).or_else(|| {
+            // Windows PATH entries may omit the .exe suffix.
+            if cfg!(windows) {
+                let with_exe = dir.join(format!("{program}.exe"));
+                is_executable_file(&with_exe).then_some(with_exe)
+            } else {
+                None
+            }
+        })
+    })
+}
+
+fn is_executable_file(path: &Path) -> bool {
+    if !path.is_file() {
+        return false;
+    }
+    if cfg!(windows) {
+        // Accept both `kuna` and `kuna.exe` spellings.
+        path.extension().is_none_or(|e| e == "exe" || e == "cmd" || e == "bat")
+    } else {
+        true
+    }
+}
+
+/// Registry of engine adapters, assembled from the [`adapters::builtin`]
+/// manifest.
 pub struct EngineRegistry {
     engines: Vec<Arc<dyn Engine>>,
 }
@@ -110,33 +203,14 @@ impl Default for EngineRegistry {
 }
 
 impl EngineRegistry {
-    /// Built-in engines only (`jvm`, `native`).
     pub fn new() -> Self {
         Self {
-            engines: vec![Arc::new(JvmEngine), Arc::new(NativeEngine)],
+            engines: adapters::builtin(),
         }
-    }
-
-    /// Built-ins merged with the foreign engines registered under `home`.
-    pub fn load(home: &Path) -> Self {
-        let mut reg = Self::new();
-        for spec in EngineStore::new(home).load() {
-            reg.engines.push(Arc::new(ForeignEngine::new(spec)));
-        }
-        reg
     }
 
     pub fn get(&self, id: &str) -> Option<Arc<dyn Engine>> {
         self.engines.iter().find(|e| e.id() == id).cloned()
-    }
-
-    /// The registered spec of a foreign engine, if present.
-    pub fn foreign_spec(&self, id: &str) -> Option<EngineSpec> {
-        self.engines
-            .iter()
-            .find(|e| e.id() == id)
-            .and_then(|e| e.as_foreign())
-            .map(|f| f.spec.clone())
     }
 
     /// Resolve the default engine id from `DECX_ENGINE` (fallback `jvm`).
