@@ -1,0 +1,18 @@
+[package]
+name = "decx-kuna"
+description = "Code-level kuna engine: binary analyzer + DECX-contract server (decx-kuna-server)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "decx-kuna-server"
+path = "src/main.rs"
+
+[dependencies]
+decx-cli-core = { path = "../decx-cli-core" }
+decx-server-sdk = { path = "../decx-server-sdk" }
+serde.workspace = true
+serde_json.workspace = true

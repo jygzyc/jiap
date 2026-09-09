@@ -96,12 +96,18 @@ impl DecxClient {
         self.request("GET", "/health", None)
     }
 
+    /// True when `/health` answered HTTP 200 with a running-ish status.
+    /// Engines report either `"running"` (jvm/kuna-sdk) or `"ok"` (native) —
+    /// a 200 from the health endpoint is the authoritative readiness signal
+    /// (same semantics as the TypeScript launcher's `response.ok`).
     pub fn is_healthy(&self) -> bool {
-        self.health_check()
-            .ok()
-            .and_then(|v| v.get("status").and_then(Value::as_str).map(str::to_string))
-            .as_deref()
-            == Some("running")
+        match self.health_check() {
+            Ok(value) => match value.get("status").and_then(Value::as_str) {
+                None => true,
+                Some(status) => status == "running" || status == "ok",
+            },
+            Err(_) => false,
+        }
     }
 
     // ── Common code analysis ────────────────────────────────────────────────

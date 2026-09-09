@@ -1,8 +1,9 @@
 //! External CLI tool registry (opencli `external register` equivalent).
 //!
-//! Registered tools live in `<home>/tools.json` and become reachable as
-//! top-level commands: `decx <name> [args...]` spawns the registered command
-//! with inherited stdio and propagates its exit code.
+//! Registered tools live in the unified `config.json` (`tools` array) and
+//! become reachable as top-level commands: `decx <name> [args...]` spawns the
+//! registered command with inherited stdio and propagates its exit code.
+//! Legacy `tools.json` files are migrated on first load.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -34,25 +35,41 @@ impl ExternalTool {
 }
 
 pub struct ExternalRegistry {
-    path: PathBuf,
+    home: PathBuf,
 }
 
 impl ExternalRegistry {
     pub fn new(home: &Path) -> Self {
         Self {
-            path: home.join("tools.json"),
+            home: home.to_path_buf(),
         }
     }
 
     pub fn load(&self) -> Vec<ExternalTool> {
-        match fsx::read_json(&self.path) {
-            Ok(Some(value)) => serde_json::from_value(value).unwrap_or_default(),
-            _ => Vec::new(),
-        }
+        crate::config::Config::load(&self.home)
+            .tools
+            .into_iter()
+            .map(|spec| ExternalTool {
+                name: spec.name,
+                command: spec.command,
+                description: spec.description,
+                registered_at_ms: spec.registered_at_ms,
+            })
+            .collect()
     }
 
-    fn save(&self, tools: &[ExternalTool]) -> DecxResult<()> {
-        fsx::atomic_write_json(&self.path, &serde_json::to_value(tools).unwrap_or_default())
+    fn save(&self, tools: Vec<ExternalTool>) -> DecxResult<()> {
+        let mut config = crate::config::Config::load(&self.home);
+        config.tools = tools
+            .into_iter()
+            .map(|tool| crate::config::ToolSpec {
+                name: tool.name,
+                command: tool.command,
+                description: tool.description,
+                registered_at_ms: tool.registered_at_ms,
+            })
+            .collect();
+        config.save(&self.home)
     }
 
     pub fn get(&self, name: &str) -> Option<ExternalTool> {
@@ -79,7 +96,7 @@ impl ExternalRegistry {
             registered_at_ms: fsx::now_ms(),
         };
         tools.push(tool.clone());
-        self.save(&tools)?;
+        self.save(tools)?;
         Ok(tool)
     }
 
@@ -90,7 +107,7 @@ impl ExternalRegistry {
             .position(|t| t.name == name)
             .ok_or_else(|| DecxError::not_found("TOOL_NOT_FOUND", format!("Tool not found: {name}")))?;
         let tool = tools.remove(pos);
-        self.save(&tools)?;
+        self.save(tools)?;
         Ok(tool)
     }
 

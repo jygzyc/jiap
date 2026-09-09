@@ -160,7 +160,7 @@ pub fn evaluate_state(ever_healthy: bool, probe: &ProbeOutcome) -> (SessionState
         Ok(value) => {
             let latency = Some(probe.latency_ms);
             match value.get("status").and_then(Value::as_str) {
-                Some("running") => (SessionState::Healthy, None, latency),
+                Some("running") | Some("ok") => (SessionState::Healthy, None, latency),
                 other => (
                     SessionState::Unreachable,
                     Some(format!("health status: {}", other.unwrap_or("<missing>"))),

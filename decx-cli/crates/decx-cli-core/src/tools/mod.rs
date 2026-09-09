@@ -12,6 +12,7 @@
 pub mod adb;
 pub mod android_tool;
 pub mod code_tool;
+pub mod config_tool;
 pub mod engine_tool;
 pub mod external;
 pub mod session_tool;
@@ -104,6 +105,7 @@ impl ToolRegistry {
         reg.register(Arc::new(code_tool::CodeTool));
         reg.register(Arc::new(android_tool::AndroidTool));
         reg.register(Arc::new(engine_tool::EngineTool));
+        reg.register(Arc::new(config_tool::ConfigTool));
         reg.register(Arc::new(tools_tool::ToolsTool));
         reg.register(Arc::new(self_tool::SelfTool));
         reg

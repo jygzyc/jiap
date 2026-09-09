@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/decx-cli-core", "crates/decx-cli"]
+members = ["crates/decx-cli-core", "crates/decx-cli", "crates/decx-server-sdk", "crates/decx-kuna"]
 
 [workspace.package]
 version = "4.2.0"

@@ -106,6 +106,22 @@ redesigned around three pieces, following the opencli adapter/registry model:
   otherwise (unimplemented endpoints fail with `UNSUPPORTED_BY_ENGINE`
   listing the adapter capabilities). `decx engine list|show` introspects
   adapters. Select with `--engine` or `DECX_ENGINE` (default `jvm`).
+- **Engine servers via decx-server-sdk (unified build)**: every engine —
+  decx server (jvm), decx-native, and code-level kuna — is served to the CLI
+  as a server speaking the DECX HTTP contract. New engines implement
+  `SdkService::handle` from the `decx-server-sdk` crate (HTTP runtime,
+  routing, envelope, error→status mapping) and get a server binary for free
+  (`decx-kuna-server` is the reference). One `cargo build --release`
+  compiles the CLI and all engine servers together. Kuna itself is imported
+  at the code level: its analyzer (`crates/decx-kuna`, std-only ELF64
+  function/string extraction, structural pseudo-C reporting) runs in-process
+  inside the server — no external kuna binary.
+- **Unified configuration**: everything lives in `DECX_HOME/config.json`
+  (`config_version`, `default_engine`, `default_format`, `server`,
+  `server_jar`, `session` defaults, `tools` registry — migrated from the
+  legacy `tools.json`). Read/write via `decx config get|set`; snapshot via
+  `decx self status` / `decx self path`. Engine/format defaults resolve as:
+  explicit flag > config > `DECX_ENGINE` env > jvm (engine) or json (format).
 
 Current top-level commands: `session` (hidden aliases `project`/`process`), `code`, `android`,
 `engine`, `tools`, `self`.
@@ -365,6 +381,9 @@ Port coordination matters:
 | `decx-cli/crates/decx-cli-core/src/tools/engine_tool.rs` | `engine list/show` adapter introspection |
 | `decx-cli/crates/decx-cli-core/src/tools/external.rs` | External CLI tool registry (opencli-style `tools register`) |
 | `decx-cli/crates/decx-cli-core/src/client.rs` | DecxClient: all 26 analysis endpoints |
+| `decx-cli/crates/decx-server-sdk/src/lib.rs` | SDK server runtime: DECX contract HTTP server, envelope, error mapping |
+| `decx-cli/crates/decx-kuna/src/analyzer.rs` | Code-level kuna analyzer (std-only ELF64 function/string extraction) |
+| `decx-cli/crates/decx-cli-core/src/tools/config_tool.rs` | `config get/set` over the unified config.json |
 
 ## Agent Guidance For This Repo
 

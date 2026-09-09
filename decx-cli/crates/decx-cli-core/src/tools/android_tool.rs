@@ -252,15 +252,16 @@ impl AndroidTool {
                         path.display().to_string()
                     }
                 };
+                let config = crate::config::Config::load(&ctx.home);
                 let req = crate::session::lifecycle::OpenRequest {
                     file: jar,
-                    engine_id: m.get_one::<String>("engine").cloned(),
+                    engine_id: Some(config.effective_engine(m.get_one::<String>("engine").map(String::as_str))),
                     port: m.get_one::<String>("port").cloned(),
                     name: m.get_one::<String>("name").cloned(),
                     force: matches_flag(m, "force"),
                     scripts: vec![],
                     passthrough: matches_many(m, "passthrough"),
-                    timeout_secs: matches_u64(m, "timeout").unwrap_or(300),
+                    timeout_secs: matches_u64(m, "timeout").unwrap_or(config.session.open_timeout_secs),
                     origin: "decx android framework open".into(),
                 };
                 crate::session::lifecycle::open_session(&ctx.manager, &ctx.engines, &req, |msg| ctx.notice(msg))

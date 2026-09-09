@@ -37,6 +37,13 @@ stack: server communication is a hand-rolled HTTP/1.1 client over
 `std::net::TcpStream` (the DECX server is always on 127.0.0.1), and internet
 downloads (self install, URL targets) delegate to the system `curl`.
 
+Unified build: one `cargo build --release` compiles the CLI (`decx`) and
+every code-level engine server (`decx-kuna-server`) together. New engine
+servers are built on `decx-server-sdk`, the runtime half of the DECX HTTP
+contract (`/health` + `POST /api/decx/<endpoint>` with the
+`{"code":"OK","data":...}` envelope) — an engine implements one
+`SdkService::handle` and gets the server for free.
+
 ## Command surface
 
 ```
@@ -115,7 +122,9 @@ decx-cli/
 │   │       ├── client.rs            # DecxClient (all 26 endpoints)
 │   │       ├── net.rs               # std-only HTTP/1.1 client + curl downloads
 │   │       └── spawn.rs             # detached spawn, pid liveness, tree kill
-└── crates/decx-cli/             # the `decx` binary (thin entrypoint)
+├── crates/decx-cli/             # the `decx` binary (thin entrypoint)
+├── crates/decx-server-sdk/      # SDK server runtime for the DECX contract
+└── crates/decx-kuna/            # code-level kuna engine + decx-kuna-server
 ```
 
 ### Session layer
@@ -272,3 +281,41 @@ Not ported yet (fail with a clear `NOT_PORTED` error): the framework
 `collect`/`process`/`run` device-pull and image-extraction pipeline, and the
 `self skills` installer. The npm update-notifier is intentionally dropped
 (Rust builds distribute via cargo/release binaries).
+
+## Unified configuration and self management
+
+Everything lives in one file, `DECX_HOME/config.json`:
+
+```json
+{
+  "config_version": 1,
+  "default_engine": "",          // used when --engine is absent (DECX_ENGINE env wins)
+  "default_format": "",          // used when --format is absent (json)
+  "server":  { "default_port": 25419 },
+  "server_jar": { "version": "4.2.0" },
+  "session": { "monitor_interval_secs": 5, "open_timeout_secs": 300 },
+  "tools": [ { "name": "gh", "command": ["gh", "pr"], "registered_at_ms": 0 } ]
+}
+```
+
+Read and write it with `decx config get [key]` / `decx config set <key>
+<value> [--unset]` (typed keys: `default_engine`, `default_format`,
+`default_port`, `monitor_interval_secs`, `open_timeout_secs`). The external
+`tools` registry migrated in from the legacy `tools.json`. Inspect the whole
+state with `decx self status` (CLI/server versions, configuration, engine
+discovery, directories) and `decx self path` (DECX_HOME layout).
+
+## Adding an engine (SDK server scheme)
+
+Every engine — decx server (jvm), decx-native, kuna, future tools — reaches
+the CLI as a *server* speaking the DECX HTTP contract. Code-level engines use
+`decx-server-sdk`:
+
+1. Implement `SdkService::handle(endpoint, body)` (plus `health`,
+   `capabilities`).
+2. `main`: `decx_server_sdk::bind(port)?` + `serve(listener, service)`.
+3. One adapter file under `engine/adapters/` + one line in `builtin()`.
+
+All of it compiles in one `cargo build --release`. A binary-only external
+tool (nothing to compile) still plugs in at the *tool* layer instead:
+`decx tools register <name> -- <command...>`.

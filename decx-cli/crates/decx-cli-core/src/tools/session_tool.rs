@@ -125,15 +125,16 @@ fn session_command(name: &'static str, hidden: bool) -> Command {
 
 impl SessionTool {
     fn run_open(&self, ctx: &ToolContext, m: &ArgMatches) -> DecxResult<Value> {
+        let config = crate::config::Config::load(&ctx.home);
         let req = OpenRequest {
             file: m.get_one::<String>("file").cloned().unwrap_or_default(),
-            engine_id: m.get_one::<String>("engine").cloned(),
+            engine_id: Some(config.effective_engine(m.get_one::<String>("engine").map(String::as_str))),
             port: m.get_one::<String>("port").cloned(),
             name: m.get_one::<String>("name").cloned(),
             force: matches_flag(m, "force"),
             scripts: matches_many(m, "script"),
             passthrough: matches_many(m, "passthrough"),
-            timeout_secs: matches_u64(m, "timeout").unwrap_or(300),
+            timeout_secs: matches_u64(m, "timeout").unwrap_or(config.session.open_timeout_secs),
             origin: "decx session open".into(),
         };
         open_session(&ctx.manager, &ctx.engines, &req, |msg| ctx.notice(msg))
@@ -274,7 +275,9 @@ impl SessionTool {
     }
 
     fn run_watch(&self, ctx: &ToolContext, m: &ArgMatches) -> DecxResult<Value> {
-        let interval = Duration::from_secs(matches_u64(m, "interval").unwrap_or(5).max(1));
+        let config = crate::config::Config::load(&ctx.home);
+        let interval =
+            Duration::from_secs(matches_u64(m, "interval").unwrap_or(config.session.monitor_interval_secs).max(1));
         let name = m.get_one::<String>("name").map(String::as_str).filter(|s| !s.is_empty());
         ctx.manager.cleanup_dead();
 

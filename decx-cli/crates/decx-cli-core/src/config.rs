@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use crate::error::DecxResult;
+use crate::error::{DecxError, DecxResult};
 use crate::fsx;
 
 /// Resolve the DECX home directory: `DECX_HOME` env override, else `~/.decx`.
@@ -64,13 +64,67 @@ fn default_port() -> u16 {
     DEFAULT_SERVER_PORT
 }
 
-/// `config.json` — installed server version and the default server port.
+/// Unified external-CLI-tool registration (formerly a separate tools.json).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToolSpec {
+    pub name: String,
+    /// Full argv to spawn, e.g. `["gh", "pr"]`.
+    pub command: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    pub registered_at_ms: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SessionDefaults {
+    #[serde(default = "default_monitor_interval")]
+    pub monitor_interval_secs: u64,
+    #[serde(default = "default_open_timeout")]
+    pub open_timeout_secs: u64,
+}
+
+fn default_monitor_interval() -> u64 {
+    5
+}
+
+fn default_open_timeout() -> u64 {
+    300
+}
+
+impl Default for SessionDefaults {
+    fn default() -> Self {
+        Self {
+            monitor_interval_secs: default_monitor_interval(),
+            open_timeout_secs: default_open_timeout(),
+        }
+    }
+}
+
+/// `config.json` — the single unified configuration file: CLI defaults, the
+/// installed server version, session defaults, and the external-tool
+/// registry (migrated in from the legacy per-purpose files).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
+    #[serde(default = "default_config_version")]
+    pub config_version: u8,
+    /// Engine used when `--engine` is absent (`""` = DECX_ENGINE env / jvm).
+    #[serde(default)]
+    pub default_engine: String,
+    /// Output format used when `--format` is absent (`""` = json).
+    #[serde(default)]
+    pub default_format: String,
     #[serde(default = "default_server_jar")]
     pub server_jar: ServerJarConfig,
     #[serde(default = "default_server")]
     pub server: ServerConfig,
+    #[serde(default)]
+    pub session: SessionDefaults,
+    #[serde(default)]
+    pub tools: Vec<ToolSpec>,
+}
+
+fn default_config_version() -> u8 {
+    1
 }
 
 fn default_server_jar() -> ServerJarConfig {
@@ -88,21 +142,60 @@ fn default_server() -> ServerConfig {
 impl Default for Config {
     fn default() -> Self {
         Self {
+            config_version: default_config_version(),
+            default_engine: String::new(),
+            default_format: String::new(),
             server_jar: default_server_jar(),
             server: default_server(),
+            session: SessionDefaults::default(),
+            tools: Vec::new(),
         }
     }
 }
 
 impl Config {
     /// Load `config.json` from a home directory, falling back to defaults for
-    /// missing or malformed files.
+    /// missing or malformed files. Migrates the legacy `tools.json` registry
+    /// into `tools` on first load.
     pub fn load(home: &Path) -> Self {
         let path = home.join("config.json");
-        match fsx::read_json(&path) {
+        let mut config: Config = match fsx::read_json(&path) {
             Ok(Some(value)) => serde_json::from_value(value).unwrap_or_default(),
             _ => Self::default(),
+        };
+        if config.tools.is_empty() {
+            // Legacy tools.json migration (read-only; the unified file is
+            // written on the next config save).
+            if let Ok(Some(value)) = fsx::read_json(&home.join("tools.json")) {
+                if let Ok(tools) = serde_json::from_value::<Vec<ToolSpec>>(value) {
+                    config.tools = tools;
+                }
+            }
         }
+        config
+    }
+
+    /// The effective output format: explicit value > config > json.
+    pub fn effective_format(&self, explicit: Option<&str>) -> Result<crate::output::OutputFormat, DecxError> {
+        match explicit.filter(|s| !s.is_empty()) {
+            Some(raw) => crate::output::OutputFormat::parse(raw),
+            None if !self.default_format.is_empty() => crate::output::OutputFormat::parse(&self.default_format),
+            None => Ok(crate::output::OutputFormat::default()),
+        }
+    }
+
+    /// The effective default engine: explicit value > config > DECX_ENGINE > jvm.
+    pub fn effective_engine(&self, explicit: Option<&str>) -> String {
+        let from_flag = explicit.map(str::to_string).filter(|s| !s.is_empty());
+        let from_env = std::env::var("DECX_ENGINE")
+            .ok()
+            .map(|v| v.trim().to_lowercase())
+            .filter(|v| !v.is_empty());
+        let from_config = Some(self.default_engine.clone()).filter(|s| !s.is_empty());
+        from_flag
+            .or(from_env)
+            .or(from_config)
+            .unwrap_or_else(|| "jvm".to_string())
     }
 
     /// Persist to `<home>/config.json` atomically.

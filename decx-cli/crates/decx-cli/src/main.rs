@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 use clap::error::ErrorKind as ClapErrorKind;
 use decx_cli_core::error::{DecxError, EX_OK, EX_USAGE};
-use decx_cli_core::output::{Formatter, OutputFormat};
+use decx_cli_core::output::Formatter;
 use decx_cli_core::tools::{ToolContext, ToolRegistry};
 use decx_cli_core::{config, engine, session};
 
@@ -41,12 +41,10 @@ fn run() -> i32 {
         Err(err) => return handle_clap_error(err, &argv),
     };
 
-    let format = match matches.get_one::<String>("format").map(String::as_str) {
-        Some(raw) => match OutputFormat::parse(raw) {
-            Ok(format) => format,
-            Err(err) => return report_error(&err),
-        },
-        None => OutputFormat::default(),
+    let unified = config::Config::load(&home);
+    let format = match unified.effective_format(matches.get_one::<String>("format").map(String::as_str)) {
+        Ok(format) => format,
+        Err(err) => return report_error(&err),
     };
     let manager = session::SessionManager::open(&home);
     let ctx = ToolContext {

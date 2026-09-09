@@ -105,6 +105,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "decx-kuna"
+version = "4.2.0"
+dependencies = [
+ "decx-cli-core",
+ "decx-server-sdk",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "decx-server-sdk"
+version = "4.2.0"
+dependencies = [
+ "decx-cli-core",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "digest"
 version = "0.10.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
