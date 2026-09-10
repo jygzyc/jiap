@@ -69,3 +69,55 @@ jobs:
         generate_release_notes: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Build the native (Rust) server for every supported platform and attach the
+  # binaries to the same release. Asset naming:
+  #   decx-native-server-<version>-<rust-target>[.exe]
+  # Users drop the binary into DECX_HOME/bin as decx-native-server[.exe] (or
+  # point DECX_NATIVE_SERVER at it); findDecxNativeServer picks it up from there.
+  release-native:
+    needs: release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            exe-suffix: .exe
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            exe-suffix: ""
+          # The macOS SDK is universal, so x86_64 cross-compiles fine on the
+          # arm64 runner; no Intel-hosted runner needed.
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            exe-suffix: ""
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            exe-suffix: ""
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: ${{ matrix.target }}
+
+    - name: Build decx-native-server
+      working-directory: decx-native
+      run: cargo build --release --target ${{ matrix.target }}
+
+    - name: Run native tests
+      working-directory: decx-native
+      run: cargo test --release --target ${{ matrix.target }} -p decx-core
+
+    - name: Attach binary to release
+      uses: softprops/action-gh-release@v3
+      with:
+        tag_name: ${{ github.ref_name }}
+        files: decx-native/target/${{ matrix.target }}/release/decx-native-server${{ matrix.exe-suffix }}
+        rename: decx-native-server-${{ github.ref_name }}-${{ matrix.target }}${{ matrix.exe-suffix }}
+        generate_release_notes: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
