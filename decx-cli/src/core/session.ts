@@ -11,7 +11,7 @@ import {
 } from "fs";
 import * as path from "path";
 import { spawnSync } from "child_process";
-import type { Session } from "./types.js";
+import type { Session, SessionEngine } from "./types.js";
 import { decxPath } from "./paths.js";
 import { atomicWriteJson } from "../utils/fs.js";
 
@@ -58,8 +58,9 @@ export function createSession(
   pid: number,
   port: number,
   scripts?: string[],
+  engine: SessionEngine = "jvm",
 ): Session {
-  const session: Session = { name, hash, pid, port, path: apkPath, startedAt: Date.now(), scripts };
+  const session: Session = { name, hash, pid, port, path: apkPath, startedAt: Date.now(), scripts, engine };
   atomicWriteJson(sessionFilePath(name), session);
   return session;
 }

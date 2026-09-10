@@ -1,0 +1,15 @@
+[package]
+name = "decx-server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "decx-native-server"
+path = "src/main.rs"
+
+[dependencies]
+decx-json = { path = "../decx-json" }
+decx-core = { path = "../decx-core" }
+decx-apk = { path = "../decx-apk" }
+decx-taint = { path = "../decx-taint" }

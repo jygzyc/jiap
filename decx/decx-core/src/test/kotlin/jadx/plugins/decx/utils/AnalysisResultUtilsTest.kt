@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Test
 
 /**
  * Pins the response-envelope shape produced by services and consumed by
- * RouteHandler / HTTP / MCP adapters. Removing the response cache (CacheUtils)
+ * RouteHandler / HTTP adapter. Removing the response cache (CacheUtils)
  * must not change this contract.
  */
 class AnalysisResultUtilsTest {

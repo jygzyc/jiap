@@ -13,6 +13,7 @@
 import * as path from "path";
 import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync } from "fs";
 import { inflateRawSync } from "node:zlib";
+import { fileURLToPath } from "node:url";
 import { downloadWithProgress } from "../utils/progress.js";
 import { decxPath } from "./paths.js";
 
@@ -173,6 +174,38 @@ export function findDecxServerJar(): string | null {
 
 export function selectDecxServerAsset(assets: ReleaseAsset[]): ReleaseAsset | undefined {
   return assets.find((asset) => asset.name.includes("decx-server") && asset.name.endsWith(".jar"));
+}
+
+const NATIVE_BIN_BASENAME = "decx-native-server";
+const NATIVE_BIN_NAME = process.platform === "win32" ? `${NATIVE_BIN_BASENAME}.exe` : NATIVE_BIN_BASENAME;
+
+/**
+ * Locate the native (Rust) DECX server binary.
+ * Priority: DECX_NATIVE_SERVER env (file or directory) > DECX_HOME/bin > a
+ * dev checkout's decx-native/target/release build next to the CLI source tree.
+ *
+ * The native engine is not distributed through `decx self install` yet; it is
+ * built from the repository (`cd decx-native && cargo build --release`).
+ */
+export function findDecxNativeServer(): string | null {
+  const envPath = process.env.DECX_NATIVE_SERVER;
+  if (envPath) {
+    // An explicit env setting wins or fails; never fall through to other locations.
+    const looksLikeBinary = envPath.endsWith(NATIVE_BIN_NAME) || envPath.endsWith(NATIVE_BIN_BASENAME);
+    const candidate = looksLikeBinary ? envPath : path.join(envPath, NATIVE_BIN_NAME);
+    return existsSync(candidate) ? candidate : null;
+  }
+
+  const installed = path.join(INSTALL_DIR, NATIVE_BIN_NAME);
+  if (existsSync(installed)) return installed;
+
+  // Dev checkout: the CLI bundle lives at <repo>/decx-cli/dist, so
+  // <repo>/decx-native/target/release holds a freshly built dev binary.
+  const bundleDir = path.dirname(fileURLToPath(import.meta.url));
+  const dev = path.join(bundleDir, "..", "..", "decx-native", "target", "release", NATIVE_BIN_NAME);
+  if (existsSync(dev)) return dev;
+
+  return null;
 }
 
 function normalizeVersion(tag: string): string {

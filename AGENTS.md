@@ -8,7 +8,7 @@ DECX (`Decompiler + X`) is an AI-oriented analysis layer built on top of JADX.
 The repository contains:
 
 - A Kotlin HTTP analysis server shared by plugin mode and standalone mode
-- A JADX GUI plugin that starts the DECX server and an in-process Kotlin MCP server
+- A JADX GUI plugin that starts the DECX server and exposes its settings UI
 - A standalone `decx-server` fat JAR for headless analysis
 - A TypeScript CLI that starts and talks to `decx-server`
 - AI skill definitions under `skills/` for DECX-driven analysis workflows
@@ -17,7 +17,7 @@ Primary request flow:
 
 ```text
 AI Assistant / CLI
-  -> MCP or direct HTTP
+  -> direct HTTP
   -> DECX HTTP server
   -> DecxApi
   -> JADX decompiler state
@@ -28,10 +28,10 @@ AI Assistant / CLI
 | Path | Stack | Role |
 |---|---|---|
 | `decx/decx-core/` | Kotlin, JVM 17 | Shared API, HTTP transport, services, models, utilities |
-| `decx/decx-plugin/` | Kotlin, Shadow JAR | JADX GUI plugin, lifecycle, UI, in-process MCP server management |
+| `decx/decx-plugin/` | Kotlin, Shadow JAR | JADX GUI plugin, lifecycle, UI |
 | `decx/decx-server/` | Kotlin, Shadow JAR | Standalone headless server with `DecxServerApp` main class |
 | `decx-cli/` | TypeScript, Node.js 22.5+ | User CLI for session management and analysis commands |
-| `native/` | Rust (vendored dexdec) | Pure-Rust analysis engine + `decx-native-server` HTTP server speaking the same DecxApiResult contract as the JVM server |
+| `decx-native/` | Rust, pure std | Native engine workspace: decx json/apk/core/taint crates, `decx-engine` (in-house decompiler core adapted from dexdec/rusty-dex), `decx-native-server` (same 26-endpoint contract as the JVM server, plus the native-only `taint_scan`) |
 | `skills/decx-cli/` | Skill `decx-cli` | DECX CLI usage, general analysis, and workflow routing |
 | `skills/decx-vulnhunt/` | Skill `decx-vulnhunt` | Android vulnerability hunting workflow (App + Framework tracks) |
 | `skills/decx-report/` | Skill `decx-report` | Report generation from finalized DECX analysis graph findings |
@@ -41,7 +41,7 @@ AI Assistant / CLI
 
 ### Kotlin server capabilities
 
-`decx-core` exposes these HTTP endpoints through `DecxRoutes` and `RouteHandler` (the native Rust engine in `native/` exposes the same endpoint set through `native/crates/decx-core/src/api.rs`):
+`decx-core` exposes these HTTP endpoints through `DecxRoutes` and `RouteHandler` (the native Rust engine in `decx-native/` exposes the same endpoint set through `decx-native/crates/decx-server/src/routes.rs`):
 
 - Common code analysis:
   `get_classes`, `get_class_context`, `get_class_source`, `search_global_key`, `search_class_key`,
@@ -56,27 +56,24 @@ AI Assistant / CLI
 - Health endpoint:
   `GET /health`
 
-### Native Rust engine (experimental)
+### Native Rust engine (`decx-native`)
 
-`native/` contains a pure-Rust analysis engine (vendored from androguard `dex-parser`/`dex-bytecode`/`dex-decompiler` as `vendor/rusty-dex` + `vendor/dexdec`) plus an HTTP server binary that speaks the same contract as the JVM server:
+`decx-native/` is a standalone zero-external-dependency (pure std) workspace — the native engine:
 
-- `native/crates/decx-core/src/api.rs` — endpoint dispatcher (all 26 endpoints, same envelope as Kotlin `AnalysisResultUtils`)
-- `native/crates/decx-core/src/envelope.rs` — `DecxApiResult` success/error envelope + 64 KiB pagination (line + list, binary-searched page size)
-- `native/crates/decx-core/src/axml.rs` — binary AndroidManifest.xml (AXML) decoder + text-XML renderer
-- `native/crates/decx-core/src/arsc.rs` — resources.arsc parser (string pools discovered positionally; aapt2 writes non-standard typeStrings/keyStrings fields)
-- `native/crates/decx-core/src/manifest.rs` — APK resources + manifest model (exported components, deep links, launcher activity, strings)
-- `native/crates/decx-core/src/project.rs` — dex/apk loading, class index, lazy decompilation with byte-bounded LRU source cache
-- `native/crates/decx-server/` — `decx-native-server` binary: `--port` (default 25419), `--warm`, Kotlin-compatible `/health`, 120s request timeout → 504 REQUEST_TIMEOUT (override: `DECX_NATIVE_REQUEST_TIMEOUT_SECS`)
-- Build: `cd native && cargo build --release` (offline: deps are vendored/locked; `zip` uses `default-features = false, features = ["deflate"]`)
-- Known divergences from the JVM engine: `--mcp` and `--script` are JVM-only; smali output is dexdec IR text (not real smali); method-context callee owners use short names from the IR text; `get_dynamic_receivers` without a class filter decompiles the whole app and can exceed the 120s timeout (use `filter.includes`)
-- The TypeScript `decx-cli` is the only client (no Rust CLI); it drives the native engine via `--engine native`
+- `crates/decx-engine` — the in-house source-level decompiler core (`decx-engine`/`decx_engine`), adapted from two Apache-2.0 upstreams with per-file attribution (see the next bullet). It consolidates the former `crates/dexdec` + `crates/rusty-dex` + `crates/shims/*`: `src/rusty_dex/` is the DEX parser module (from `rusty-dex`, zips read through `decx-apk`, `thiserror`/`regex`/`lazy_static`/`byteorder` hand-rewritten on std), and `src/{log,rayon,zstd,crc32fast}.rs` are original sequential no-op dependency-shim modules (same names so adapted `use` lines stay close to upstream). `symbol-builder`/`cli` features stay off; `resources/symbols/platform.dexsym` is vendored and embedded (repacked uncompressed — the `zstd` shim is an identity passthrough).
+- Adapted-source attribution rule: every `.rs` file under `crates/decx-engine/src` except the four shim modules carries a provenance header (upstream project, version, Apache-2.0, and whether the file is byte-identical to upstream or MODIFIED — Apache-2.0 §4(b)). Provenance tables, baseline commit (`asLody/dexdec` tag `v1.0.2`, commit `6c083d9`), the full modified-file lists, and re-diff instructions live in `crates/decx-engine/VENDORED.md`. When editing an adapted file, keep its header accurate and mark new changes in-line with a `decx-native:` comment. `tools/stamp-vendor-headers.sh` (re)applies headers against an upstream checkout; `tools/verify-vendor-headers.sh` re-derives the classification and reports header/content mismatches.
+- `crates/decx-core` keeps the lightweight dex parser (`dex.rs`, `opcodes.rs`, `leb128.rs`) + global xref index (`xref.rs`), structural Java emitter (`java.rs`, `code.rs`), and `sources.rs`: source endpoints (`get_class_source`, `get_method_source`, `get_system_service_impl`) prefer the decx-engine pipeline and fall back to the structural-IR emitter, reporting `meta.mode` = `dexdec` | `structural-ir` (the `dexdec` value is kept as the wire/API contract name); `regex.rs` is a hand-rolled regex engine used by the filter-enabled endpoints
+- `crates/decx-apk` (zip/inflate/AXML/manifest), `crates/decx-json` (insertion-ordered JSON), `crates/decx-taint` (Mariana-Trench-style inter-procedural taint solver: rule model in `model.rs` embedded from `resources/taint-rules.json`, method-body lowering in `body.rs`, intra-procedural analysis + method summaries in `intra.rs`, fixpoint driver in `solver.rs`, virtual-dispatch same-key fan-out in `dispatch.rs`), `crates/decx-server` (hand-rolled HTTP/1.1 in `http.rs`, 26-endpoint + native-only `taint_scan` dispatch in `routes.rs`, DecxApiResult-compatible envelope in `envelope.rs`).
+- `decx-native-server` binary (`crates/decx-server/src/main.rs`): `<target.apk|classes.dex|xx.jar> [--port N] [--warm] [--taint-rules <rules.json>]`, `--port` default 25419, `--taint-rules` (or `DECX_TAINT_RULES` env) replaces the embedded taint rule set at startup and fail-fasts on unreadable/invalid files (rules support `"param": <n>` to anchor a callback's declared parameter as a source), Kotlin-compatible `/health` with cache counters. Method-source requests carry the full `Lcls;->name(args)ret` key; the descriptor disambiguates same-name overloads (`MethodRequest.descriptor`), ambiguous methods report `METHOD_NOT_FOUND` with the candidate descriptors
+- Cross-platform: pure Rust, no `cfg(unix)`/`cfg(windows)` branches, builds on Windows/Linux/macOS. The `release-native` job in `.github/workflows/release-decx.yml` builds and attaches `decx-native-server-<version>-<rust-target>[.exe]` for `x86_64-pc-windows-msvc`, `x86_64-unknown-linux-gnu`, `aarch64-apple-darwin`, and `x86_64-apple-darwin` (cross-compiled from the arm64 macOS runner) on every `v*` tag, running `cargo test --release -p decx-core` on each platform first
+- Known divergences from the JVM engine: `--script` is JVM-only (the CLI fails fast for native); `smali=true` output comes from the structural-IR emitter (not real smali); Kotlin rendering (`language=kotlin|auto` on the source endpoints) is native-only — the JVM engine ignores the field and always serves Java; `POST /api/decx/taint_scan` is native-only (Mariana-Trench-style inter-procedural data-flow scan with sources/sinks/propagators/sanitizers rules embedded in `crates/decx-taint/resources/taint-rules.json`, replaceable at startup via `--taint-rules`/`DECX_TAINT_RULES`; sources support `"param"` anchoring for callback entries, virtual/interface/super/polymorphic invokes fan out over same-key overrides while sanitizers/propagators stay literal; request takes optional `maxRounds`/`maxFindings`, response items carry `source`/`sink`/`route`/`severity` and the envelope summary carries `rounds_run`/`methods_analyzed`/`methods_total`/`static_fields_tracked`/`truncated`). The TypeScript `decx-cli` is the only client (no Rust CLI); it drives the native engine via `--engine native`
 
 ### CLI engine selection
 
 - `decx process open <file> --engine native` spawns `decx-native-server` instead of the JVM jar; `--engine jvm` (default) keeps the current behavior; `DECX_ENGINE=native` sets the default
-- Native binary discovery (`findDecxNativeServer` in `decx-cli/src/core/installer.ts`): `DECX_NATIVE_SERVER` env (file or dir) > `DECX_HOME/bin/decx-native-server[.exe]` > dev checkout `native/target/release`
+- Native binary discovery (`findDecxNativeServer` in `decx-cli/src/core/installer.ts`): `DECX_NATIVE_SERVER` env (file or dir) > `DECX_HOME/bin/decx-native-server[.exe]` > dev checkout `decx-native/target/release`
 - Session reuse requires matching engine; a live session on the same file with a different engine is an error unless `--force`
-- `--script`/`--mcp` with `--engine native` fail fast with a clear message; jadx passthrough flags are ignored for native spawns
+- `--script` with `--engine native` fails fast with a clear message; jadx passthrough flags are ignored for native spawns
 - `process check` reports both the jar and the native binary status
 
 ### Plugin responsibilities
@@ -86,7 +83,6 @@ The JADX plugin does more than just expose the server:
 - Waits until the decompiler is ready before creating DECX services
 - Initializes preferences and server port
 - Starts the embedded DECX HTTP server
-- Starts and stops the in-process Kotlin MCP HTTP server on `serverPort + 1`
 - Provides UI and restart hooks through `DecxUIManager`
 - Bounds decompiler memory on headless servers: a byte-capped LRU code cache (`decx.decompile.cacheMaxBytes` → default `min(4G, -Xmx/2)`) plus a backpressured daemon that unloads evicted classes; see `DecompileGuard`
 
@@ -138,7 +134,8 @@ Notable details:
 - `decx android device system-services` returns structured JSON for live Binder/system services and supports `--serial`, `--adb-path`, and `--grep`
 - `decx android device permission-info <permission>` returns one structured JSON object for a permission and supports `--serial` and `--adb-path`
 - `get_classes` accepts a `filter` object with `limit`, regex-enabled `includes`/`excludes`, and optional `regex=false`
-- `get_class_source` accepts an optional `filter.limit` to return at most N source lines
+- `get_class_source` accepts an optional `filter.limit` to return at most N source lines, plus an optional `language` field (`java` | `kotlin` | `auto`; default `java`): `kotlin` renders through the native engine's decx-engine Kotlin backend, `auto` infers per class from `kotlin.Metadata`/source-file name. `get_method_source` accepts the same field. The JVM engine ignores the field and always serves Java; the native engine labels the actual language in item `meta.language` and caches Kotlin renderings under separate keys
+- `decx code class-source` / `decx code method-source` expose this as `--language <java|kotlin|auto>` (validated client-side; omitted keeps the request body unchanged for JVM sessions)
 - `get_aidl_interfaces` and `get_dynamic_receivers` accept the same regex-enabled `filter` object for package filtering
 - `get_exported_components` accepts regex-enabled `includes`/`excludes` and optional `regex=false`
 - `get_all_resources` accepts `filter.includes` and optional `regex=false` for resource file-name filtering
@@ -180,12 +177,12 @@ Jadx script plugin: `jadx-script-kotlin` is not on Maven Central. `decx-server`'
 ### Native Rust engine
 
 ```bash
-cd native
+cd decx-native
 cargo build --release   # produces target/release/decx-native-server[.exe]
-cargo test --offline -p decx-core
+cargo test              # dexdec 618 + decx-core + decx-engine suites
 ```
 
-Jadx Kotlin scripts are JVM-engine only.
+The workspace has zero external dependencies (offline by construction; no vendored registry needed). Jadx Kotlin scripts are JVM-engine only.
 
 Version source:
 
@@ -231,17 +228,16 @@ Current error codes defined in `DecxError.kt` (see `decx/decx-core/src/main/kotl
 - Jest-based tests
 - Node.js requirement: `>=22.5`
 
-### MCP server
+### MCP support (removed)
 
-- DECX exposes an in-process Kotlin MCP server (official `io.modelcontextprotocol:kotlin-sdk-server`) over Ktor CIO Streamable HTTP on `serverPort + 1` at `/mcp`.
-- The MCP tool surface, transport, lifecycle, and registry live in `decx-core/.../server/`: `DecxMcpServer.kt`, `McpHttpServer.kt`, `McpToolRegistry.kt`.
-- `McpToolRegistry` is backed by `DecxRoutes`; tools delegate to existing API routes, so MCP exposure stays in sync with HTTP exposure.
-- MCP is **disabled by default**:
-  - Standalone server: opt-in via `--mcp` (parsed in `DecxServerApp`)
-  - CLI: `decx process open <file> --mcp` forwards the flag to `decx-server`
-  - Plugin: auto-start driven by the `mcpAutoStart` preference (`PreferencesManager`)
-- A `DecxApiResult` envelope is shared across HTTP and MCP responses; MCP tool responses are derived from the same `DecxApiResult` the HTTP layer returns.
-- The Python MCP sidecar (`decx-plugin/src/main/resources/mcp/`) and its `SidecarProcessManager` / `McpPreferences` were removed in v3.4.0.
+MCP support was removed from the server stack; the DECX HTTP API is the only
+interface: `POST /api/decx/<endpoint>` with the `DecxApiResult` envelope
+(plus `GET /health`). AI clients integrate through that surface directly -
+the TypeScript `decx-cli` is an HTTP client, and the skills drive the CLI.
+`decx-server` rejects `--mcp`/`--no-mcp` with an explicit error. The Python
+MCP sidecar (`decx-plugin/src/main/resources/mcp/`) was removed earlier, in
+v3.4.0; the Kotlin MCP server (`DecxMcpServer` / `McpHttpServer` /
+`McpToolRegistry`, Ktor transport on `port + 1`) is removed in this change.
 
 ## Architecture Pointers
 
@@ -261,7 +257,6 @@ Use this rule of thumb:
 - New analysis capability usually starts in `DecxApi` and `DecxApiImpl`
 - HTTP exposure is registered in `DecxRoutes`
 - CLI exposure is added in `decx-cli/src/commands/`
-- MCP exposure is added in `decx-core/.../server/McpToolRegistry.kt`
 
 ### Plugin path
 
@@ -270,7 +265,7 @@ For plugin-only behavior, check:
 - `DecxPlugin.kt`
 - `lifecycle/PluginLifecycleManager.kt`
 - `ui/DecxUIManager.kt`
-- `utils/PreferencesManager.kt` (for `mcpAutoStart`)
+- `utils/PreferencesManager.kt` (server port, cache mode)
 
 ### Standalone server path
 
@@ -281,7 +276,6 @@ For headless operation, check:
 This binary:
 
 - parses `--port`
-- parses `--mcp` (opt-in MCP server on `port + 1`)
 - forwards remaining args to JADX CLI parsing
 - validates the input file exists (and any `.jadx.kts` script files)
 - defaults the log level to INFO (jadx-cli's PROGRESS mode sets root OFF, which would silence script `log` output); `--log-level` / `-q` / `-v` still override
@@ -297,7 +291,7 @@ Jadx Kotlin scripts: pass `.jadx.kts` files as additional positional inputs (the
 1. Add the capability in `DecxApi` and `DecxApiImpl`
 2. Implement or extend logic in the relevant service under `decx-core/service/`
 3. Register the route in `DecxRoutes`
-4. If needed, update CLI and MCP consumers
+4. If needed, update CLI consumers
 
 ### Add a CLI command
 
@@ -306,25 +300,15 @@ Jadx Kotlin scripts: pass `.jadx.kts` files as additional positional inputs (the
 3. Add or update tests in `decx-cli/tests/`
 4. Keep help text aligned with actual behavior
 
-### Add an MCP tool
-
-1. Update `decx/decx-core/src/main/kotlin/jadx/plugins/decx/server/McpToolRegistry.kt`
-2. Point the tool at an existing `DecxRoutes` endpoint when possible
-3. Only add new server APIs if the capability does not already exist
-
-### Change plugin lifecycle or MCP startup
+### Change plugin lifecycle
 
 Validate interactions across:
 
 - `PluginLifecycleManager`
-- `DecxMcpServer` (in-process MCP server lifecycle)
 - `PreferencesManager`
 - `DecxUIManager`
 
-Port coordination matters:
-
-- DECX HTTP server uses the configured port
-- Kotlin MCP server uses `port + 1`
+The DECX HTTP server uses the configured port; there is no secondary MCP port.
 
 ## Key Files
 
@@ -334,16 +318,13 @@ Port coordination matters:
 | `README.md` / `README_zh.md` | User-facing product and usage docs |
 | `decx/settings.gradle.kts` | Gradle module inclusion |
 | `decx/build.gradle.kts` | Root versioning, repositories, `dist` aggregation task |
-| `decx/decx-core/src/main/kotlin/jadx/plugins/decx/Decx.kt` | Public facade for API, server, MCP, routes, tools |
+| `decx/decx-core/src/main/kotlin/jadx/plugins/decx/Decx.kt` | Public facade for API, server, routes |
 | `decx/decx-core/src/main/kotlin/jadx/plugins/decx/server/DecxServer.kt` | Javalin HTTP server and route registration |
 | `decx/decx-core/src/main/kotlin/jadx/plugins/decx/server/RouteHandler.kt` | Endpoint-to-API dispatch |
 | `decx/decx-core/src/main/kotlin/jadx/plugins/decx/api/DecxApi.kt` | Shared API contract |
 | `decx/decx-core/src/main/kotlin/jadx/plugins/decx/api/DecxApiImpl.kt` | Core API implementation |
-| `decx/decx-core/src/main/kotlin/jadx/plugins/decx/api/DecxApiResult.kt` | Unified success/error envelope (HTTP + MCP) |
+| `decx/decx-core/src/main/kotlin/jadx/plugins/decx/api/DecxApiResult.kt` | Unified success/error envelope (HTTP) |
 | `decx/decx-core/src/main/kotlin/jadx/plugins/decx/api/DecxError.kt` | Structured error codes |
-| `decx/decx-core/src/main/kotlin/jadx/plugins/decx/server/DecxMcpServer.kt` | In-process Kotlin MCP server lifecycle |
-| `decx/decx-core/src/main/kotlin/jadx/plugins/decx/server/McpHttpServer.kt` | Ktor CIO Streamable HTTP transport for MCP |
-| `decx/decx-core/src/main/kotlin/jadx/plugins/decx/server/McpToolRegistry.kt` | MCP tool surface, backed by DecxRoutes |
 | `decx/decx-core/src/main/kotlin/jadx/plugins/decx/utils/DecompileGuard.kt` | Single authority for decompiler-derived state: decompile guards, bounded code cache + cold-class unloading, class/method symbol index |
 | `decx/decx-core/src/main/kotlin/jadx/plugins/decx/utils/BoundedCodeCache.kt` | Byte-bounded LRU `ICodeCache` installed by the headless server (JADX default is unbounded) |
 | `decx/decx-core/src/main/kotlin/jadx/plugins/decx/utils/RouteTelemetry.kt` | In-flight + per-endpoint latency telemetry via `/health` and logs |
@@ -356,12 +337,14 @@ Port coordination matters:
 | `decx-cli/src/commands/code.ts` | Common code-analysis commands |
 | `decx-cli/src/commands/android.ts` | Android-analysis commands |
 | `decx-cli/src/commands/self.ts` | CLI/server self-management |
-| `native/crates/decx-core/src/api.rs` | Native engine: all-endpoint dispatcher with DecxApiResult envelope |
-| `native/crates/decx-core/src/envelope.rs` | Native engine: success/error envelope + pagination (Kotlin-compatible) |
-| `native/crates/decx-core/src/axml.rs` | Native engine: binary AndroidManifest.xml (AXML) decoder |
-| `native/crates/decx-core/src/arsc.rs` | Native engine: resources.arsc parser |
-| `native/crates/decx-core/src/manifest.rs` | Native engine: APK resources + manifest component model |
-| `native/crates/decx-server/src/main.rs` | `decx-native-server` HTTP server (Kotlin-compatible health + errors) |
+| `decx-native/crates/decx-server/src/routes.rs` | Native engine: all-endpoint dispatcher with DecxApiResult envelope |
+| `decx-native/crates/decx-server/src/envelope.rs` | Native engine: success/error envelope + pagination (Kotlin-compatible) |
+| `decx-native/crates/decx-core/src/sources.rs` | Native engine: decx-engine source-recovery bridge with structural-IR fallback |
+| `decx-native/crates/decx-core/src/project.rs` | Native engine: dex/apk/jar loading, class index, decompiler state |
+| `decx-native/crates/decx-apk/src/axml.rs` | Native engine: binary AndroidManifest.xml (AXML) decoder |
+| `decx-native/crates/decx-apk/src/manifest.rs` | Native engine: APK manifest component model |
+| `decx-native/crates/decx-engine/VENDORED.md` | Native engine: adapted-source provenance + modification policy |
+| `decx-native/crates/decx-server/src/main.rs` | `decx-native-server` HTTP server (Kotlin-compatible health + errors) |
 
 ## Agent Guidance For This Repo
 

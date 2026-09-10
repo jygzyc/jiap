@@ -65,6 +65,35 @@ describe("DecxClient", () => {
       await expect(client.healthCheck()).rejects.toThrow(/Connection failed/);
     });
 
+    it("includes the target URL in connection errors", async () => {
+      await expect(client.healthCheck()).rejects.toThrow(
+        /Connection failed: .* at http:\/\/127\.0\.0\.1:25419\/health/
+      );
+    });
+
+    it("surfaces the undici cause chain (ECONNREFUSED)", async () => {
+      const cause = Object.assign(
+        new Error("connect ECONNREFUSED 127.0.0.1:25419"),
+        { code: "ECONNREFUSED" }
+      );
+      fetchMock.mockImplementation(async () => {
+        throw Object.assign(new TypeError("fetch failed"), { cause });
+      });
+      await expect(client.healthCheck()).rejects.toThrow(
+        /Connection failed: fetch failed \(cause: ECONNREFUSED: connect ECONNREFUSED 127\.0\.0\.1:25419\)/
+      );
+      await expect(client.healthCheck()).rejects.toThrow(/decx process list/);
+    });
+
+    it("handles non-Error rejections from fetch", async () => {
+      fetchMock.mockImplementation(async () => {
+        throw "boom"; // eslint-disable-line no-throw-literal
+      });
+      await expect(client.healthCheck()).rejects.toThrow(
+        /Connection failed: boom at http:\/\/127\.0\.0\.1:25419\/health/
+      );
+    });
+
     it("returns body on 200", async () => {
       fetchMock.mockResolvedValue(jsonResponse({ status: "running", version: "4.0.0" }));
       const result = await client.healthCheck();
@@ -89,6 +118,30 @@ describe("DecxClient", () => {
       const body = JSON.parse(init.body as string);
       expect(body.page).toBe(2);
       expect(body.filter).toEqual({ includes: [], excludes: [] });
+    });
+  });
+
+  describe("language passthrough", () => {
+    it("getClassSource sends language only when provided", async () => {
+      fetchMock.mockImplementation(async () => jsonResponse({ ok: true }));
+      await client.getClassSource("com.example.Foo", false, { filter: {} }, 1, "kotlin");
+      const withLang = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
+      expect(withLang.language).toBe("kotlin");
+
+      await client.getClassSource("com.example.Foo", false, { filter: {} }, 1);
+      const withoutLang = JSON.parse((fetchMock.mock.calls[1][1] as RequestInit).body as string);
+      expect("language" in withoutLang).toBe(false);
+    });
+
+    it("getMethodSource sends language only when provided", async () => {
+      fetchMock.mockImplementation(async () => jsonResponse({ ok: true }));
+      await client.getMethodSource("Lcom/example/Foo;->bar()V", false, 1, "auto");
+      const withLang = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
+      expect(withLang.language).toBe("auto");
+
+      await client.getMethodSource("Lcom/example/Foo;->bar()V");
+      const withoutLang = JSON.parse((fetchMock.mock.calls[1][1] as RequestInit).body as string);
+      expect("language" in withoutLang).toBe(false);
     });
   });
 

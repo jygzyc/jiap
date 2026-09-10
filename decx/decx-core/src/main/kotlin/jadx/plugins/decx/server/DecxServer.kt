@@ -30,9 +30,6 @@ class DecxServer(
     private val port: Int = DecxConstants.DEFAULT_PORT
 ) {
 
-    /** If set, this MCP server is automatically stopped when the HTTP server stops. */
-    var mcpServer: DecxMcpServer? = null
-
     companion object {
         private const val RESTART_DELAY_MS = 2000L
         private const val HEALTH_KIND = "health"
@@ -95,7 +92,6 @@ class DecxServer(
 
         return try {
             RouteTelemetry.stopLogger()
-            mcpServer?.stop()
             app?.stop()
             app = null
             routeExecutor.shutdownNow()

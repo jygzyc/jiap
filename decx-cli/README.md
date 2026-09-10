@@ -48,7 +48,6 @@ decx self update [-p]           # Update decx-server.jar and the currently insta
 | `--port <port>` | Server port (omit to auto-assign a free random port in 30000–40000) |
 | `--force` | Force start even if session exists |
 | `-n, --name <name>` | Custom session name |
-| `--mcp` | Also start the MCP Streamable HTTP server on port + 1 |
 | `--script <file>` | Jadx Kotlin script (`.jadx.kts`) run during decompilation; may be repeated |
 
 `--script` uses the [Jadx scripting API](https://github.com/skylot/jadx/wiki/Jadx-scripts-guide): top-level code runs while the decompiler loads, and `jadx.afterLoad { }` blocks run after classes are loaded. The server bundles the `jadx-script-kotlin` plugin, so no extra install step is needed. Session reuse is keyed on the target file **plus** the script set; use `--force` to restart with a different set.

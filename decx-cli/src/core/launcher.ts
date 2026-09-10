@@ -8,8 +8,8 @@ import { totalmem } from "os";
 import { existsSync, mkdirSync, openSync, closeSync, readFileSync } from "fs";
 import { hashFile } from "../utils/hash.js";
 import { FileError, ProcessError, ServerError } from "../utils/errors.js";
-import type { Session } from "./types.js";
-import { findDecxServerJar } from "./installer.js";
+import type { Session, SessionEngine } from "./types.js";
+import { findDecxServerJar, findDecxNativeServer } from "./installer.js";
 import { logCliEvent } from "../utils/logger.js";
 import { decxPath } from "./paths.js";
 import { Manager } from "./config.js";
@@ -20,11 +20,12 @@ export interface OpenAnalysisTargetOptions {
   port?: string;
   force?: boolean;
   name?: string;
-  mcp?: boolean;
   scripts?: string[];
   passthroughArgs?: string[];
   /** Seconds to wait for the server to become healthy (default 300). */
   timeout?: number;
+  /** Server engine: "jvm" (decx-server.jar) or "native" (Rust decx-native-server). */
+  engine?: SessionEngine;
 }
 
 export function defaultJavaHeap(): string {
@@ -36,7 +37,6 @@ export function buildDecxServerJavaArgs(
   filePath: string,
   port: number,
   jadxArgs: string[],
-  mcp?: boolean,
   scripts: string[] = [],
 ): string[] {
   const args = [
@@ -47,12 +47,22 @@ export function buildDecxServerJavaArgs(
     "--port",
     String(port),
   ];
-  if (mcp) args.push("--mcp");
   args.push(...jadxArgs);
   // Jadx Kotlin scripts are positional input files handled by the bundled
   // jadx-script-kotlin plugin (evaluated during decompilation).
   args.push(...scripts);
   return args;
+}
+
+/**
+ * Spawn argv for the native (Rust) engine: the binary runs the target directly,
+ * so there are no JVM options and no jadx passthrough flags.
+ */
+export function buildNativeServerArgs(
+  filePath: string,
+  port: number,
+): string[] {
+  return [filePath, "--port", String(port)];
 }
 
 export interface OpenReuseInput {
@@ -62,6 +72,7 @@ export interface OpenReuseInput {
   aliveSessions: Session[];
   existingByName: Session | null;
   scripts?: string[];
+  engine?: SessionEngine;
 }
 
 /**
@@ -88,6 +99,10 @@ function sameScripts(a: string[] | undefined, b: string[]): boolean {
   return aa.length === b.length && aa.every((s, i) => s === b[i]);
 }
 
+function sameEngine(a: SessionEngine | undefined, b: SessionEngine | undefined): boolean {
+  return (a ?? "jvm") === (b ?? "jvm");
+}
+
 /**
  * Decide what `process open` should do with a file whose sha256 is `fileHash`:
  * reuse an already-loaded session, refuse on a name collision with a different
@@ -95,24 +110,32 @@ function sameScripts(a: string[] | undefined, b: string[]): boolean {
  * same-name record). Pure — no I/O — so it can be unit-tested.
  */
 export function decideOpenReuse(input: OpenReuseInput): OpenReuseDecision {
-  const { fileHash, fileName, force, aliveSessions, existingByName, scripts = [] } = input;
+  const { fileHash, fileName, force, aliveSessions, existingByName, scripts = [], engine = "jvm" } = input;
 
   if (!force) {
-    // Reuse any alive session that already holds this exact file (by sha256) and
+    // Reuse any alive session that already holds this exact file (by sha256),
     // was started with the same script set (scripts run at decompile time, so a
-    // different set requires a fresh server).
-    const reuse = aliveSessions.find((s) => s.hash === fileHash && sameScripts(s.scripts, scripts));
+    // different set requires a fresh server) and runs the same engine.
+    const reuse = aliveSessions.find(
+      (s) => s.hash === fileHash && sameScripts(s.scripts, scripts) && sameEngine(s.engine, engine),
+    );
     if (reuse) return { action: "reuse", session: reuse };
 
-    // A live session holds this file but with a different script set: refuse to
-    // silently reuse the wrong server; the user must opt into a restart.
-    const liveWithDifferentScripts = aliveSessions.find((s) => s.hash === fileHash && !sameScripts(s.scripts, scripts));
-    if (liveWithDifferentScripts) {
+    // A live session holds this file but with a different script set or a
+    // different engine: refuse to silently reuse the wrong server; the user
+    // must opt into a restart.
+    const liveIncompatible = aliveSessions.find(
+      (s) => s.hash === fileHash && (!sameScripts(s.scripts, scripts) || !sameEngine(s.engine, engine)),
+    );
+    if (liveIncompatible) {
+      const difference = !sameEngine(liveIncompatible.engine, engine)
+        ? `a different engine (${liveIncompatible.engine ?? "jvm"})`
+        : "a different script set";
       return {
         action: "error",
         message:
-          `Session '${fileName}' is already running for this APK with a different script set. ` +
-          `Use --force to restart with the new scripts.`,
+          `Session '${fileName}' is already running for this APK with ${difference}. ` +
+          `Use --force to restart.`,
       };
     }
 
@@ -215,11 +238,33 @@ export async function openAnalysisTarget(
   opts: OpenAnalysisTargetOptions = {},
 ): Promise<Record<string, unknown>> {
   const mgr = Manager.get();
+  const engine: SessionEngine = opts.engine ?? "jvm";
   const requestedPort = opts.port !== undefined ? parseServerPort(opts.port) : undefined;
 
-  const jarPath = findDecxServerJar();
-  if (!jarPath) {
-    throw new FileError("decx-server.jar not found. Run 'decx self install' to install.");
+  // Resolve the server binary up front so a missing jar/binary fails before
+  // any file hashing, and the native-engine restrictions are enforced early.
+  let spawnBinary: string;
+  if (engine === "jvm") {
+    const jar = findDecxServerJar();
+    if (!jar) {
+      throw new FileError("decx-server.jar not found. Run 'decx self install' to install.");
+    }
+    spawnBinary = jar;
+  } else {
+    if (opts.scripts?.length) {
+      throw new ProcessError(
+        "Jadx Kotlin scripts require the JVM engine; drop --script or use --engine jvm.",
+      );
+    }
+    const native = findDecxNativeServer();
+    if (!native) {
+      throw new FileError(
+        "decx-native-server binary not found. Install one from github.com/jygzyc/decx/releases " +
+        "(drop it into DECX_HOME/bin), point DECX_NATIVE_SERVER at it, or build it with " +
+        "'cd native && cargo build --release'.",
+      );
+    }
+    spawnBinary = native;
   }
 
   const resolvedFile = await resolveFileInput(filePath);
@@ -247,12 +292,13 @@ export async function openAnalysisTarget(
     aliveSessions: mgr.listAliveSessions(),
     existingByName: mgr.getSession(fileName),
     scripts,
+    engine,
   });
 
   if (decision.action === "reuse") {
     const reuse = decision.session;
     logCliEvent({ command: "process", action: "open", session: reuse.name, reused: true, pid: reuse.pid, port: reuse.port });
-    return { name: reuse.name, hash: reuse.hash, pid: reuse.pid, port: reuse.port, file: resolvedFile, reused: true };
+    return { name: reuse.name, hash: reuse.hash, pid: reuse.pid, port: reuse.port, file: resolvedFile, engine: reuse.engine ?? "jvm", scripts: reuse.scripts ?? [], reused: true };
   }
   if (decision.action === "error") {
     throw new ProcessError(decision.message);
@@ -277,15 +323,16 @@ export async function openAnalysisTarget(
     mgr.removeSession(stale.name);
   }
 
-  const port = await selectAvailableServerPort(requestedPort, opts.mcp ?? false);
-  const javaArgs = buildDecxServerJavaArgs(
-    jarPath,
-    resolvedFile,
-    port,
-    normalizeJadxPassthroughArgs(opts.passthroughArgs ?? []),
-    opts.mcp,
-    scripts,
-  );
+  const port = await selectAvailableServerPort(requestedPort);
+  const spawnArgs = engine === "jvm"
+    ? buildDecxServerJavaArgs(
+        spawnBinary,
+        resolvedFile,
+        port,
+        normalizeJadxPassthroughArgs(opts.passthroughArgs ?? []),
+        scripts,
+      )
+    : buildNativeServerArgs(resolvedFile, port);
   const logDir = decxPath("logs");
   mkdirSync(logDir, { recursive: true });
   const logPath = path.join(logDir, `${fileName}.log`);
@@ -293,7 +340,7 @@ export async function openAnalysisTarget(
   let proc;
 
   try {
-    proc = spawn("java", javaArgs, { detached: true, stdio: ["ignore", logFd, logFd] });
+    proc = spawn(spawnBinary, spawnArgs, { detached: true, stdio: ["ignore", logFd, logFd] });
   } finally {
     closeSync(logFd);
   }
@@ -311,7 +358,7 @@ export async function openAnalysisTarget(
     processExitCode = code;
   });
 
-  const session = mgr.createSession(fileName, fileHash, resolvedFile, proc.pid, port, scripts);
+  const session = mgr.createSession(fileName, fileHash, resolvedFile, proc.pid, port, scripts, engine);
   const timeout = Math.max(1, Math.floor(opts.timeout ?? 300)); // seconds
   // Heartbeat on stderr so interactive users and agents waiting on this
   // command see liveness while a large APK decompiles (stdout stays JSON-only).
@@ -321,8 +368,18 @@ export async function openAnalysisTarget(
   };
   const ready = await waitForServer(port, timeout, logPath, () => processExited, { heartbeat });
   if (ready) {
-    logCliEvent({ command: "process", action: "open", session: session.name, pid: proc.pid, port, file: resolvedFile, mcp: opts.mcp ?? false });
-    return { name: session.name, hash: session.hash, pid: proc.pid, port, file: resolvedFile, log: logPath, mcp: opts.mcp ?? false, mcpPort: opts.mcp ? port + 1 : undefined, scripts, reused: false };
+    logCliEvent({ command: "process", action: "open", session: session.name, pid: proc.pid, port, file: resolvedFile, engine });
+    return {
+      name: session.name,
+      hash: session.hash,
+      pid: proc.pid,
+      port,
+      file: resolvedFile,
+      log: logPath,
+      engine,
+      scripts,
+      reused: false,
+    };
   }
 
   if (processExited) {
@@ -483,8 +540,8 @@ export function extractPassthroughArgs(argv: readonly string[] = process.argv): 
   if (openIdx === -1) return [];
 
   const raw = cmdArgs.slice(openIdx + 1);
-  const decxFlagsWithValue = ["--port", "-n", "--name", "--script", "--timeout"];
-  const decxFlags = ["--force", "--mcp", "--no-mcp"];
+  const decxFlagsWithValue = ["--port", "-n", "--name", "--script", "--timeout", "--engine"];
+  const decxFlags = ["--force"];
 
   const result: string[] = [];
   let fileSkipped = false;

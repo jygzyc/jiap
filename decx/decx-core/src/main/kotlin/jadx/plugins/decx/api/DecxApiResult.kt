@@ -5,7 +5,7 @@ import jadx.plugins.decx.utils.AnalysisResultUtils
 /**
  * Unified result envelope for every DECX API/service call.
  *
- * `success` is the transport-neutral success flag used by HTTP/MCP adapters.
+ * `success` is the transport-neutral success flag used by the HTTP adapter.
  * `data` is the response body returned to clients. Service implementations must
  * build it with AnalysisResultUtils so every response has the same top-level
  * shape:

@@ -84,15 +84,15 @@ describe("process command structure", () => {
       expect(open.registeredArguments.length).toBeGreaterThanOrEqual(1);
     });
 
-    it("has --port, --force, --name, --mcp, and --script options", () => {
+    it("has --port, --force, --name, and --script options", () => {
       const open = findCommand(processCmd, ["open"])!;
       const flags = getOptionFlags(open);
       expect(flags.some(f => f.includes("--port"))).toBe(true);
       expect(flags.some(f => f.includes("--force"))).toBe(true);
       expect(flags.some(f => f.includes("--name"))).toBe(true);
-      expect(flags.some(f => f.includes("--mcp"))).toBe(true);
       expect(flags.some(f => f.includes("--script"))).toBe(true);
       expect(flags.some(f => f.includes("--heap"))).toBe(false);
+      expect(flags.some(f => f.includes("--mcp"))).toBe(false);
     });
   });
 
@@ -414,6 +414,35 @@ describe("process open session reuse by sha256", () => {
     }
   });
 
+  it("errors when the file is running on a different engine", () => {
+    const alive = makeSession({ name: "foo", hash: "abc", engine: "jvm" });
+    const decision = decideOpenReuse({
+      fileHash: "abc",
+      fileName: "foo",
+      force: false,
+      aliveSessions: [alive],
+      existingByName: alive,
+      engine: "native",
+    });
+    expect(decision.action).toBe("error");
+    if (decision.action === "error") {
+      expect(decision.message).toContain("different engine");
+    }
+  });
+
+  it("reuses a native session when requesting the same engine", () => {
+    const alive = makeSession({ name: "foo", hash: "abc", engine: "native" });
+    const decision = decideOpenReuse({
+      fileHash: "abc",
+      fileName: "foo",
+      force: false,
+      aliveSessions: [alive],
+      existingByName: alive,
+      engine: "native",
+    });
+    expect(decision).toEqual({ action: "reuse", session: alive });
+  });
+
   it("does not reuse a session with the same file hash but a different script set", () => {
     const alive = makeSession({ name: "foo", hash: "abc", scripts: ["a.jadx.kts"] });
     const decision = decideOpenReuse({
@@ -476,34 +505,6 @@ describe("extractPassthroughArgs", () => {
     expect(extractPassthroughArgs()).toEqual(["--deobf"]);
   });
 
-  it("strips --mcp so it is not forwarded to jadx", () => {
-    process.argv = [
-      "node",
-      "decx",
-      "process",
-      "open",
-      "app.apk",
-      "--mcp",
-      "--deobf",
-    ];
-
-    expect(extractPassthroughArgs()).toEqual(["--deobf"]);
-  });
-
-  it("strips --no-mcp so it is not forwarded to jadx", () => {
-    process.argv = [
-      "node",
-      "decx",
-      "process",
-      "open",
-      "app.apk",
-      "--no-mcp",
-      "--deobf",
-    ];
-
-    expect(extractPassthroughArgs()).toEqual(["--deobf"]);
-  });
-
   it("strips --script and its value so scripts are not forwarded to jadx", () => {
     process.argv = [
       "node",
@@ -533,29 +534,9 @@ describe("buildDecxServerJavaArgs", () => {
     ]);
   });
 
-  it("omits --mcp by default (MCP disabled unless explicitly enabled)", () => {
+  it("omits --mcp (MCP support was removed)", () => {
     const args = buildDecxServerJavaArgs("server.jar", "app.apk", 25419, []);
     expect(args).not.toContain("--mcp");
-  });
-
-  it("omits --mcp when mcp is false or undefined", () => {
-    expect(buildDecxServerJavaArgs("server.jar", "app.apk", 25419, [], false))
-      .not.toContain("--mcp");
-    expect(buildDecxServerJavaArgs("server.jar", "app.apk", 25419, [], undefined))
-      .not.toContain("--mcp");
-  });
-
-  it("includes --mcp between --port and jadx args when mcp is true", () => {
-    expect(buildDecxServerJavaArgs("server.jar", "app.apk", 25419, ["--show-bad-code"], true)).toEqual([
-      `-Xmx${defaultJavaHeap()}`,
-      "-jar",
-      "server.jar",
-      "app.apk",
-      "--port",
-      "25419",
-      "--mcp",
-      "--show-bad-code",
-    ]);
   });
 
   it("appends Jadx Kotlin script files as positional inputs after jadx args", () => {
@@ -564,7 +545,6 @@ describe("buildDecxServerJavaArgs", () => {
       "app.apk",
       25419,
       ["--show-bad-code"],
-      undefined,
       ["rename.jadx.kts", "log.jadx.kts"],
     )).toEqual([
       `-Xmx${defaultJavaHeap()}`,
@@ -580,7 +560,7 @@ describe("buildDecxServerJavaArgs", () => {
   });
 
   it("appends no scripts when none are given", () => {
-    const args = buildDecxServerJavaArgs("server.jar", "app.apk", 25419, [], undefined, []);
+    const args = buildDecxServerJavaArgs("server.jar", "app.apk", 25419, [], []);
     expect(args).not.toContain(".jadx.kts");
   });
 });
@@ -640,18 +620,6 @@ describe("selectAvailableServerPort", () => {
     try {
       const selected = await selectAvailableServerPort(port);
       expect(selected).not.toBe(port);
-      expect(selected).toBeGreaterThanOrEqual(30000);
-      expect(selected).toBeLessThanOrEqual(40000);
-    } finally {
-      await close(server);
-    }
-  });
-
-  it("chooses a random base port whose MCP companion port is also available", async () => {
-    const { server, port } = await listen(0);
-    try {
-      const selected = await selectAvailableServerPort(port - 1, true);
-      expect(selected).not.toBe(port - 1);
       expect(selected).toBeGreaterThanOrEqual(30000);
       expect(selected).toBeLessThanOrEqual(40000);
     } finally {

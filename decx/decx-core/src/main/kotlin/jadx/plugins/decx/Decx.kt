@@ -7,9 +7,6 @@ import jadx.plugins.decx.api.DecxRoute
 import jadx.plugins.decx.api.DecxRouteGroup
 import jadx.plugins.decx.api.DecxRoutes
 import jadx.plugins.decx.server.DecxServer
-import jadx.plugins.decx.server.DecxMcpServer
-import jadx.plugins.decx.server.McpTool
-import jadx.plugins.decx.server.McpToolRegistry
 import jadx.plugins.decx.service.UiBackedService
 
 /**
@@ -27,15 +24,9 @@ object Decx {
     fun httpServer(api: DecxApi, port: Int = DecxConstants.DEFAULT_PORT): DecxServer =
         DecxServer(api, port)
 
-    fun mcpServer(api: DecxApi, decxPort: Int = DecxConstants.DEFAULT_PORT): DecxMcpServer =
-        DecxMcpServer(decxPort, api)
-
     val routeGroups: List<DecxRouteGroup>
         get() = DecxRoutes.groups
 
     val routes: List<DecxRoute>
         get() = DecxRoutes.all
-
-    val mcpTools: List<McpTool>
-        get() = McpToolRegistry.tools
 }

@@ -19,6 +19,34 @@ export type ClassFilterOptions = {
     };
 };
 
+/**
+ * Output language for the source endpoints. `kotlin`/`auto` are rendered by
+ * the native engine's Kotlin backend; the JVM engine ignores the field and
+ * keeps serving Java.
+ */
+export type SourceOutputLanguage = "java" | "kotlin" | "auto";
+
+/**
+ * Build a readable cause chain for a failed fetch.
+ *
+ * Node's undici wraps network failures in a generic `TypeError: fetch failed`
+ * and hides the real reason (ECONNREFUSED, ENOTFOUND, ...) in `err.cause`.
+ * Walk the chain and surface each distinct reason, prefixed by errno codes.
+ */
+function describeFetchCause(err: unknown): string | undefined {
+    const parts: string[] = [];
+    let current: unknown = err;
+    for (let depth = 0; current instanceof Error && depth < 4; depth++) {
+        const code = (current as NodeJS.ErrnoException).code;
+        const part = code ? `${code}: ${current.message}` : current.message;
+        if (part && !parts.includes(part)) parts.push(part);
+        current = (current as { cause?: unknown }).cause;
+    }
+    // Drop the generic undici wrapper message — the deeper causes matter more.
+    if (parts.length > 1 && parts[0] === "fetch failed") parts.shift();
+    return parts.length > 0 ? parts.join(" <- ") : undefined;
+}
+
 export type ExportedComponentOptions = {
     includes: string[];
     excludes?: string[];
@@ -133,7 +161,14 @@ export class DecxClient {
             if ((err as Error).name === "AbortError") {
                 throw new DecxError("Request timed out", "TIMEOUT");
             }
-            throw new DecxError(`Connection failed: ${(err as Error).message}`, "CONNECTION_ERROR");
+            const cause = describeFetchCause(err);
+            const summary = err instanceof Error ? err.message : String(err);
+            const causeText = cause ? ` (cause: ${cause})` : "";
+            throw new DecxError(
+                `Connection failed: ${summary}${causeText} at ${url} — ` +
+                    `is the DECX server running on that port? See \`decx process list\`.`,
+                "CONNECTION_ERROR"
+            );
         } finally {
             if (this.sessionName) {
                 logApiCall(this.sessionName, {
@@ -180,9 +215,16 @@ export class DecxClient {
         cls: string,
         smali: boolean = false,
         options: SourceFilterOptions = { filter: {} },
-        page: number = 1
+        page: number = 1,
+        language?: SourceOutputLanguage
     ): Promise<Record<string, unknown>> {
-        return this.request("POST", "/api/decx/get_class_source", { cls, smali, ...options, page });
+        return this.request("POST", "/api/decx/get_class_source", {
+            cls,
+            smali,
+            ...options,
+            page,
+            ...(language ? { language } : {}),
+        });
     }
 
     async searchClassKey(cls: string, key: string, options: ClassGrepOptions, page: number = 1): Promise<Record<string, unknown>> {
@@ -195,8 +237,13 @@ export class DecxClient {
 
     // ── ContextService ──────────────────────────────────────────────────────
 
-    async getMethodSource(mth: string, smali: boolean = false, page: number = 1): Promise<Record<string, unknown>> {
-        return this.request("POST", "/api/decx/get_method_source", { mth, smali, page });
+    async getMethodSource(mth: string, smali: boolean = false, page: number = 1, language?: SourceOutputLanguage): Promise<Record<string, unknown>> {
+        return this.request("POST", "/api/decx/get_method_source", {
+            mth,
+            smali,
+            page,
+            ...(language ? { language } : {}),
+        });
     }
 
     async getMethodContext(mth: string, page: number = 1): Promise<Record<string, unknown>> {

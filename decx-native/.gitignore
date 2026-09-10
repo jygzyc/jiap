@@ -1,0 +1,3 @@
+target/
+.decx_native_test/
+*.log

@@ -3,7 +3,6 @@ package jadx.plugins.decx.ui
 import jadx.api.plugins.JadxPluginContext
 import jadx.api.plugins.gui.JadxGuiContext
 import jadx.plugins.decx.server.DecxServer
-import jadx.plugins.decx.server.DecxMcpServer
 import jadx.plugins.decx.utils.PluginUtils
 import jadx.plugins.decx.utils.PreferencesManager
 import java.awt.FlowLayout
@@ -12,19 +11,13 @@ import javax.swing.Timer
 
 class DecxUIManager(
     private val pluginContext: JadxPluginContext,
-    private val server: DecxServer,
-    private val mcpServer: DecxMcpServer
+    private val server: DecxServer
 ) {
-    private var mcpAutoStartCheckbox: JCheckBox? = null
     private var portField: JTextField? = null
 
     // Refreshable UI components
     private var decxStatusLabel: JLabel? = null
-    private var mcpStatusLabel: JLabel? = null
     private var urlLabel: JLabel? = null
-    private var mcpUrlLabel: JLabel? = null
-    private var startMcpBtn: JButton? = null
-    private var stopMcpBtn: JButton? = null
 
     fun initializeGuiComponents(guiContext: JadxGuiContext) {
         guiContext.addMenuAction("DECX Settings") {
@@ -104,17 +97,9 @@ class DecxUIManager(
         decxStatusLabel!!.alignmentX = java.awt.Component.LEFT_ALIGNMENT
         panel.add(decxStatusLabel)
 
-        mcpStatusLabel = JLabel()
-        mcpStatusLabel!!.alignmentX = java.awt.Component.LEFT_ALIGNMENT
-        panel.add(mcpStatusLabel)
-
         urlLabel = JLabel()
         urlLabel!!.alignmentX = java.awt.Component.LEFT_ALIGNMENT
         panel.add(urlLabel)
-
-        mcpUrlLabel = JLabel()
-        mcpUrlLabel!!.alignmentX = java.awt.Component.LEFT_ALIGNMENT
-        panel.add(mcpUrlLabel)
 
         panel.add(Box.createVerticalStrut(10))
 
@@ -127,32 +112,6 @@ class DecxUIManager(
         portField = JTextField(PreferencesManager.getPort().toString(), 8)
         panel.add(constrainHeight(createRowWithComponent("New Port:", portField!!)))
 
-        panel.add(Box.createVerticalStrut(10))
-
-        // MCP Settings
-        val mcpTitle = JLabel("MCP Settings")
-        mcpTitle.font = mcpTitle.font.deriveFont(java.awt.Font.BOLD, 12f)
-        mcpTitle.alignmentX = java.awt.Component.LEFT_ALIGNMENT
-        panel.add(mcpTitle)
-
-        mcpAutoStartCheckbox = JCheckBox("Auto-start MCP with DECX")
-        mcpAutoStartCheckbox!!.isSelected = PreferencesManager.getMcpAutoStart()
-        mcpAutoStartCheckbox!!.alignmentX = java.awt.Component.LEFT_ALIGNMENT
-        panel.add(mcpAutoStartCheckbox)
-
-        panel.add(Box.createVerticalStrut(10))
-
-        // MCP Control Buttons
-        val buttonPanel = JPanel(FlowLayout(FlowLayout.LEFT))
-        buttonPanel.alignmentX = java.awt.Component.LEFT_ALIGNMENT
-        startMcpBtn = JButton("Start MCP")
-        startMcpBtn!!.addActionListener { startMcp() }
-        stopMcpBtn = JButton("Stop MCP")
-        stopMcpBtn!!.addActionListener { stopMcp() }
-        buttonPanel.add(startMcpBtn)
-        buttonPanel.add(stopMcpBtn)
-        panel.add(constrainHeight(buttonPanel))
-
         refreshStatus()
         return panel
     }
@@ -160,18 +119,11 @@ class DecxUIManager(
     private fun refreshStatus() {
         SwingUtilities.invokeLater {
             val isServerRunning = server.isRunning
-            val isMcpRunning = mcpServer.isRunning()
             val currentPort = PreferencesManager.getPort()
             val url = PluginUtils.buildServerUrl(port = currentPort)
-            val mcpUrl = mcpServer.mcpUrl()
 
             decxStatusLabel?.text = "DECX:  ${if (isServerRunning) "Running" else "Stopped"}"
-            mcpStatusLabel?.text = "MCP:   ${if (isMcpRunning) "Running" else "Stopped"}"
             urlLabel?.text = "URL:   $url"
-            mcpUrlLabel?.text = "MCP URL: $mcpUrl"
-
-            startMcpBtn?.isEnabled = !isMcpRunning
-            stopMcpBtn?.isEnabled = isMcpRunning
         }
     }
 
@@ -193,32 +145,20 @@ class DecxUIManager(
         val newPort = portField?.text?.trim()?.toIntOrNull()
         if (newPort != null && newPort != PreferencesManager.getPort() && newPort in 1024..65535) {
             PreferencesManager.setPort(newPort)
-            restartServers(newPort)
-            return
-        }
-
-        mcpAutoStartCheckbox?.let {
-            PreferencesManager.setMcpAutoStart(it.isSelected)
+            restartServer(newPort)
         }
     }
 
-    private fun restartServers(newPort: Int) {
+    private fun restartServer(newPort: Int) {
         Thread {
             try {
-                val mcpWasRunning = mcpServer.isRunning()
-                mcpServer.stop()
                 server.stop()
                 Thread.sleep(500)
-                mcpServer.updatePort(newPort)
                 server.start(newPort)
-                if (mcpWasRunning || PreferencesManager.getMcpAutoStart()) {
-                    Thread.sleep(1000)
-                    mcpServer.start()
-                }
                 SwingUtilities.invokeLater {
                     JOptionPane.showMessageDialog(
                         pluginContext.guiContext?.mainFrame,
-                        "Servers restarted on port $newPort",
+                        "Server restarted on port $newPort",
                         "Success",
                         JOptionPane.INFORMATION_MESSAGE
                     )
@@ -228,41 +168,11 @@ class DecxUIManager(
                 SwingUtilities.invokeLater {
                     JOptionPane.showMessageDialog(
                         pluginContext.guiContext?.mainFrame,
-                        "Failed to restart servers: ${e.message}",
+                        "Failed to restart server: ${e.message}",
                         "Error",
                         JOptionPane.ERROR_MESSAGE
                     )
                 }
-            }
-        }.apply { isDaemon = true }.start()
-    }
-
-    private fun startMcp() {
-        Thread {
-            val success = mcpServer.start()
-            SwingUtilities.invokeLater {
-                refreshStatus()
-                JOptionPane.showMessageDialog(
-                    pluginContext.guiContext?.mainFrame,
-                    if (success) "MCP Server started" else "Failed to start MCP Server",
-                    "MCP",
-                    if (success) JOptionPane.INFORMATION_MESSAGE else JOptionPane.ERROR_MESSAGE
-                )
-            }
-        }.apply { isDaemon = true }.start()
-    }
-
-    private fun stopMcp() {
-        Thread {
-            mcpServer.stop()
-            SwingUtilities.invokeLater {
-                refreshStatus()
-                JOptionPane.showMessageDialog(
-                    pluginContext.guiContext?.mainFrame,
-                    "MCP Server stopped",
-                    "MCP",
-                    JOptionPane.INFORMATION_MESSAGE
-                )
             }
         }.apply { isDaemon = true }.start()
     }

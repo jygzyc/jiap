@@ -12,8 +12,8 @@ decx-core (shared library, compile-only JADX dependency)
   → decx-server (standalone headless server, Shadow JAR with full JADX runtime)
 ```
 
-- `decx-core/`: API contract (`api/`), HTTP & MCP server transport (`server/`), service layer (`service/`), utilities (`utils/`), public facade (`Decx.kt`)
-- `decx-plugin/`: Plugin lifecycle management, Swing UI, MCP controls
+- `decx-core/`: API contract (`api/`), HTTP server transport (`server/`), service layer (`service/`), utilities (`utils/`), public facade (`Decx.kt`)
+- `decx-plugin/`: Plugin lifecycle management, Swing UI
 - `decx-server/`: `DecxServerApp` main class, fat JAR bundling
 
 ## Architecture Layers
@@ -21,7 +21,7 @@ decx-core (shared library, compile-only JADX dependency)
 | Package    | Layer         | Key classes                              |
 |------------|---------------|------------------------------------------|
 | `api/`     | API contract  | DecxApi, DecxApiResult, DecxError        |
-| `server/`  | Transport     | DecxServer, DecxMcpServer, RouteHandler  |
+| `server/`  | Transport     | DecxServer, RouteHandler  |
 | `service/` | Business logic | CommonService, ContextService, ...      |
 | `utils/`   | Infra         | AnalysisResultUtils, CacheUtils, ...     |
 
@@ -30,7 +30,7 @@ decx-core (shared library, compile-only JADX dependency)
 | Pattern | Where | Purpose |
 |---|---|---|
 | `DecxApi` interface + `DecxApiImpl` | `api/` | Define all operations as interface; implement with caching in impl |
-| `Decx` facade | root `Decx.kt` | Public embeddable entry point for API, HTTP server, MCP server, routes, and tools |
+| `Decx` facade | root `Decx.kt` | Public embeddable entry point for API, HTTP server, and routes |
 | `DecxRouteGroup(name, routes)` | `api/DecxApiContract.kt` | Canonical service-extension format; groups route registration by service |
 | `DecxRoute(path, kind, invoke)` | `api/DecxApiContract.kt` | Type-safe route registration; no HTTP dependency |
 | `DecxApiResult(success, data)` | `api/DecxApiResult.kt` | Unified return envelope for all API methods |
@@ -51,7 +51,7 @@ DecxApiResult.success(kind, query, items, summary)
 DecxApiResult.error(kind, query, DecxError.METHOD_NOT_FOUND, "methodName")
 ```
 
-The response body shape is stable across HTTP and MCP:
+The response body shape is stable across transports (HTTP today):
 
 - Success: `ok`, `kind`, `query`, `summary`, `items`, `page`
 - Failure: `ok`, `kind`, `query`, `error`
@@ -96,8 +96,7 @@ High-memory decompiler operations must go through `DecompileGuard`.
 2. Implement in `DecxApiImpl` (`api/DecxApiImpl.kt`) by delegating to a service.
 3. Add business logic in the relevant `service/*Service.kt`; service classes should implement `DecompilerBackedService` or `UiBackedService` as appropriate.
 4. Register routes in `DecxApiContract.kt` by adding a `DecxRouteGroup(name, routes)` and including it in `DecxRoutes.groups`.
-5. If the endpoint should be MCP-visible, add a matching `McpTool` in `mcp/McpToolRegistry.kt`; use `McpToolRegistry.toolOf()` / `toolsForRoute()` for lookups.
-6. Update CLI command in `decx-cli/src/commands/` — keep help text aligned.
+5. Update CLI command in `decx-cli/src/commands/` — keep help text aligned.
 
 ## Build Commands
 
@@ -136,8 +135,5 @@ Version source: repository-root `version` file
 | `decx/decx-core/.../utils/WarmupUtils.kt` | Background decompiler warmup with guarded decompilation |
 | `decx/decx-plugin/.../DecxPlugin.kt` | Plugin entry point |
 | `decx/decx-plugin/.../lifecycle/PluginLifecycleManager.kt` | Plugin lifecycle |
-| `decx/decx-core/.../server/DecxMcpServer.kt` | MCP server lifecycle |
-| `decx/decx-core/.../server/McpHttpServer.kt` | Official Kotlin SDK MCP Streamable HTTP transport |
-| `decx/decx-core/.../server/McpToolRegistry.kt` | MCP tool registry backed by DecxRoutes |
 | `decx/decx-plugin/.../ui/DecxUIManager.kt` | Plugin UI |
 | `decx/decx-server/.../server/DecxServerApp.kt` | Standalone server main |

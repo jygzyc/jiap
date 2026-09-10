@@ -43,7 +43,6 @@ data class DecxRoute(
  * 1. Add service methods to DecxApi and DecxApiImpl.
  * 2. Add a DecxRouteGroup here with all HTTP paths for that service.
  * 3. Register the group in DecxRoutes.groups.
- * 4. Add matching MCP tools in McpToolRegistry when the service should be MCP-visible.
  */
 data class DecxRouteGroup(
     val name: String,

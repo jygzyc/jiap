@@ -133,7 +133,7 @@ describe("process", () => {
     expect(help).toContain("record a reusable session");
     expect(help).toContain("forwarded to jadx-cli");
     expect(help).toContain("Session name used by -s/--session");
-    expect(help).toContain("Also start MCP Streamable HTTP server on port + 1");
+    expect(help).not.toContain("MCP");
   });
 
   it("close has optional [name] argument", () => {
@@ -209,7 +209,7 @@ describe("code", () => {
   it("help distinguishes discovery, source, context, cfg, and xref commands", () => {
     const help = cmd.helpInformation();
     expect(help).toContain("List decompiled classes with optional package filters");
-    expect(help).toContain("Return decompiled Java or smali source for one method");
+    expect(help).toContain("Return decompiled Java, Kotlin, or smali source for one method");
     expect(help).toContain("Show callers, callees, and metadata for one method");
     expect(help).toContain("Return the control-flow graph for one method");
     expect(help).toContain("Find callers and references to one method");

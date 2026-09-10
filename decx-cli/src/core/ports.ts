@@ -37,26 +37,19 @@ function randomPortInRange(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-/** Check whether a port (and, with `mcp`, the following port) is free to bind. */
-export async function isServerPortAvailable(
-  port: number,
-  mcp: boolean = false,
-): Promise<boolean> {
+/** Check whether a port is free to bind. */
+export async function isServerPortAvailable(port: number): Promise<boolean> {
   port = parseServerPort(port);
-  if (mcp && port >= MAX_SERVER_PORT) return false;
-  if (!await canBindPort(port)) return false;
-  if (mcp && !await canBindPort(port + 1)) return false;
-  return true;
+  return canBindPort(port);
 }
 
 export async function selectAvailableServerPort(
   preferredPort: number | undefined,
-  mcp: boolean = false,
 ): Promise<number> {
   // Honor an explicitly requested port when it is free.
   if (preferredPort !== undefined) {
     const port = parseServerPort(preferredPort);
-    if (await isServerPortAvailable(port, mcp)) {
+    if (await isServerPortAvailable(port)) {
       return port;
     }
   }
@@ -64,7 +57,7 @@ export async function selectAvailableServerPort(
   // Otherwise pick a random port in the default range until one is free.
   for (let i = 0; i < 100; i++) {
     const port = randomPortInRange(RANDOM_PORT_RANGE_MIN, RANDOM_PORT_RANGE_MAX);
-    if (await isServerPortAvailable(port, mcp)) {
+    if (await isServerPortAvailable(port)) {
       return port;
     }
   }

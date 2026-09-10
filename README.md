@@ -14,7 +14,7 @@
 
 ## Overview
 
-DECX (Decompiler + X) is a smart code analysis platform built on the JADX decompiler, designed specifically for AI-assisted code analysis. The platform provides powerful Java code analysis capabilities to AI assistants through an HTTP API, MCP (Model Context Protocol), a standalone CLI, and workflow skills.
+DECX (Decompiler + X) is a smart code analysis platform built on the JADX decompiler, designed specifically for AI-assisted code analysis. The platform provides powerful Java code analysis capabilities to AI assistants through an HTTP API, a standalone CLI, and workflow skills.
 
 ---
 
@@ -74,7 +74,7 @@ Install the plugin from the JADX GUI plugin manager, or install a plugin JAR man
 jadx plugins --install-jar <path-to-jadx_decx_plugin.jar>
 ```
 
-After installation, open an APK/JAR in JADX and enable DECX. The plugin exposes the DECX HTTP API and MCP tools for the currently opened JADX project.
+After installation, open an APK/JAR in JADX and enable DECX. The plugin exposes the DECX HTTP API for the currently opened JADX project.
 
 ---
 
@@ -124,22 +124,19 @@ Notes:
 - `decx android device system-services` and `permission-info` are adb-backed commands. They use `--serial` / `--adb-path`, not `--port <port>`.
 - `decx android framework run` collects from the connected device, processes, packs, and opens the final framework JAR by default; `process [oem]` is for local framework dumps and can resolve OEM from `.artifact.json` or a connected device when omitted.
 
-### Plugin + MCP
+### Plugin
 
-Use the plugin when you want the AI assistant to work against the project already opened in JADX GUI. The MCP server is an in-process Kotlin SDK Streamable HTTP endpoint; it is disabled by default and can be auto-started with the plugin:
+Use the plugin when you want the AI assistant to work against the project already opened in JADX GUI. The plugin starts the DECX HTTP server in-process for the currently opened project:
 
 1. Open the target APK/JAR in JADX.
 2. Enable the DECX plugin and confirm the server is available at `http://127.0.0.1:25419`.
-3. (Optional) Toggle *Auto-start MCP with DECX* in the DECX panel to start the MCP server at `http://127.0.0.1:25420/mcp` (HTTP port + 1) whenever DECX starts.
-4. Connect your MCP client to DECX and call `health_check()`.
-5. Use MCP tools for code search/source/xrefs, Android manifest/resources/components, framework service lookup, and JADX GUI selections.
+3. Point your AI client / `decx-cli` at that port and use the HTTP API for code search/source/xrefs, Android manifest/resources/components, and framework service lookup.
 
-All MCP tools support pagination with `page` where the returned content is large.
+Responses are paginated with `page` where the returned content is large.
 
 Plugin options (stored in `~/.decx/config.json`):
 
 - `decx.port`: DECX HTTP server port, default `25419`
-- `decx.mcpAutoStart`: `true`/`false`, default `false` — auto-start the MCP server with DECX
 - `decx.cache`: `disk` or `memory`, default `disk`
 
 ---
@@ -189,8 +186,8 @@ DECX returns the same structured error format from plugin and standalone server 
 
 | Path | Role |
 |---|---|
-| `decx/decx-core/` | Shared Kotlin API, HTTP + MCP transport, services, models, and utilities |
-| `decx/decx-plugin/` | JADX GUI plugin: lifecycle, UI, and in-process MCP server wiring |
+| `decx/decx-core/` | Shared Kotlin API, HTTP transport, services, models, and utilities |
+| `decx/decx-plugin/` | JADX GUI plugin: lifecycle, UI, and embedded server wiring |
 | `decx/decx-server/` | Standalone headless server entry point and fat JAR packaging |
 | `decx-cli/` | TypeScript CLI for sessions, code analysis, Android helpers, framework processing, and self-management |
 | `skills/` | AI agent skills for DECX analysis, app/framework vulnerability hunting, reporting, and PoC construction |
@@ -198,7 +195,7 @@ DECX returns the same structured error format from plugin and standalone server 
 Core request path:
 
 ```text
-CLI / MCP / HTTP
+CLI / HTTP
   -> DecxServer / RouteHandler
   -> DecxApi / DecxApiImpl
   -> service/* and utils/*
@@ -235,9 +232,7 @@ This project is licensed under [GNU License](LICENSE) - see the [LICENSE](LICENS
 ## Credits
 
 - **[skylot/jadx](https://github.com/skylot/jadx)** - The foundation of this project, a powerful JADX decompiler with plugin support
-- **[zinja-coder/jadx-ai-mcp](https://github.com/zinja-coder/jadx-ai-mcp)** - Provided many ideas and inspiration, excellent practices for JADX MCP integration
-- **[Kotlin MCP SDK](https://github.com/modelcontextprotocol/kotlin-sdk)**: In-process MCP server implementation
-- **[Ktor](https://ktor.io/)**: Streamable HTTP transport for the MCP server
+- **[zinja-coder/jadx-ai-mcp](https://github.com/zinja-coder/jadx-ai-mcp)** - Provided many ideas and inspiration, excellent practices for JADX AI integration
 - **[Javalin](https://javalin.io/)**: Lightweight web framework for the HTTP API
 
 ---

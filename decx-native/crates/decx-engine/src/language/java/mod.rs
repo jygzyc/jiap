@@ -1,0 +1,47 @@
+// decx-engine: in-house DEX decompiler engine (decx-native).
+// Adapted from asLody/dexdec v1.0.2 (Apache-2.0): https://github.com/asLody/dexdec
+// MODIFIED for decx-native: dependency shims as root modules, batch/caching
+// APIs, streaming iterator signatures, rustc-compat fixes, extra tests.
+// Provenance and modification policy: crates/decx-engine/VENDORED.md
+mod aggregate;
+mod assignment;
+mod ast;
+mod declaration_placement;
+mod declarations;
+mod dex;
+mod emit;
+pub(crate) mod literals;
+mod lower;
+mod members;
+mod normalize;
+mod rewrite;
+mod source_types;
+mod syntax;
+mod unit;
+
+pub use aggregate::AggregateInitializer;
+pub use assignment::DefiniteAssignment;
+pub use ast::{
+    JavaAssignOp, JavaBinaryOp, JavaCatch, JavaClassName, JavaClassType, JavaClassTypeSegment,
+    JavaConstructorTarget, JavaExpr, JavaField, JavaIdentifier, JavaLiteral, JavaMethodBody,
+    JavaNameScope, JavaPrimitiveType, JavaStmt, JavaSwitchCase, JavaType, JavaTypeArgument,
+    JavaTypeParameter, JavaUnaryOp, JavaUpdateOp,
+};
+pub use declaration_placement::LexicalDeclarationPlacement;
+pub use dex::{DexJavaDialect, JavaLoweringError, JavaSourceErasure, OuterInstanceBinding};
+pub use emit::{JavaPrintError, JavaPrinter};
+pub use lower::{JavaDialect, JavaLowerer, JavaStructuralError};
+pub use members::{JavaConstructorLayout, JavaFieldSymbol, JavaMemberNames, JavaMethodSymbol};
+pub use normalize::{
+    JavaAstNormalizer, JavaAstTransform, JavaInitializerExitLowering, JavaMethodCompletion,
+    JavaVoidTailLinearizer,
+};
+pub use rewrite::JavaAstRewriter;
+pub(crate) use source_types::{GenericTypeProjection, SourceObjectTypes};
+pub use syntax::{JavaValueSyntax, SourceSyntaxRecovery};
+pub use unit::{
+    JavaAnnotation, JavaAnnotationElement, JavaAnnotationValue, JavaAnonymousClassBody,
+    JavaCompilationUnit, JavaEnumConstant, JavaFieldDeclaration, JavaMethodDeclaration,
+    JavaMethodDeclarationKind, JavaMethodParameter, JavaModifier, JavaTypeDeclaration,
+    JavaTypeDeclarationKind,
+};

@@ -4,7 +4,7 @@
 
 import { existsSync, readFileSync } from "fs";
 import * as path from "path";
-import type { Config } from "./types.js";
+import type { Config, SessionEngine } from "./types.js";
 import * as session from "./session.js";
 import { decxHome } from "./paths.js";
 import { atomicWriteJson } from "../utils/fs.js";
@@ -54,8 +54,8 @@ export class Manager {
 
   // --- Session delegates ---
 
-  createSession(name: string, hash: string, apkPath: string, pid: number, port: number, scripts?: string[]) {
-    return session.createSession(name, hash, apkPath, pid, port, scripts);
+  createSession(name: string, hash: string, apkPath: string, pid: number, port: number, scripts?: string[], engine?: SessionEngine) {
+    return session.createSession(name, hash, apkPath, pid, port, scripts, engine);
   }
 
   getSession(name: string) { return session.readSession(name); }

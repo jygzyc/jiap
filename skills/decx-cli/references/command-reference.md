@@ -46,7 +46,6 @@ Open options:
 ```text
 --port <port>     preferred server port; if unavailable, DECX chooses a random available port
 -n, --name <name>     explicit session name
---mcp                 also start MCP Streamable HTTP server on port + 1
 --force               replace conflicting sessions (same name or same file hash): their JVMs are killed and death-verified before the new server starts
 --timeout <seconds>   seconds to wait for server health (default 300)
 --script <file>       Jadx Kotlin script (.jadx.kts) run during decompilation; repeatable

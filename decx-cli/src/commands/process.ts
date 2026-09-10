@@ -1,9 +1,9 @@
-import { Command } from "commander";
+import { Command, InvalidArgumentError } from "commander";
 import { DecxClient } from "../core/client.js";
 import { Formatter } from "../utils/formatter.js";
 import { Manager } from "../core/config.js";
 import { DecxError, ProcessError, handleCliError } from "../utils/errors.js";
-import { findDecxServerJar } from "../core/installer.js";
+import { findDecxServerJar, findDecxNativeServer } from "../core/installer.js";
 import { parseServerPort, isServerPortAvailable } from "../core/ports.js";
 import {
   openAnalysisTarget,
@@ -12,11 +12,14 @@ import {
   extractPassthroughArgs,
 } from "../core/launcher.js";
 import { logCliEvent } from "../utils/logger.js";
-import { collectOption } from "./shared-options.js";
+import { collectOption, parseTimeoutSeconds } from "./shared-options.js";
 
 export function makeProcessCommand(): Command {
   const cmd = new Command("process");
   cmd.description("Start, inspect, list, and stop DECX analysis server sessions");
+
+  /** Shape a located-or-missing artifact for `process check` JSON output. */
+  const artifact = (found: string | null, missing: string) => ({ ok: found !== null, info: found ?? missing });
 
   // check
   cmd
@@ -45,10 +48,12 @@ export function makeProcessCommand(): Command {
           }
         }
 
-        // Check decx-server.jar
-        const jarPath = findDecxServerJar();
-        const jarOk = jarPath !== null;
-        const jarInfo = jarOk ? jarPath! : "Not found. Use 'decx self install' to install.";
+        // Check decx-server.jar and the native binary
+        const jar = artifact(findDecxServerJar(), "Not found. Use 'decx self install' to install.");
+        const native = artifact(
+          findDecxNativeServer(),
+          "Not installed. Download a decx-native-server release binary from github.com/jygzyc/decx/releases or build with 'cd native && cargo build --release'.",
+        );
 
         // Check running server
         const [serverOk, serverInfo] = await checkServer(port);
@@ -62,7 +67,8 @@ export function makeProcessCommand(): Command {
         const results = {
           session: sessionName ? { name: sessionName, port } : null,
           server: { ok: serverOk, info: serverInfo },
-          jar: { ok: jarOk, info: jarInfo },
+          jar,
+          native,
           port: { ok: portAvailable, info: portInfo },
         };
 
@@ -79,23 +85,30 @@ export function makeProcessCommand(): Command {
     .summary("Start a DECX server session for an APK, DEX, JAR, AAR, or framework jar")
     .description("Start decx-server.jar for a target file and record a reusable session. Unknown options after this command are forwarded to jadx-cli, including JADX `-P<key>=<value>` project properties. Use `--port` to set the server port.")
     .option("--port <port>", "DECX HTTP server port to bind")
-    .option("--mcp", "Also start MCP Streamable HTTP server on port + 1")
     .option("--force", "Start a new server even when a matching file/session already exists; alive sessions for the same file or name are stopped first")
     .option("-n, --name <name>", "Session name used by -s/--session (default: input filename without extension)")
     .option("--script <file>", "Jadx Kotlin script (.jadx.kts) run during decompilation; may be repeated", collectOption, [])
-    .option("--timeout <seconds>", "Seconds to wait for the server to become healthy (default 300)", v => Math.max(1, Math.floor(Number(v))), undefined)
+    .option("--timeout <seconds>", "Seconds to wait for the server to become healthy (default 300)", v => Math.max(1, Math.floor(parseTimeoutSeconds(v))), undefined)
+    .option("--engine <engine>", "Server engine: 'jvm' (decx-server.jar, default) or 'native' (Rust decx-native-server; ignores jadx flags and --script)", v => {
+      if (v !== "jvm" && v !== "native") {
+        throw new InvalidArgumentError(`expected 'jvm' or 'native', got '${v}'`);
+      }
+      return v as "jvm" | "native";
+    }, undefined)
     .action(async (filePath: string, opts) => {
       const fmt = new Formatter();
       try {
-      fmt.output(await openAnalysisTarget(filePath, {
-        port: opts.port,
-        force: opts.force ?? false,
-        name: opts.name,
-        mcp: opts.mcp ?? false,
-        scripts: opts.script ?? [],
-        passthroughArgs: extractPassthroughArgs(),
-        timeout: opts.timeout,
-      }));
+        const envEngine = process.env.DECX_ENGINE;
+        const engine = opts.engine ?? (envEngine === "native" || envEngine === "jvm" ? envEngine : "jvm");
+        fmt.output(await openAnalysisTarget(filePath, {
+          port: opts.port,
+          force: opts.force ?? false,
+          name: opts.name,
+          scripts: opts.script ?? [],
+          passthroughArgs: extractPassthroughArgs(),
+          timeout: opts.timeout,
+          engine,
+        }));
       } catch (err) { handleCliError(err, fmt); }
     });
 

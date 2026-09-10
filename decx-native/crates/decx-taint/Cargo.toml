@@ -1,0 +1,9 @@
+[package]
+name = "decx-taint"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+decx-json = { path = "../decx-json" }
+decx-core = { path = "../decx-core" }

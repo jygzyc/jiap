@@ -1,0 +1,13 @@
+[package]
+name = "decx-engine"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "decx-native in-house DEX decompiler engine; core adapted from asLody/dexdec v1.0.2 and rusty-rs/rusty-dex 0.2.0 (both Apache-2.0) - see VENDORED.md"
+
+[lib]
+name = "decx_engine"
+path = "src/lib.rs"
+
+[dependencies]
+decx-apk = { path = "../decx-apk" }

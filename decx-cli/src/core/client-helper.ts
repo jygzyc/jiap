@@ -41,7 +41,20 @@ export function resolveClient(
     }
   }
 
-  const client = new DecxClient("127.0.0.1", port, 30, undefined, sessionName);
+  // Request timeout: --timeout flag > DECX_TIMEOUT env > 30s default. Cold
+  // hierarchy builds and full-archive sweeps on large apps legitimately
+  // exceed the default (the native server allows up to its own
+  // DECX_NATIVE_REQUEST_TIMEOUT_SECS, default 120s).
+  const timeoutSeconds = Number(
+    opts.timeout ?? process.env.DECX_TIMEOUT ?? 30,
+  );
+  if (!Number.isFinite(timeoutSeconds) || timeoutSeconds <= 0) {
+    throw new DecxError(
+      `Invalid timeout: ${opts.timeout ?? process.env.DECX_TIMEOUT}. Use a positive number of seconds.`,
+      "INVALID_PARAMETER",
+    );
+  }
+  const client = new DecxClient("127.0.0.1", port, timeoutSeconds, undefined, sessionName);
 
   // Sync server version in background (non-blocking)
   client.healthCheck().then((health) => {

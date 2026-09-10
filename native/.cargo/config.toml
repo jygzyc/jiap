@@ -1,5 +1,0 @@
-# windows-gnu's bundled GNU ld intermittently emits broken executables for
-# this dependency graph (segfaults on paths that never touch the engine).
-# rust-lld produces working binaries; see native/RESEARCH.md §4.
-[target.x86_64-pc-windows-gnu]
-linker = "rust-lld"

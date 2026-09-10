@@ -14,7 +14,6 @@ object PreferencesManager {
 
     private const val CONFIG_DIR_NAME = ".decx"
     private const val CONFIG_FILE_NAME = "config.json"
-    private const val LEGACY_MCP_CONFIG_FILE_NAME = "mcp.json"
 
     private val configLock = ReentrantReadWriteLock()
 
@@ -24,12 +23,7 @@ object PreferencesManager {
 
     private data class DecxConfig(
         var port: Int = DecxConstants.DEFAULT_PORT,
-        var cache: String = DecxConstants.DEFAULT_CACHE_MODE,
-        var mcpAutoStart: Boolean = false
-    )
-
-    private data class LegacyMcpConfig(
-        var autoStart: Boolean = false
+        var cache: String = DecxConstants.DEFAULT_CACHE_MODE
     )
 
     @Volatile
@@ -88,15 +82,6 @@ object PreferencesManager {
 
     fun getPort(): Int = configLock.read { config.port }
 
-    // ========== MCP ==========
-
-    fun setMcpAutoStart(enabled: Boolean) {
-        configLock.write { config.mcpAutoStart = enabled }
-        saveConfig()
-    }
-
-    fun getMcpAutoStart(): Boolean = configLock.read { config.mcpAutoStart }
-
     // ========== Cache ==========
 
     private fun getCacheDir(): File {
@@ -131,29 +116,15 @@ object PreferencesManager {
             if (configFile.exists()) {
                 val json = configFile.readText()
                 config = gson.fromJson(json, DecxConfig::class.java) ?: DecxConfig()
-                migrateLegacyMcpConfigIfNeeded()
                 LogUtils.debug("Loaded config from $configFile")
             } else {
                 config = DecxConfig()
-                migrateLegacyMcpConfigIfNeeded()
                 saveConfig()
                 LogUtils.debug("Created default config at $configFile")
             }
         } catch (e: Exception) {
             LogUtils.error(DecxError.SERVICE_ERROR, "Failed to load config: ${e.message}")
             config = DecxConfig()
-        }
-    }
-
-    private fun migrateLegacyMcpConfigIfNeeded() {
-        val legacyFile = File(configDir, LEGACY_MCP_CONFIG_FILE_NAME)
-        if (!legacyFile.exists() || config.mcpAutoStart) return
-
-        try {
-            val legacy = gson.fromJson(legacyFile.readText(), LegacyMcpConfig::class.java)
-            config.mcpAutoStart = legacy?.autoStart == true
-        } catch (e: Exception) {
-            LogUtils.debug("Failed to migrate legacy MCP config: ${e.message}")
         }
     }
 

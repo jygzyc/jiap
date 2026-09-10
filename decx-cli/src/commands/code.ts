@@ -2,7 +2,7 @@ import { Command } from "commander";
 import { resolveCommandClient } from "../core/client-helper.js";
 import type { ClassGrepOptions, GlobalSearchOptions, SourceFilterOptions } from "../core/client.js";
 import { withErrorHandler } from "../utils/errors.js";
-import { addPackageFilterOptions, parseClassFilterOptions, parseOptionalInt, parsePage, parseStringList } from "./shared-options.js";
+import { addClientConnectionOptions, addLanguageOption, addPackageFilterOptions, parseClassFilterOptions, parseOptionalInt, parsePage, parseStringList } from "./shared-options.js";
 
 function addGlobalSearchOptions(cmd: Command): Command {
   return addPackageFilterOptions(cmd)
@@ -52,9 +52,7 @@ export function makeCodeCommand(): Command {
   const cmd = new Command("code");
   cmd.description("Query decompiled classes, methods, source, control flow, and cross references");
 
-  cmd
-    .option("-s, --session <name>", "Select a named DECX session; required when multiple sessions are running")
-    .option("--port <port>", "Connect to a DECX HTTP server on this port");
+  addClientConnectionOptions(cmd);
 
   addPackageFilterOptions(cmd.command("classes"))
     .summary("List decompiled classes with optional package filters")
@@ -87,29 +85,33 @@ export function makeCodeCommand(): Command {
       fmt.output(await client.getClassContext(className, page));
     }));
 
-  cmd
-    .command("class-source <class>")
-    .summary("Return decompiled Java or smali source for one class")
-    .description("Return source code for one fully qualified class name. Use --smali when bytecode-level output is needed.")
-    .option("--limit <n>", "Maximum number of source lines to return")
-    .option("--smali", "Return smali output instead of Java source")
-    .option("--page <n>", "Result page number to fetch", String)
+  addLanguageOption(
+    cmd
+      .command("class-source <class>")
+      .summary("Return decompiled Java, Kotlin, or smali source for one class")
+      .description("Return source code for one fully qualified class name. Use --smali when bytecode-level output is needed, or --language kotlin/auto to render through the native engine's Kotlin backend.")
+      .option("--limit <n>", "Maximum number of source lines to return")
+      .option("--smali", "Return smali output instead of Java source")
+      .option("--page <n>", "Result page number to fetch", String),
+  )
     .action(withErrorHandler(async (className: string, opts, command) => {
       const { fmt, client } = resolveCommandClient(opts, command);
       const page = parsePage(opts);
-      fmt.output(await client.getClassSource(className, opts.smali ?? false, parseSourceFilterOptions(opts), page));
+      fmt.output(await client.getClassSource(className, opts.smali ?? false, parseSourceFilterOptions(opts), page, opts.language));
     }));
 
-  cmd
-    .command("method-source <signature>")
-    .summary("Return decompiled Java or smali source for one method")
-    .description("Return source code for an exact method signature such as Lpkg/Cls;->method(I)V or the signature returned by search-method.")
-    .option("--smali", "Return smali output instead of Java source")
-    .option("--page <n>", "Result page number to fetch", String)
+  addLanguageOption(
+    cmd
+      .command("method-source <signature>")
+      .summary("Return decompiled Java, Kotlin, or smali source for one method")
+      .description("Return source code for an exact method signature such as Lpkg/Cls;->method(I)V or the signature returned by search-method. --language kotlin/auto renders through the native engine's Kotlin backend.")
+      .option("--smali", "Return smali output instead of Java source")
+      .option("--page <n>", "Result page number to fetch", String),
+  )
     .action(withErrorHandler(async (sig: string, opts, command) => {
       const { fmt, client } = resolveCommandClient(opts, command);
       const page = parsePage(opts);
-      fmt.output(await client.getMethodSource(sig, opts.smali ?? false, page));
+      fmt.output(await client.getMethodSource(sig, opts.smali ?? false, page, opts.language));
     }));
 
   cmd
