@@ -45,7 +45,7 @@ impl ExternalRegistry {
     }
 
     pub fn load(&self) -> Vec<ExternalTool> {
-        crate::config::Config::load(&self.home)
+        crate::settings::Settings::load(&self.home)
             .tools
             .into_iter()
             .map(|spec| ExternalTool {
@@ -58,17 +58,17 @@ impl ExternalRegistry {
     }
 
     fn save(&self, tools: Vec<ExternalTool>) -> DecxResult<()> {
-        let mut config = crate::config::Config::load(&self.home);
-        config.tools = tools
+        let mut settings = crate::settings::Settings::load(&self.home);
+        settings.tools = tools
             .into_iter()
-            .map(|tool| crate::config::ToolSpec {
+            .map(|tool| crate::settings::ToolSpec {
                 name: tool.name,
                 command: tool.command,
                 description: tool.description,
                 registered_at_ms: tool.registered_at_ms,
             })
             .collect();
-        config.save(&self.home)
+        settings.save(&self.home)
     }
 
     pub fn get(&self, name: &str) -> Option<ExternalTool> {

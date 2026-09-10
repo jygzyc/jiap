@@ -14,7 +14,7 @@ use std::time::Duration;
 use serde_json::{json, Value};
 
 use crate::engine::launcher::wait_for_server;
-use crate::engine::{EngineRegistry, TargetSpec};
+use crate::engine::{build_launch_command, resolve_binary, validate_launch, EngineCatalog, TargetSpec};
 use crate::error::{DecxError, DecxResult};
 use crate::fsx;
 use crate::hash::hash_file;
@@ -32,6 +32,8 @@ pub struct OpenRequest {
     pub force: bool,
     pub scripts: Vec<String>,
     pub passthrough: Vec<String>,
+    /// `--engine-arg` extras: (param id, optional value for value params).
+    pub engine_args: Vec<(String, Option<String>)>,
     pub timeout_secs: u64,
     pub origin: String,
 }
@@ -46,6 +48,7 @@ impl Default for OpenRequest {
             force: false,
             scripts: vec![],
             passthrough: vec![],
+            engine_args: vec![],
             timeout_secs: 300,
             origin: "decx session open".to_string(),
         }
@@ -176,18 +179,18 @@ fn default_session_name(path: &Path) -> String {
 /// Full session-open flow. Returns the JSON summary printed to stdout.
 pub fn open_session(
     mgr: &Arc<SessionManager>,
-    engines: &EngineRegistry,
+    catalog: &EngineCatalog,
     req: &OpenRequest,
     mut notice: impl FnMut(&str),
 ) -> DecxResult<Value> {
     let home = mgr.home();
-    let engine = engines.resolve(req.engine_id.as_deref())?;
+    let engine = catalog.resolve(req.engine_id.as_deref())?;
     let requested_port = match &req.port {
         Some(p) => Some(parse_server_port(p)?),
         None => None,
     };
 
-    let binary = engine.resolve_binary(home)?;
+    let binary = resolve_binary(engine, home)?;
     let resolved_file = resolve_file_input(home, &req.file)?;
     if !resolved_file.exists() {
         return Err(DecxError::file(
@@ -259,9 +262,10 @@ pub fn open_session(
         port,
         scripts: scripts.clone(),
         passthrough: req.passthrough.clone(),
+        engine_args: crate::engine::render_engine_args(engine, &req.engine_args),
     };
-    engine.validate(&spec)?;
-    let mut command = engine.build_command(&binary, &spec)?;
+    validate_launch(engine, &spec, &req.engine_args)?;
+    let mut command = build_launch_command(engine, &binary, &spec, &req.engine_args)?;
 
     let log_path = home.join("logs").join(format!("{name}.log"));
     let pid = crate::spawn::spawn_detached(&mut command, &log_path)?;
@@ -270,7 +274,7 @@ pub fn open_session(
         name: name.clone(),
         hash: file_hash,
         file: resolved_file.clone(),
-        engine: engine.id().to_string(),
+        engine: engine.id.to_string(),
         pid,
         port,
         scripts,
@@ -302,7 +306,7 @@ pub fn open_session(
             "hash": hash_file(&resolved_file)?,
             "pid": pid,
             "port": port,
-            "engine": engine.id(),
+            "engine": engine.id,
             "file": resolved_file.display().to_string(),
             "log": log_path.display().to_string(),
             "scripts": req.scripts,

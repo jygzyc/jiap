@@ -1,9 +1,13 @@
 //! DECX HTTP client — direct client for the DECX server REST API.
 //!
-//! Port of the TypeScript `DecxClient`: all methods return the raw
-//! `DecxApiResult` JSON envelope — no unwrapping — so callers and the output
-//! formatter see exactly what the server sent. Transport is the std-only
-//! HTTP/1.1 client in [`crate::net`] (the server is always on 127.0.0.1).
+//! One generic method: [`DecxClient::post_endpoint`] posts a request body
+//! to `POST /api/decx/<endpoint>` and returns the raw `DecxApiResult` JSON
+//! envelope — no unwrapping, no per-endpoint typing. The request bodies are
+//! assembled from the compile-time route mappings (see
+//! [`crate::commands::run_route`]), so adding an endpoint to an engine's
+//! `config.json` declaration is all that is needed to expose it here.
+//! Transport is the std-only HTTP/1.1 client in [`crate::net`] (the server
+//! is always on 127.0.0.1).
 
 use std::time::Duration;
 
@@ -11,7 +15,6 @@ use serde_json::{json, Value};
 
 use crate::error::{DecxError, DecxResult};
 use crate::net;
-use crate::params::{ClassFilter, ClassGrep, ComponentFilter, GlobalSearch, SourceFilter};
 
 pub const DEFAULT_TIMEOUT_SECS: u64 = 30;
 
@@ -32,6 +35,11 @@ impl DecxClient {
             timeout: Duration::from_secs(timeout_secs.max(1)),
             session_name,
         }
+    }
+
+    /// The port this client talks to.
+    pub fn port(&self) -> u16 {
+        self.port
     }
 
     fn request(&self, method: &str, path: &str, body: Option<&Value>) -> DecxResult<Value> {
@@ -97,7 +105,7 @@ impl DecxClient {
     }
 
     /// True when `/health` answered HTTP 200 with a running-ish status.
-    /// Engines report either `"running"` (jvm/kuna-sdk) or `"ok"` (native) —
+    /// Engines report either `"running"` (jvm/kuna) or `"ok"` (native) —
     /// a 200 from the health endpoint is the authoritative readiness signal
     /// (same semantics as the TypeScript launcher's `response.ok`).
     pub fn is_healthy(&self) -> bool {
@@ -110,166 +118,17 @@ impl DecxClient {
         }
     }
 
-    // ── Common code analysis ────────────────────────────────────────────────
+    // ── The engine API ──────────────────────────────────────────────────────
 
-    pub fn get_classes(&self, filter: &ClassFilter, page: u64) -> DecxResult<Value> {
-        let mut body = filter.to_value();
-        body["page"] = json!(page);
-        self.request("POST", "/api/decx/get_classes", Some(&body))
-    }
-
-    pub fn search_global_key(&self, key: &str, search: &GlobalSearch, page: u64) -> DecxResult<Value> {
-        let mut body = search.to_value();
-        body["key"] = json!(key);
-        body["page"] = json!(page);
-        self.request("POST", "/api/decx/search_global_key", Some(&body))
-    }
-
-    pub fn get_class_context(&self, cls: &str, page: u64) -> DecxResult<Value> {
-        self.request("POST", "/api/decx/get_class_context", Some(&json!({ "cls": cls, "page": page })))
-    }
-
-    pub fn get_class_source(
-        &self,
-        cls: &str,
-        smali: bool,
-        filter: &SourceFilter,
-        page: u64,
-    ) -> DecxResult<Value> {
-        let mut body = filter.to_value();
-        body["cls"] = json!(cls);
-        body["smali"] = json!(smali);
-        body["page"] = json!(page);
-        self.request("POST", "/api/decx/get_class_source", Some(&body))
-    }
-
-    pub fn search_class_key(&self, cls: &str, key: &str, grep: &ClassGrep, page: u64) -> DecxResult<Value> {
-        let mut body = grep.to_value();
-        body["cls"] = json!(cls);
-        body["key"] = json!(key);
-        body["page"] = json!(page);
-        self.request("POST", "/api/decx/search_class_key", Some(&body))
-    }
-
-    pub fn search_method(&self, mth: &str, page: u64) -> DecxResult<Value> {
-        self.request("POST", "/api/decx/search_method", Some(&json!({ "mth": mth, "page": page })))
-    }
-
-    // ── Method context ──────────────────────────────────────────────────────
-
-    pub fn get_method_source(&self, mth: &str, smali: bool, page: u64) -> DecxResult<Value> {
-        self.request(
-            "POST",
-            "/api/decx/get_method_source",
-            Some(&json!({ "mth": mth, "smali": smali, "page": page })),
-        )
-    }
-
-    pub fn get_method_source_full(&self, mth: &str, smali: bool, filter: &SourceFilter, page: u64) -> DecxResult<Value> {
-        let mut body = filter.to_value();
-        body["mth"] = json!(mth);
-        body["smali"] = json!(smali);
-        body["page"] = json!(page);
-        self.request("POST", "/api/decx/get_method_source", Some(&body))
-    }
-
-    pub fn get_method_context(&self, mth: &str, page: u64) -> DecxResult<Value> {
-        self.request("POST", "/api/decx/get_method_context", Some(&json!({ "mth": mth, "page": page })))
-    }
-
-    pub fn get_method_cfg(&self, mth: &str, page: u64) -> DecxResult<Value> {
-        self.request("POST", "/api/decx/get_method_cfg", Some(&json!({ "mth": mth, "page": page })))
-    }
-
-    pub fn get_method_xref(&self, mth: &str, page: u64) -> DecxResult<Value> {
-        self.request("POST", "/api/decx/get_method_xref", Some(&json!({ "mth": mth, "page": page })))
-    }
-
-    pub fn get_field_xref(&self, fld: &str, page: u64) -> DecxResult<Value> {
-        self.request("POST", "/api/decx/get_field_xref", Some(&json!({ "fld": fld, "page": page })))
-    }
-
-    pub fn get_class_xref(&self, cls: &str, page: u64) -> DecxResult<Value> {
-        self.request("POST", "/api/decx/get_class_xref", Some(&json!({ "cls": cls, "page": page })))
-    }
-
-    pub fn get_implementations(&self, iface: &str, page: u64) -> DecxResult<Value> {
-        self.request("POST", "/api/decx/get_implementations", Some(&json!({ "iface": iface, "page": page })))
-    }
-
-    pub fn get_subclasses(&self, cls: &str, page: u64) -> DecxResult<Value> {
-        self.request("POST", "/api/decx/get_subclasses", Some(&json!({ "cls": cls, "page": page })))
-    }
-
-    // ── Android app analysis ────────────────────────────────────────────────
-
-    pub fn get_aidl_interfaces(&self, filter: &ClassFilter, page: u64) -> DecxResult<Value> {
-        let mut body = filter.to_value();
-        body["page"] = json!(page);
-        self.request("POST", "/api/decx/get_aidl_interfaces", Some(&body))
-    }
-
-    pub fn get_app_manifest(&self, page: u64) -> DecxResult<Value> {
-        self.request("POST", "/api/decx/get_app_manifest", Some(&json!({ "page": page })))
-    }
-
-    pub fn get_main_activity(&self, page: u64) -> DecxResult<Value> {
-        self.request("POST", "/api/decx/get_main_activity", Some(&json!({ "page": page })))
-    }
-
-    pub fn get_application(&self, page: u64) -> DecxResult<Value> {
-        self.request("POST", "/api/decx/get_application", Some(&json!({ "page": page })))
-    }
-
-    pub fn get_exported_components(&self, filter: &ComponentFilter, page: u64) -> DecxResult<Value> {
-        let mut body = filter.to_value();
-        body["page"] = json!(page);
-        self.request("POST", "/api/decx/get_exported_components", Some(&body))
-    }
-
-    pub fn get_deep_links(&self, page: u64) -> DecxResult<Value> {
-        self.request("POST", "/api/decx/get_deep_links", Some(&json!({ "page": page })))
-    }
-
-    pub fn get_dynamic_receivers(&self, filter: &ClassFilter, page: u64) -> DecxResult<Value> {
-        let mut body = filter.to_value();
-        body["page"] = json!(page);
-        self.request("POST", "/api/decx/get_dynamic_receivers", Some(&body))
-    }
-
-    pub fn get_all_resources(&self, includes: &[String], regex: Option<bool>, page: u64) -> DecxResult<Value> {
-        let mut filter = json!({ "includes": includes });
-        if let Some(r) = regex {
-            filter["regex"] = json!(r);
-        }
-        self.request(
-            "POST",
-            "/api/decx/get_all_resources",
-            Some(&json!({ "filter": filter, "page": page })),
-        )
-    }
-
-    pub fn get_resource_file(&self, res: &str, page: u64) -> DecxResult<Value> {
-        self.request("POST", "/api/decx/get_resource_file", Some(&json!({ "res": res, "page": page })))
-    }
-
-    pub fn get_strings(&self, page: u64) -> DecxResult<Value> {
-        self.request("POST", "/api/decx/get_strings", Some(&json!({ "page": page })))
-    }
-
-    // ── Android framework analysis ──────────────────────────────────────────
-
-    pub fn get_system_service_impl(&self, iface: &str, page: u64) -> DecxResult<Value> {
-        self.request(
-            "POST",
-            "/api/decx/get_system_service_impl",
-            Some(&json!({ "iface": iface, "page": page })),
-        )
+    /// POST a request body to `POST /api/decx/<endpoint>`. This single
+    /// generic method carries every engine-declared command.
+    pub fn post_endpoint(&self, endpoint: &str, body: &Value) -> DecxResult<Value> {
+        self.request("POST", &format!("/api/decx/{endpoint}"), Some(body))
     }
 }
 
 fn log_api_call(session: &str, entry: &Value) {
-    let dir = crate::config::decx_path(&["logs"]);
+    let dir = crate::settings::decx_path(&["logs"]);
     let _ = std::fs::create_dir_all(&dir);
     let path = dir.join(format!("api-{session}.jsonl"));
     if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {

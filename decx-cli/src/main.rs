@@ -1,24 +1,48 @@
 //! decx — DECX CLI entrypoint.
 //!
-//! The command line is *generated* from the tool layer's declared
-//! interfaces (the standard protocol in `decx-cli-core::iface`): this
-//! binary contains no tool-specific code — one generic compiler turns the
-//! declarations into the clap tree, and dispatch routes parsed arguments
-//! back to the leaf handlers. Registered external CLI tools run as
-//! top-level passthrough (`decx <name> [args...]`).
+//! The command line is generated from two registration sources:
+//! - INTERNAL (Rust): session/engine/settings/tools/self/android management
+//!   interfaces registered in `commands::*`.
+//! - TOOL DOMAINS (`config.json` → `build.rs` → `engines_gen::TOOLS`):
+//!   `java`, `binary`, ... — endpoint-backed leaves served by the session's
+//!   engine server (`decx java classes`, `decx binary strings`).
+//!
+//! Both compile into one clap tree; tool leaves dispatch generically over
+//! HTTP, internal leaves into their Rust handlers. Registered external CLI
+//! tools run as top-level passthrough (`decx <name> [args...]`).
+
+pub mod android_sdk;
+pub mod client;
+pub mod commands;
+pub mod engine;
+pub mod engines_gen;
+pub mod error;
+pub mod fsx;
+pub mod hash;
+pub mod iface;
+pub mod installer;
+pub mod net;
+pub mod output;
+pub mod ports;
+pub mod schema;
+pub mod session;
+pub mod settings;
+pub mod spawn;
+pub mod spec;
 
 use std::sync::Arc;
 
 use clap::error::ErrorKind as ClapErrorKind;
 use clap::{Arg, ArgAction, Command};
-use decx_cli_core::error::{DecxError, EX_OK, EX_USAGE};
-use decx_cli_core::iface::{run_command, ArgKind, ArgSpec, CommandSpec, Interface};
-use decx_cli_core::output::Formatter;
-use decx_cli_core::tools::{ToolContext, ToolRegistry};
-use decx_cli_core::{config, engine, session};
+
+use crate::commands::{ToolContext, ToolRegistry};
+use crate::error::{DecxError, EX_OK, EX_USAGE};
+use crate::iface::{run_command, ArgKind, ArgSpec, CommandSpec};
+use crate::output::Formatter;
+use crate::session::SessionManager;
 
 const ROOT_ABOUT: &str =
-    "DECX - Decompiler + X, CLI for deeper analysis of decompiled Java code, powered by JADX and custom extensions";
+    "DECX - Decompiler + X: unified CLI for java/binary analysis engines (see: decx engine list)";
 
 fn main() {
     std::process::exit(run());
@@ -26,17 +50,22 @@ fn main() {
 
 fn run() -> i32 {
     let argv: Vec<String> = std::env::args().collect();
-    let home = config::decx_home();
+    let home = settings::decx_home();
 
     // Registered external tools join the top-level surface: `decx <name> ...`.
     if let Some(code) = try_external_passthrough(&home, &argv) {
         return code;
     }
 
+    // Internal management groups + tool domains (`java`, `binary`, ...):
+    // distinct top-level names, so a flat concatenation is the whole tree.
     let registry = ToolRegistry::builtins();
-    let interfaces: Vec<Interface> = registry.interfaces.iter().map(|i| i.materialize()).collect();
-    let mut root = build_root(&interfaces);
-    root = root
+    let mut all: Vec<CommandSpec> = Vec::new();
+    for iface in &registry.interfaces {
+        all.extend(iface.materialize().commands);
+    }
+
+    let root = build_root(&all)
         .version(env!("CARGO_PKG_VERSION"))
         .about(ROOT_ABOUT)
         .subcommand_required(false)
@@ -48,16 +77,16 @@ fn run() -> i32 {
         Err(err) => return handle_clap_error(err),
     };
 
-    let unified = config::Config::load(&home);
-    let format = match unified.effective_format(matches.get_one::<String>("format").map(String::as_str)) {
+    let user_settings = settings::Settings::load(&home);
+    let format = match user_settings.effective_format(matches.get_one::<String>("format").map(String::as_str)) {
         Ok(format) => format,
         Err(err) => return report_error(&err),
     };
     let ctx = ToolContext {
         home: home.clone(),
         format,
-        manager: session::SessionManager::open(&home),
-        engines: Arc::new(engine::EngineRegistry::new()),
+        manager: SessionManager::open(&home),
+        catalog: Arc::new(crate::engine::EngineCatalog::new()),
     };
     let fmt = Formatter::new(format);
 
@@ -66,11 +95,11 @@ fn run() -> i32 {
             "No command given. Run 'decx --help' to list commands, or 'decx tools list' for registered external tools.",
         ));
     };
-    let Some(iface) = interfaces.iter().find(|i| i.tool == name) else {
+    let Some(spec) = all.iter().find(|c| c.name == name) else {
         return report_error(&DecxError::usage(format!("Unknown command '{name}'")));
     };
 
-    match run_command(iface.commands.first().expect("interface root"), &[], tool_matches, &ctx) {
+    match run_command(spec, &[], tool_matches, &ctx) {
         Ok(value) => {
             if value.is_null() {
                 fmt.output(&serde_json::json!({ "ok": true }));
@@ -108,7 +137,7 @@ fn build_arg(arg: &ArgSpec) -> Arg {
             if arg.values.is_empty() {
                 a
             } else {
-                a.value_parser(clap::builder::PossibleValuesParser::new(arg.values))
+                a.value_parser(clap::builder::PossibleValuesParser::new(arg.values.clone()))
             }
         }
         ArgKind::Multi => base.long(arg.long).action(ArgAction::Append).num_args(1),
@@ -121,18 +150,19 @@ fn build_arg(arg: &ArgSpec) -> Arg {
             if arg.values.is_empty() {
                 a
             } else {
-                a.value_parser(clap::builder::PossibleValuesParser::new(arg.values))
+                a.value_parser(clap::builder::PossibleValuesParser::new(arg.values.clone()))
             }
         }
-        ArgKind::Trailing => base.value_name(arg.id)
+        ArgKind::Trailing => base
+            .value_name(arg.id)
             .num_args(0..)
             .trailing_var_arg(true)
             .allow_hyphen_values(true),
     }
 }
 
-/// The root command: global `--format` plus every tool interface.
-fn build_root(interfaces: &[Interface]) -> Command {
+/// The root command: global `--format` plus every top-level command group.
+fn build_root(all: &[CommandSpec]) -> Command {
     let mut root = Command::new("decx").arg(
         Arg::new("format")
             .long("format")
@@ -141,12 +171,8 @@ fn build_root(interfaces: &[Interface]) -> Command {
             .value_parser(["json", "table"])
             .help("Output format (json | table)"),
     );
-    for iface in interfaces {
-        // The materialized interface carries one root spec named after the
-        // tool — build it directly (no extra nesting level).
-        for cmd in &iface.commands {
-            root = root.subcommand(build_command(cmd));
-        }
+    for cmd in all {
+        root = root.subcommand(build_command(cmd));
     }
     root
 }
@@ -172,7 +198,7 @@ fn handle_clap_error(err: clap::Error) -> i32 {
 
 /// If argv names a registered external tool, spawn it as passthrough.
 fn try_external_passthrough(home: &std::path::Path, argv: &[String]) -> Option<i32> {
-    let registry = decx_cli_core::tools::external::ExternalRegistry::new(home);
+    let registry = crate::commands::external::ExternalRegistry::new(home);
     let idx = first_command_index(argv)?;
     let tool = registry.get(&argv[idx])?;
     let code = registry.run_passthrough(&tool, &argv[idx + 1..]).ok()?;

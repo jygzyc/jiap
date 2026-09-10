@@ -1,27 +1,30 @@
-//! The standard interface protocol between decx (tool host) and decx-cli
-//! (unified command line).
+//! The interface protocol between internal command groups / the compiled-in
+//! tool domains and the unified command line.
 //!
-//! A tool never writes CLI plumbing. It declares an [`Interface`] — pure
-//! data: command names, argument descriptors, help text — and one
-//! [`Handler`] per leaf command. decx-cli owns a single generic engine that
-//! compiles any set of interfaces into a clap tree and dispatches parsed
-//! arguments back to the declared handlers.
+//! A command group never writes CLI plumbing. It declares an [`Interface`]
+//! — pure data: command names, argument descriptors, help text — plus one
+//! [`Handler`] per leaf command. Tool-domain leaves (from
+//! `engines_gen::TOOLS`, compiled in from `config.json`) carry a static
+//! leaf reference instead of a handler: the generic dispatcher assembles
+//! the HTTP request body from the compile-time field mappings and posts it
+//! to the session's engine server (`POST /api/decx/<endpoint>`). The CLI
+//! owns the single generic engine that compiles any set of interfaces into
+//! a clap tree and dispatches parsed arguments back to leaves.
 //!
 //! ```text
-//! tool side (decx)                     cli side (decx-cli)
-//! ────────────────                     ───────────────────
-//! Interface { commands, args }  ─────► build_cli(&[Interface])  → clap tree
-//! Handler(&ToolCtx, &Args)      ◄───── dispatch(root_matches) → leaf handler
-//! ```
-
-use std::collections::HashMap;
+//! internal (Rust)                    tool domains (config.json)     cli side
+//! ─────────────────                  ───────────────────────────    ─────────
+//! Interface { commands, args }       statics (engines_gen.rs)  ───► build_cli() → clap tree
+//! Handler(&ToolCtx, &Args)           static_leaf(tool, cmd)    ◄─── dispatch → handler | HTTP
 
 use serde_json::Value;
 
+use crate::commands::{Args, ToolContext};
 use crate::error::{DecxError, DecxResult};
-use crate::tools::ToolContext;
+use crate::spec::{ArgKind as ArgKindS, ArgSpecS, CmdSpec, ToolSpec};
 
-/// How an argument is parsed and presented.
+/// How an argument is parsed and presented (owned mirror of
+/// [`crate::spec::ArgKind`] for runtime construction).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ArgKind {
     /// Boolean switch (`--force`).
@@ -38,7 +41,7 @@ pub enum ArgKind {
 }
 
 /// One argument descriptor.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct ArgSpec {
     pub id: &'static str,
     /// `--<long>`; ignored for [`ArgKind::Positional`] / `Trailing`.
@@ -46,7 +49,7 @@ pub struct ArgSpec {
     pub kind: ArgKind,
     pub required: bool,
     /// Allowed values (enum validation); empty = free-form.
-    pub values: &'static [&'static str],
+    pub values: Vec<&'static str>,
     pub help: &'static str,
 }
 
@@ -57,7 +60,7 @@ impl ArgSpec {
             long: "",
             kind: ArgKind::Positional,
             required: true,
-            values: &[],
+            values: Vec::new(),
             help,
         }
     }
@@ -76,7 +79,7 @@ impl ArgSpec {
             long,
             kind: ArgKind::Value,
             required: false,
-            values: &[],
+            values: Vec::new(),
             help,
         }
     }
@@ -94,7 +97,7 @@ impl ArgSpec {
             long,
             kind: ArgKind::Flag,
             required: false,
-            values: &[],
+            values: Vec::new(),
             help,
         }
     }
@@ -105,7 +108,7 @@ impl ArgSpec {
             long,
             kind: ArgKind::Multi,
             required: false,
-            values: &[],
+            values: Vec::new(),
             help,
         }
     }
@@ -116,22 +119,23 @@ impl ArgSpec {
             long: "",
             kind: ArgKind::Trailing,
             required: false,
-            values: &[],
+            values: Vec::new(),
             help,
         }
     }
 
     /// Restrict to an enum of values (still optional unless
     /// [`ArgSpec::required_opt`] is used instead).
-    pub fn one_of(id: &'static str, long: &'static str, values: &'static [&'static str], help: &'static str) -> Self {
+    pub fn one_of(id: &'static str, long: &'static str, values: &[&'static str], help: &'static str) -> Self {
         Self {
-            values,
+            values: values.to_vec(),
             ..Self::opt(id, long, help)
         }
     }
 }
 
-/// One command (leaf: has a handler; group: has subcommands).
+/// One command (leaf: has a handler or a static tool leaf; group: has
+/// subcommands).
 #[derive(Clone)]
 pub struct CommandSpec {
     pub name: &'static str,
@@ -139,6 +143,9 @@ pub struct CommandSpec {
     pub args: Vec<ArgSpec>,
     pub subcommands: Vec<CommandSpec>,
     pub handler: Option<Handler>,
+    /// Tool-domain leaf (from `engines_gen::TOOLS`): the static tool + leaf
+    /// specs the dispatcher uses for engine gating and the request body.
+    pub static_leaf: Option<(&'static ToolSpec, &'static CmdSpec)>,
 }
 
 pub type Handler = fn(&ToolContext, &Args) -> DecxResult<Value>;
@@ -151,6 +158,25 @@ impl CommandSpec {
             args,
             subcommands: Vec::new(),
             handler: Some(handler),
+            static_leaf: None,
+        }
+    }
+
+    /// Leaf whose implementation lives in an engine server: the static
+    /// tool/leaf specs carry the endpoint, the request mappings, and the
+    /// engine narrowing for dispatch.
+    pub fn leaf_static(
+        tool: &'static ToolSpec,
+        cmd: &'static CmdSpec,
+        args: Vec<ArgSpec>,
+    ) -> Self {
+        Self {
+            name: cmd.name,
+            about: cmd.about,
+            args,
+            subcommands: Vec::new(),
+            handler: None,
+            static_leaf: Some((tool, cmd)),
         }
     }
 
@@ -161,11 +187,12 @@ impl CommandSpec {
             args: Vec::new(),
             subcommands,
             handler: None,
+            static_leaf: None,
         }
     }
 }
 
-/// The interface a tool exposes to decx-cli.
+/// The interface a tool exposes to the CLI.
 pub struct Interface {
     pub tool: &'static str,
     pub description: &'static str,
@@ -201,11 +228,10 @@ impl Interface {
     /// before building or dispatching.
     pub fn materialize(&self) -> Interface {
         fn pushdown(spec: &CommandSpec, inherited: Vec<ArgSpec>) -> CommandSpec {
-            let own: Vec<ArgSpec> = inherited.iter().chain(spec.args.iter()).copied().collect();
+            let own: Vec<ArgSpec> = inherited.iter().chain(spec.args.iter()).cloned().collect();
             if spec.subcommands.is_empty() {
                 CommandSpec {
                     args: own,
-                    subcommands: Vec::new(),
                     ..spec.clone()
                 }
             } else {
@@ -236,57 +262,31 @@ impl Interface {
     }
 }
 
-/// Parsed arguments handed to a handler: every declared arg is present,
-/// flags default to false, multis to empty.
-#[derive(Default)]
-pub struct Args {
-    strings: HashMap<&'static str, String>,
-    multis: HashMap<&'static str, Vec<String>>,
-    flags: HashMap<&'static str, bool>,
-}
-
-impl Args {
-    pub fn str(&self, id: &str) -> &str {
-        self.strings.get(id).map(String::as_str).unwrap_or_default()
-    }
-
-    pub fn opt_str(&self, id: &str) -> Option<&str> {
-        self.strings.get(id).map(String::as_str).filter(|s| !s.is_empty())
-    }
-
-    pub fn u64(&self, id: &str) -> Option<u64> {
-        self.str(id).parse().ok()
-    }
-
-    pub fn strs(&self, id: &str) -> &[String] {
-        self.multis.get(id).map(Vec::as_slice).unwrap_or(&[])
-    }
-
-    pub fn flag(&self, id: &str) -> bool {
-        self.flags.get(id).copied().unwrap_or(false)
-    }
-
-    pub(crate) fn insert_string(&mut self, id: &'static str, value: String) {
-        self.strings.insert(id, value);
-    }
-
-    pub(crate) fn insert_multi(&mut self, id: &'static str, values: Vec<String>) {
-        self.multis.insert(id, values);
-    }
-
-    pub(crate) fn insert_flag(&mut self, id: &'static str, value: bool) {
-        self.flags.insert(id, value);
-    }
-}
-
 /// Walk a declared command tree alongside parsed matches and run the leaf
-/// handler. Generic — this is the whole dispatch logic of decx-cli.
+/// (native handler or engine route). Generic — this is the whole dispatch
+/// logic of the CLI. The dotted leaf path (`code.classes`) is threaded
+/// through so engine-backed leaves can look up the SESSION ENGINE's own
+/// declaration of that command.
 pub fn run_command(
     spec: &CommandSpec,
     common: &[ArgSpec],
     matches: &clap::ArgMatches,
     ctx: &ToolContext,
 ) -> DecxResult<Value> {
+    run_command_at(spec, common, matches, ctx, &mut String::new())
+}
+
+fn run_command_at(
+    spec: &CommandSpec,
+    common: &[ArgSpec],
+    matches: &clap::ArgMatches,
+    ctx: &ToolContext,
+    path: &mut String,
+) -> DecxResult<Value> {
+    if !path.is_empty() {
+        path.push('.');
+    }
+    path.push_str(spec.name);
     if !spec.subcommands.is_empty() {
         let Some((name, sub)) = matches.subcommand() else {
             return Err(DecxError::usage(format!(
@@ -304,12 +304,15 @@ pub fn run_command(
             .iter()
             .find(|c| c.name == name)
             .ok_or_else(|| DecxError::usage(format!("Unknown subcommand '{name}'")))?;
-        return run_command(sub_spec, common, sub, ctx);
+        return run_command_at(sub_spec, common, sub, ctx, path);
+    }
+    let args = collect_args(spec, common, matches)?;
+    if let Some((tool, leaf)) = &spec.static_leaf {
+        return crate::commands::run_route(ctx, tool, leaf, &args);
     }
     let handler = spec.handler.ok_or_else(|| {
         DecxError::usage(format!("'{spec_name}' has no handler", spec_name = spec.name))
     })?;
-    let args = collect_args(spec, common, matches)?;
     handler(ctx, &args)
 }
 
@@ -336,14 +339,7 @@ fn collect_args(spec: &CommandSpec, common: &[ArgSpec], matches: &clap::ArgMatch
                 }
                 args.insert_string(arg.id, value);
             }
-            ArgKind::Multi => args.insert_multi(
-                arg.id,
-                matches
-                    .get_many::<String>(arg.id)
-                    .map(|vals| vals.cloned().collect())
-                    .unwrap_or_default(),
-            ),
-            ArgKind::Trailing => args.insert_multi(
+            ArgKind::Multi | ArgKind::Trailing => args.insert_multi(
                 arg.id,
                 matches
                     .get_many::<String>(arg.id)
@@ -353,6 +349,71 @@ fn collect_args(spec: &CommandSpec, common: &[ArgSpec], matches: &clap::ArgMatch
         }
     }
     Ok(args)
+}
+
+// ── statics → runtime conversion (engine contract) ─────────────────────────
+
+// -- statics -> runtime conversion (tool domains) ------------------------------
+
+/// Convert one compile-time [`ToolSpec`] (from `engines_gen::TOOLS`) into
+/// the runtime interface model: common args are already baked into the
+/// static leaf args by build.rs, so this is a straight tree conversion.
+pub fn tools_interfaces(tools: &'static [ToolSpec]) -> Vec<Interface> {
+    tools
+        .iter()
+        .map(|tool| Interface {
+            tool: tool.name,
+            description: tool.about,
+            common_args: Vec::new(),
+            commands: tool.commands.iter().map(|c| from_static(tool, c)).collect(),
+        })
+        .collect()
+}
+
+fn from_static(tool: &'static ToolSpec, cmd: &'static CmdSpec) -> CommandSpec {
+    if cmd.subs.is_empty() {
+        let args = cmd.args.iter().map(from_static_arg).collect();
+        if cmd.route.is_some() {
+            CommandSpec::leaf_static(tool, cmd, args)
+        } else if let Some(id) = cmd.local {
+            // Local tool-domain command: implemented in-process by a Rust
+            // handler (adb device inspection, ...). The id is bound in the
+            // `commands::local` registry — a config referencing an unknown
+            // id is a build/programming error, caught at startup.
+            let handler = crate::commands::local::lookup(id).unwrap_or_else(|| {
+                panic!(
+                    "config.json local command '{}' references an unregistered handler",
+                    id
+                )
+            });
+            CommandSpec::leaf(cmd.name, cmd.about, args, handler)
+        } else {
+            CommandSpec::group(cmd.name, cmd.about, Vec::new())
+        }
+    } else {
+        CommandSpec::group(
+            cmd.name,
+            cmd.about,
+            cmd.subs.iter().map(|sub| from_static(tool, sub)).collect(),
+        )
+    }
+}
+
+fn from_static_arg(arg: &'static ArgSpecS) -> ArgSpec {
+    ArgSpec {
+        id: arg.id,
+        long: arg.long,
+        kind: match arg.kind {
+            ArgKindS::Flag => ArgKind::Flag,
+            ArgKindS::Value => ArgKind::Value,
+            ArgKindS::Multi => ArgKind::Multi,
+            ArgKindS::Positional => ArgKind::Positional,
+            ArgKindS::Trailing => ArgKind::Trailing,
+        },
+        required: arg.required,
+        values: arg.values.to_vec(),
+        help: arg.help,
+    }
 }
 
 #[cfg(test)]
@@ -368,15 +429,83 @@ mod tests {
                 ArgSpec::positional("who", "name"),
                 ArgSpec::opt("upper", "upper", "shout"),
             ],
-            |_ctx, args| Ok(json!({ "hello": args.str("who"), "upper": args.flag("upper") })),
+            |_ctx, args| Ok(json!({ "hello": args.str("who")?, "upper": args.flag("upper") })),
         )
     }
 
-    // collect_args needs real clap matches; exercised end-to-end via the bin.
     #[test]
     fn handler_receives_declared_args_shape() {
         let spec = sample_spec();
         assert!(spec.handler.is_some());
+        assert!(spec.static_leaf.is_none());
         assert_eq!(spec.args.len(), 2);
+    }
+
+    #[test]
+    fn tools_interfaces_carry_static_leaves_and_common_args() {
+        let ifaces = tools_interfaces(crate::engines_gen::TOOLS);
+        let java = ifaces.iter().find(|i| i.tool == "java").unwrap();
+        let materialized = java.materialize();
+        let root = materialized.commands.first().unwrap();
+        let classes = root.subcommands.iter().find(|c| c.name == "classes").unwrap();
+        assert!(classes.handler.is_none());
+        let (tool, leaf) = classes.static_leaf.unwrap();
+        assert_eq!(tool.name, "java");
+        assert_eq!(leaf.route.unwrap().endpoint, "get_classes");
+        // common args (session/port/page) were baked in by build.rs
+        let ids: Vec<&str> = classes.args.iter().map(|a| a.id).collect();
+        assert!(ids.contains(&"session"));
+        assert!(ids.contains(&"page"));
+    }
+
+    #[test]
+    fn every_tool_leaf_is_dispatchable() {
+        // Every leaf must be either an engine-routed static leaf or a local
+        // handler leaf — never a bare group conversion.
+        fn walk(specs: &[CommandSpec], out: &mut Vec<(&'static str, bool, bool)>) {
+            for c in specs {
+                if c.subcommands.is_empty() {
+                    out.push((c.name, c.static_leaf.is_some(), c.handler.is_some()));
+                } else {
+                    walk(&c.subcommands, out);
+                }
+            }
+        }
+        let ifaces = tools_interfaces(crate::engines_gen::TOOLS);
+        let mut flags = Vec::new();
+        for iface in &ifaces {
+            let m = iface.materialize();
+            walk(&m.commands, &mut flags);
+        }
+        assert!(!flags.is_empty());
+        assert!(flags.iter().all(|(_, s, h)| *s ^ *h));
+
+        // The android device commands are local handler leaves.
+        let java = ifaces
+            .iter()
+            .find(|i| i.tool == "java")
+            .unwrap()
+            .materialize();
+        // materialize() wraps the commands in one root spec named "java"
+        let root = &java.commands[0];
+        assert_eq!(root.name, "java");
+        let android = root
+            .subcommands
+            .iter()
+            .find(|c| c.name == "android")
+            .unwrap();
+        let device = android
+            .subcommands
+            .iter()
+            .find(|c| c.name == "device")
+            .unwrap();
+        for leaf in &device.subcommands {
+            assert!(leaf.handler.is_some(), "{} must be a local handler leaf", leaf.name);
+            assert!(leaf.static_leaf.is_none());
+            // local leaves carry NO baked common args
+            let ids: Vec<&str> = leaf.args.iter().map(|a| a.id).collect();
+            assert!(!ids.contains(&"session"));
+            assert!(!ids.contains(&"page"));
+        }
     }
 }

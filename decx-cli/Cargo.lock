@@ -88,39 +88,11 @@ name = "decx-cli"
 version = "4.2.0"
 dependencies = [
  "clap",
- "decx-cli-core",
- "serde_json",
-]
-
-[[package]]
-name = "decx-cli-core"
-version = "4.2.0"
-dependencies = [
- "clap",
  "flate2",
  "libc",
  "serde",
  "serde_json",
  "sha2",
-]
-
-[[package]]
-name = "decx-kuna"
-version = "4.2.0"
-dependencies = [
- "decx-cli-core",
- "decx-server-sdk",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "decx-server-sdk"
-version = "4.2.0"
-dependencies = [
- "decx-cli-core",
- "serde",
- "serde_json",
 ]
 
 [[package]]
