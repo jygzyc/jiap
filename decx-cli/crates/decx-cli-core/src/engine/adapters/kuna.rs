@@ -15,7 +15,7 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use crate::engine::{Engine, EngineKind, TargetSpec};
+use crate::engine::{Engine, TargetSpec};
 use crate::error::{DecxError, DecxResult};
 
 pub struct Kuna;
@@ -71,20 +71,6 @@ impl Engine for Kuna {
         "Kuna binary decompiler, code-level adapter served by decx-kuna-server (structural mode)"
     }
 
-    fn kind(&self) -> EngineKind {
-        EngineKind::Server
-    }
-
-    fn capabilities(&self) -> &'static [&'static str] {
-        &[
-            "get_classes",
-            "get_class_source",
-            "get_method_source",
-            "search_method",
-            "search_global_key",
-            "get_strings",
-        ]
-    }
 
     fn resolve_binary(&self, home: &Path) -> DecxResult<PathBuf> {
         find_kuna_server(home).ok_or_else(|| {
@@ -121,8 +107,6 @@ mod tests {
     fn identity_and_capabilities() {
         let kuna = Kuna;
         assert_eq!(kuna.id(), "kuna");
-        assert_eq!(kuna.kind(), EngineKind::Server);
-        assert!(kuna.capabilities().contains(&"get_method_source"));
     }
 
     #[test]

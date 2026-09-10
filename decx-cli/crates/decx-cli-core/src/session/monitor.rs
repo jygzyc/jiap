@@ -56,13 +56,7 @@ pub fn spawn_monitor(manager: Weak<SessionManager>, session_name: String, interv
                     return; // session removed — monitoring ends
                 };
                 let updated = manager.probe(&record);
-                // Server projects end at Stopped; command projects end once
-                // their analysis finished (probe keeps the terminal state).
-                let terminal = match updated.is_command_kind() {
-                    true => updated.observed.ever_healthy,
-                    false => updated.observed.state == SessionState::Stopped,
-                };
-                if terminal {
+                if updated.observed.state == SessionState::Stopped {
                     return;
                 }
                 // Sleep in small steps so `stop` is honored promptly.

@@ -81,14 +81,10 @@ impl SessionManager {
     }
 
     /// Projects that are still usable: server projects whose PID is live,
-    /// command projects whose analysis finished successfully.
     pub fn list_alive(&self) -> Vec<Session> {
         self.list()
             .into_iter()
-            .filter(|p| match p.is_command_kind() {
-                true => p.observed.state == SessionState::Healthy,
-                false => spawn::pid_alive(p.pid),
-            })
+            .filter(|s| spawn::pid_alive(s.pid))
             .collect()
     }
 
@@ -102,19 +98,14 @@ impl SessionManager {
         }
     }
 
-    /// Drop unusable records: server projects whose process is gone, command
-    /// projects whose analysis failed, and anything expired. Returns how
-    /// many were removed.
+    /// Drop records whose engine process is gone (or that expired). Returns
+    /// how many were removed.
     pub fn cleanup_dead(&self) -> usize {
         let now = crate::fsx::now_ms();
         let mut removed = 0;
         for session in self.list() {
             let expired = now.saturating_sub(session.created_at_ms) > SESSION_MAX_AGE_MS;
-            let dead = if session.is_command_kind() {
-                session.observed.state == SessionState::Stopped
-            } else {
-                !spawn::pid_alive(session.pid)
-            };
+            let dead = !spawn::pid_alive(session.pid);
             if expired || dead {
                 self.remove(&session.name);
                 removed += 1;
@@ -125,13 +116,9 @@ impl SessionManager {
 
     // ── Probing / monitoring ────────────────────────────────────────────────
 
-    /// One live probe of a session, routed by engine kind: server projects
-    /// probe PID liveness + `/health`; command projects only watch the
-    /// analyze job (terminal once it ran).
+    /// One live probe of a session: PID liveness + `/health`, state machine,
+    /// persist observed state, record transitions.
     pub fn probe(&self, session: &Session) -> Session {
-        if session.is_command_kind() {
-            return self.probe_command(session);
-        }
         let started = std::time::Instant::now();
         let client = DecxClient::with_options(session.port, 2, None);
         let health = client.health_check();
@@ -145,31 +132,6 @@ impl SessionManager {
             state,
             checked_at_ms: crate::fsx::now_ms(),
             latency_ms: latency,
-            detail,
-            ever_healthy: session.observed.ever_healthy || state == SessionState::Healthy,
-        };
-        let mut fallback = session.clone();
-        fallback.observed = observed.clone();
-        self.set_observed(&session.name, observed);
-        self.get(&session.name).unwrap_or(fallback)
-    }
-
-    /// Command-engine probe: while the analyze pid lives the session is
-    /// `starting`; once it is gone the artifacts are ready (the exit code
-    /// was recorded by `session open` when it could observe it).
-    fn probe_command(&self, session: &Session) -> Session {
-        let (state, detail) = if session.observed.ever_healthy {
-            // Terminal state recorded at open time — nothing left to watch.
-            (session.observed.state, session.observed.detail.clone())
-        } else if spawn::pid_alive(session.pid) {
-            (SessionState::Starting, Some("analyzing".to_string()))
-        } else {
-            (SessionState::Healthy, Some("analyze exited (exit code unknown; see log)".to_string()))
-        };
-        let observed = ObservedState {
-            state,
-            checked_at_ms: crate::fsx::now_ms(),
-            latency_ms: None,
             detail,
             ever_healthy: session.observed.ever_healthy || state == SessionState::Healthy,
         };
@@ -301,7 +263,6 @@ mod tests {
             hash: format!("hash-{name}"),
             file: PathBuf::from("/tmp/demo.apk"),
             engine: "jvm".into(),
-            engine_kind: "server".into(),
             pid,
             port,
             scripts: vec![],
@@ -310,18 +271,6 @@ mod tests {
             created_at_ms: crate::fsx::now_ms(),
             observed: ObservedState::default(),
         }
-    }
-
-    fn command_sample(name: &str) -> Session {
-        let mut session = sample(name, 0, 4_000_000);
-        session.engine = "kuna".into();
-        session.engine_kind = "command".into();
-        session.observed = ObservedState {
-            state: SessionState::Healthy,
-            ever_healthy: true,
-            ..Default::default()
-        };
-        session
     }
 
     #[test]
@@ -343,22 +292,6 @@ mod tests {
     }
 
     #[test]
-    fn command_projects_stay_alive_after_analyze_exits() {
-        let home = temp_home();
-        let mgr = SessionManager::open(&home);
-        // A finished command session has a dead pid but healthy artifacts.
-        mgr.create(command_sample("kb")).unwrap();
-        assert_eq!(mgr.list_alive().len(), 1, "healthy command session is usable");
-        assert_eq!(mgr.cleanup_dead(), 0, "dead pid must not prune it");
-        // A failed analyze (stopped) is pruned.
-        let mut failed = command_sample("bad");
-        failed.observed.state = SessionState::Stopped;
-        mgr.create(failed).unwrap();
-        assert_eq!(mgr.cleanup_dead(), 1);
-        let _ = std::fs::remove_dir_all(&home);
-    }
-
-    #[test]
     fn probe_transitions_and_persists() {
         let home = temp_home();
         let mgr = SessionManager::open(&home);
@@ -371,23 +304,6 @@ mod tests {
         let events = mgr.recent_events("dead", 10);
         assert!(events.iter().any(|e| e.to == SessionState::Stopped));
         mgr.remove("dead");
-        let _ = std::fs::remove_dir_all(&home);
-    }
-
-    #[test]
-    fn probe_command_keeps_terminal_state() {
-        let home = temp_home();
-        let mgr = SessionManager::open(&home);
-        mgr.create(command_sample("kb")).unwrap();
-        let after = mgr.probe(&mgr.get("kb").unwrap());
-        assert_eq!(after.observed.state, SessionState::Healthy);
-        // a never-finished command session with a live analyze pid is starting
-        let mut running = command_sample("run");
-        running.observed = ObservedState::default();
-        running.pid = std::process::id();
-        mgr.create(running).unwrap();
-        let after = mgr.probe(&mgr.get("run").unwrap());
-        assert_eq!(after.observed.state, SessionState::Starting);
         let _ = std::fs::remove_dir_all(&home);
     }
 

@@ -22,6 +22,7 @@ pub mod engine;
 pub mod error;
 pub mod fsx;
 pub mod hash;
+pub mod iface;
 pub mod installer;
 pub mod net;
 pub mod output;

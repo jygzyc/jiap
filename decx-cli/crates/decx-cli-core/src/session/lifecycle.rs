@@ -9,12 +9,12 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use serde_json::{json, Value};
 
-use crate::engine::launcher::{wait_for_server, HEARTBEAT_INTERVAL};
-use crate::engine::{Engine, EngineKind, EngineRegistry, TargetSpec};
+use crate::engine::launcher::wait_for_server;
+use crate::engine::{EngineRegistry, TargetSpec};
 use crate::error::{DecxError, DecxResult};
 use crate::fsx;
 use crate::hash::hash_file;
@@ -226,9 +226,7 @@ pub fn open_session(
                 "hash": reuse.hash,
                 "pid": reuse.pid,
                 "port": reuse.port,
-                "engine": reuse.engine,
-                "kind": reuse.engine_kind,
-                "file": resolved_file.display().to_string(),
+                "engine": reuse.engine,                "file": resolved_file.display().to_string(),
                 "reused": true,
             }));
         }
@@ -255,12 +253,6 @@ pub fn open_session(
         mgr.remove(&stale.name);
     }
 
-    // Command engines (one-shot decompilers like kuna): run the analyze job
-    // as a background child and record its exit — no HTTP server to wait for.
-    if engine.kind() == EngineKind::Command {
-        return open_command_session(mgr, &engine, &binary, name, resolved_file, file_hash, req, notice);
-    }
-
     let port = select_available_server_port(requested_port)?;
     let spec = TargetSpec {
         target: resolved_file.clone(),
@@ -279,7 +271,6 @@ pub fn open_session(
         hash: file_hash,
         file: resolved_file.clone(),
         engine: engine.id().to_string(),
-        engine_kind: EngineKind::Server.as_str().to_string(),
         pid,
         port,
         scripts,
@@ -312,7 +303,6 @@ pub fn open_session(
             "pid": pid,
             "port": port,
             "engine": engine.id(),
-            "kind": "server",
             "file": resolved_file.display().to_string(),
             "log": log_path.display().to_string(),
             "scripts": req.scripts,
@@ -340,118 +330,6 @@ pub fn open_session(
     )))
 }
 
-/// Session open for command engines: spawn the analyze job (stdout/stderr
-/// appended to the session log), wait bounded for its exit code, and record
-/// the outcome through the session manager. On timeout the record is kept
-/// and the job keeps running.
-fn open_command_session(
-    mgr: &Arc<SessionManager>,
-    engine: &Arc<dyn Engine>,
-    binary: &Path,
-    name: String,
-    resolved_file: PathBuf,
-    file_hash: String,
-    req: &OpenRequest,
-    mut notice: impl FnMut(&str),
-) -> DecxResult<Value> {
-    let home = mgr.home();
-    let engine_id = engine.id().to_string();
-    let spec = TargetSpec {
-        target: resolved_file.clone(),
-        port: 0,
-        scripts: req.scripts.clone(),
-        passthrough: vec![],
-    };
-    engine.validate(&spec)?;
-    let mut command = engine.build_command(binary, &spec)?;
-
-    let log_path = home.join("logs").join(format!("{name}.log"));
-    let mut child = crate::spawn::spawn_logged_child(&mut command, &log_path)?;
-    let pid = child.id();
-
-    mgr.create(Session {
-        name: name.clone(),
-        hash: file_hash.clone(),
-        file: resolved_file.clone(),
-        engine: engine_id.clone(),
-        engine_kind: "command".into(),
-        pid,
-        port: 0,
-        scripts: vec![],
-        log_path: Some(log_path.clone()),
-        created_at_ms: fsx::now_ms(),
-        origin: Some(req.origin.clone()),
-        observed: ObservedState {
-            state: SessionState::Starting,
-            ..Default::default()
-        },
-    })?;
-
-    notice(&format!("Running {engine_id} analyze '{name}' (pid {pid})..."));
-    let timeout_secs = req.timeout_secs.max(1);
-    let started = Instant::now();
-    let deadline = started + Duration::from_secs(timeout_secs);
-    let mut last_heartbeat: Option<Instant> = None;
-    loop {
-        match child.try_wait() {
-            Ok(Some(status)) if status.success() => {
-                mgr.set_observed(
-                    &name,
-                    ObservedState {
-                        state: SessionState::Healthy,
-                        checked_at_ms: fsx::now_ms(),
-                        latency_ms: None,
-                        detail: Some("analyze finished (exit 0)".into()),
-                        ever_healthy: true,
-                    },
-                );
-                return Ok(json!({
-                    "name": name,
-                    "hash": file_hash,
-                    "pid": pid,
-                    "engine": engine_id,
-                    "kind": "command",
-                    "file": resolved_file.display().to_string(),
-                    "log": log_path.display().to_string(),
-                    "reused": false,
-                }));
-            }
-            Ok(Some(status)) => {
-                mgr.remove(&name);
-                let last = last_log_line(&log_path).unwrap_or_else(|| "<no log output>".to_string());
-                return Err(DecxError::process(format!(
-                    "engine '{engine_id}' analyze failed (exit {}). Last log line: {last}. Log: {}",
-                    status.code().map(|c| c.to_string()).unwrap_or_else(|| "<signal>".into()),
-                    log_path.display()
-                )));
-            }
-            Ok(None) if Instant::now() >= deadline => {
-                // Timed out but the job is alive: keep the record (starting,
-                // pid tracked) so it stays reachable and killable.
-                return Err(DecxError::process(format!(
-                    "analyze still running after {timeout_secs}s (pid {pid}); session '{name}' was kept — \
-                     poll with 'decx session status {name}' or stop with 'decx session close {name}'. Log: {}",
-                    log_path.display()
-                )));
-            }
-            Ok(None) => {
-                if last_heartbeat.is_none_or(|at| at.elapsed() >= HEARTBEAT_INTERVAL) {
-                    last_heartbeat = Some(Instant::now());
-                    let tail = last_log_line(&log_path)
-                        .map(|l| format!(" | {}", l.chars().take(120).collect::<String>()))
-                        .unwrap_or_default();
-                    notice(&format!(
-                        "Running {engine_id} analyze '{name}' (pid {pid})... {}s elapsed{tail}",
-                        started.elapsed().as_secs()
-                    ));
-                }
-                std::thread::sleep(Duration::from_millis(500));
-            }
-            Err(e) => return Err(DecxError::process(format!("failed to wait for analyze job: {e}"))),
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -462,7 +340,6 @@ mod tests {
             hash: hash.to_string(),
             file: PathBuf::from("/tmp/x.apk"),
             engine: "jvm".into(),
-            engine_kind: "server".into(),
             pid,
             port: 30000,
             scripts: scripts.iter().map(|s| s.to_string()).collect(),

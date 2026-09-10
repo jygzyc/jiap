@@ -1,88 +1,63 @@
-//! `engine` tool — introspect the engine adapters compiled into the CLI
-//! (identity, kind, capabilities, binary discovery).
+//! `engine` tool — introspect the engine adapters compiled into the CLI.
 
-use clap::{Arg, ArgMatches, Command};
 use serde_json::{json, Value};
 
 use crate::error::{DecxError, DecxResult};
+use crate::iface::{Args, CommandSpec, Interface};
+use crate::tools::ToolContext;
 
-use super::{Tool, ToolContext};
-
-pub struct EngineTool;
-
-fn command() -> Command {
-    Command::new("engine")
-        .about("Inspect the analysis engine adapters (identity, kind, capabilities, discovery)")
-        .long_about(
-            "Engines are code-level adapters: one file under \
-             decx-cli-core/src/engine/adapters/ plus one line in its builtin() manifest. \
-             `decx engine list` shows what this build ships and whether each binary is \
-             discoverable; `show` details one adapter, including which analysis endpoints \
-             command engines implement.",
-        )
-        .subcommands([
-            Command::new("list").about("List engine adapters and their discovery status"),
-            Command::new("show")
-                .about("Show one engine adapter in detail")
-                .arg(Arg::new("id").required(true).value_name("ID")),
-        ])
+pub fn interface() -> Interface {
+    Interface::new(
+        "engine",
+        "Inspect the analysis engine adapters (identity, description, discovery)",
+    )
+    .commands(vec![
+        CommandSpec::leaf(
+            "list",
+            "List engine adapters and their discovery status",
+            vec![],
+            run_list,
+        ),
+        CommandSpec::leaf(
+            "show",
+            "Show one engine adapter in detail",
+            vec![crate::iface::ArgSpec::positional("id", "Engine id (see engine list)")],
+            run_show,
+        ),
+    ])
 }
 
-fn summary(engine: &dyn crate::engine::Engine, home: &std::path::Path) -> Value {
-    let mut info = json!({
+fn summary(engine: &dyn crate::engine::Engine) -> Value {
+    json!({
         "id": engine.id(),
-        "kind": engine.kind().as_str(),
         "description": engine.description(),
-    });
-    if engine.kind() == crate::engine::EngineKind::Command {
-        info["capabilities"] = json!(engine.capabilities());
-    }
-    let _ = home;
-    info
+    })
 }
 
-impl Tool for EngineTool {
-    fn id(&self) -> &'static str {
-        "engine"
-    }
+fn run_list(ctx: &ToolContext, _a: &Args) -> DecxResult<Value> {
+    let items: Vec<Value> = ctx
+        .engines
+        .ids()
+        .iter()
+        .filter_map(|id| ctx.engines.get(id))
+        .map(|engine| {
+            json!({
+                "engine": summary(engine.as_ref()),
+                "binary": engine.status_info(&ctx.home),
+            })
+        })
+        .collect();
+    Ok(json!({ "total": items.len(), "engines": items }))
+}
 
-    fn commands(&self) -> Vec<Command> {
-        vec![command()]
-    }
-
-    fn run(&self, ctx: &ToolContext, matches: &ArgMatches) -> DecxResult<Value> {
-        let Some((name, m)) = matches.subcommand() else {
-            return Err(DecxError::usage("No engine subcommand given (list | show)"));
-        };
-        match name {
-            "list" => {
-                let items: Vec<Value> = ctx
-                    .engines
-                    .ids()
-                    .iter()
-                    .filter_map(|id| ctx.engines.get(id))
-                    .map(|engine| {
-                        let mut info = summary(engine.as_ref(), &ctx.home);
-                        let status = engine.status_info(&ctx.home);
-                        info["binary_ok"] = status["ok"].clone();
-                        info["binary"] = status["info"].clone();
-                        info
-                    })
-                    .collect();
-                Ok(json!({ "total": items.len(), "engines": items }))
-            }
-            "show" => {
-                let id = m.get_one::<String>("id").map(String::as_str).unwrap_or_default();
-                let engine = ctx
-                    .engines
-                    .get(id)
-                    .ok_or_else(|| DecxError::not_found("ENGINE_NOT_FOUND", format!("Engine not found: {id}")))?;
-                let mut info = summary(engine.as_ref(), &ctx.home);
-                let status = engine.status_info(&ctx.home);
-                info["binary"] = status;
-                Ok(info)
-            }
-            other => Err(DecxError::usage(format!("Unknown engine subcommand '{other}'"))),
-        }
-    }
+fn run_show(ctx: &ToolContext, a: &Args) -> DecxResult<Value> {
+    let id = a.str("id");
+    let engine = ctx
+        .engines
+        .get(id)
+        .ok_or_else(|| DecxError::not_found("ENGINE_NOT_FOUND", format!("Engine not found: {id}")))?;
+    Ok(json!({
+        "engine": summary(engine.as_ref()),
+        "binary": engine.status_info(&ctx.home),
+    }))
 }

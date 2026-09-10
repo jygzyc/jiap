@@ -3,7 +3,6 @@
 //! Registered tools live in the unified `config.json` (`tools` array) and
 //! become reachable as top-level commands: `decx <name> [args...]` spawns the
 //! registered command with inherited stdio and propagates its exit code.
-//! Legacy `tools.json` files are migrated on first load.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;

@@ -1,16 +1,18 @@
-//! decx — DECX CLI entrypoint (Rust rewrite).
+//! decx — DECX CLI entrypoint.
 //!
-//! Assembles the command tree from the core tool registry, runs the matched
-//! tool against a shared [`ToolContext`], prints JSON/table output on stdout,
-//! structured errors on stderr, and exits with sysexits-style codes.
-//!
-//! External tools registered through `decx tools register <name>` run as
-//! top-level `decx <name> [args...]` passthrough (opencli-style).
+//! The command line is *generated* from the tool layer's declared
+//! interfaces (the standard protocol in `decx-cli-core::iface`): this
+//! binary contains no tool-specific code — one generic compiler turns the
+//! declarations into the clap tree, and dispatch routes parsed arguments
+//! back to the leaf handlers. Registered external CLI tools run as
+//! top-level passthrough (`decx <name> [args...]`).
 
 use std::sync::Arc;
 
 use clap::error::ErrorKind as ClapErrorKind;
+use clap::{Arg, ArgAction, Command};
 use decx_cli_core::error::{DecxError, EX_OK, EX_USAGE};
+use decx_cli_core::iface::{run_command, ArgKind, ArgSpec, CommandSpec, Interface};
 use decx_cli_core::output::Formatter;
 use decx_cli_core::tools::{ToolContext, ToolRegistry};
 use decx_cli_core::{config, engine, session};
@@ -19,8 +21,7 @@ const ROOT_ABOUT: &str =
     "DECX - Decompiler + X, CLI for deeper analysis of decompiled Java code, powered by JADX and custom extensions";
 
 fn main() {
-    let code = run();
-    std::process::exit(code);
+    std::process::exit(run());
 }
 
 fn run() -> i32 {
@@ -32,13 +33,19 @@ fn run() -> i32 {
         return code;
     }
 
-    let registry = ToolRegistry::with_builtins(&home);
-    let mut root = registry.build_root(env!("CARGO_PKG_VERSION"), ROOT_ABOUT);
-    root = root.after_help(after_help_text());
+    let registry = ToolRegistry::builtins();
+    let interfaces: Vec<Interface> = registry.interfaces.iter().map(|i| i.materialize()).collect();
+    let mut root = build_root(&interfaces);
+    root = root
+        .version(env!("CARGO_PKG_VERSION"))
+        .about(ROOT_ABOUT)
+        .subcommand_required(false)
+        .arg_required_else_help(false)
+        .disable_help_subcommand(true);
 
     let matches = match root.try_get_matches_from(&argv) {
         Ok(matches) => matches,
-        Err(err) => return handle_clap_error(err, &argv),
+        Err(err) => return handle_clap_error(err),
     };
 
     let unified = config::Config::load(&home);
@@ -46,16 +53,24 @@ fn run() -> i32 {
         Ok(format) => format,
         Err(err) => return report_error(&err),
     };
-    let manager = session::SessionManager::open(&home);
     let ctx = ToolContext {
         home: home.clone(),
         format,
-        manager,
+        manager: session::SessionManager::open(&home),
         engines: Arc::new(engine::EngineRegistry::new()),
     };
     let fmt = Formatter::new(format);
 
-    match registry.dispatch(&ctx, &matches) {
+    let Some((name, tool_matches)) = matches.subcommand() else {
+        return report_error(&DecxError::usage(
+            "No command given. Run 'decx --help' to list commands, or 'decx tools list' for registered external tools.",
+        ));
+    };
+    let Some(iface) = interfaces.iter().find(|i| i.tool == name) else {
+        return report_error(&DecxError::usage(format!("Unknown command '{name}'")));
+    };
+
+    match run_command(iface.commands.first().expect("interface root"), &[], tool_matches, &ctx) {
         Ok(value) => {
             if value.is_null() {
                 fmt.output(&serde_json::json!({ "ok": true }));
@@ -69,37 +84,93 @@ fn run() -> i32 {
     }
 }
 
+/// Compile one declared command (recursively) into a clap subcommand.
+fn build_command(spec: &CommandSpec) -> Command {
+    let mut cmd = Command::new(spec.name).about(spec.about);
+    for arg in &spec.args {
+        cmd = cmd.arg(build_arg(arg));
+    }
+    if !spec.subcommands.is_empty() {
+        cmd = cmd.subcommand_required(false).arg_required_else_help(false);
+        for sub in &spec.subcommands {
+            cmd = cmd.subcommand(build_command(sub));
+        }
+    }
+    cmd
+}
+
+fn build_arg(arg: &ArgSpec) -> Arg {
+    let base = Arg::new(arg.id).help(arg.help);
+    match arg.kind {
+        ArgKind::Flag => base.long(arg.long).action(ArgAction::SetTrue),
+        ArgKind::Value => {
+            let a = base.long(arg.long).num_args(1);
+            if arg.values.is_empty() {
+                a
+            } else {
+                a.value_parser(clap::builder::PossibleValuesParser::new(arg.values))
+            }
+        }
+        ArgKind::Multi => base.long(arg.long).action(ArgAction::Append).num_args(1),
+        ArgKind::Positional => {
+            let a = if arg.required {
+                base.value_name(arg.id).num_args(1)
+            } else {
+                base.value_name(arg.id).num_args(0..=1)
+            };
+            if arg.values.is_empty() {
+                a
+            } else {
+                a.value_parser(clap::builder::PossibleValuesParser::new(arg.values))
+            }
+        }
+        ArgKind::Trailing => base.value_name(arg.id)
+            .num_args(0..)
+            .trailing_var_arg(true)
+            .allow_hyphen_values(true),
+    }
+}
+
+/// The root command: global `--format` plus every tool interface.
+fn build_root(interfaces: &[Interface]) -> Command {
+    let mut root = Command::new("decx").arg(
+        Arg::new("format")
+            .long("format")
+            .global(true)
+            .default_value("json")
+            .value_parser(["json", "table"])
+            .help("Output format (json | table)"),
+    );
+    for iface in interfaces {
+        // The materialized interface carries one root spec named after the
+        // tool — build it directly (no extra nesting level).
+        for cmd in &iface.commands {
+            root = root.subcommand(build_command(cmd));
+        }
+    }
+    root
+}
+
 /// Print a structured error and return its sysexits exit code.
 fn report_error(err: &DecxError) -> i32 {
-    let fmt = Formatter::default();
-    fmt.error(err);
+    Formatter::default().error(err);
     err.exit_code
 }
 
-fn handle_clap_error(err: clap::Error, argv: &[String]) -> i32 {
-    let code = match err.kind() {
+fn handle_clap_error(err: clap::Error) -> i32 {
+    match err.kind() {
         ClapErrorKind::DisplayHelp | ClapErrorKind::DisplayVersion => {
             err.print().expect("failed to print clap output");
-            return EX_OK;
+            EX_OK
         }
-        ClapErrorKind::InvalidValue
-        | ClapErrorKind::UnknownArgument
-        | ClapErrorKind::MissingRequiredArgument
-        | ClapErrorKind::WrongNumberOfValues
-        | ClapErrorKind::InvalidSubcommand
-        | ClapErrorKind::ArgumentConflict
-        | ClapErrorKind::MissingSubcommand => EX_USAGE,
-        _ => EX_USAGE,
-    };
-    // clap's rendering is already helpful; keep it on stderr.
-    let _ = err.print();
-    let _ = argv;
-    code
+        _ => {
+            let _ = err.print();
+            EX_USAGE
+        }
+    }
 }
 
 /// If argv names a registered external tool, spawn it as passthrough.
-/// Returns `Some(exit_code)` when handled, `None` when argv does not target an
-/// external tool (including when the first token is a flag or a builtin).
 fn try_external_passthrough(home: &std::path::Path, argv: &[String]) -> Option<i32> {
     let registry = decx_cli_core::tools::external::ExternalRegistry::new(home);
     let idx = first_command_index(argv)?;
@@ -128,13 +199,4 @@ fn first_command_index(argv: &[String]) -> Option<usize> {
         return Some(i);
     }
     None
-}
-
-fn after_help_text() -> &'static str {
-    "Session manager:\n  decx session open <file> [--engine ...]   start a session, supervise the engine run\n  \
-     decx session watch [name]                   stream background state transitions\n  \
-     decx session events [name]                  replay recorded transitions\n  \
-     decx session list --probe                   deep health-check every session\n\n\
-     Extension:\n  decx tools register <name> -- <command...>  plug any CLI into the decx surface\n  \
-     engine adapters:                            one file + one line in engine/adapters\n"
 }

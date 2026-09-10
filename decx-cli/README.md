@@ -282,6 +282,27 @@ Not ported yet (fail with a clear `NOT_PORTED` error): the framework
 `self skills` installer. The npm update-notifier is intentionally dropped
 (Rust builds distribute via cargo/release binaries).
 
+## The interface protocol (tool layer ⇄ CLI layer)
+
+Responsibilities are split along one standard contract
+(`decx-cli-core::iface`):
+
+- **decx (tool host)** — owns tool integration. Each tool declares its
+  surface as an `Interface`: pure data (`CommandSpec` tree, `ArgSpec`
+  descriptors: positional / value / flag / multi / trailing, enum
+  restrictions, help text) plus one `Handler` per leaf command
+  (`fn(&ToolContext, &Args) -> DecxResult<Value>`). Registered through a
+  one-line manifest (`ToolRegistry::builtins`). Tools contain no CLI code.
+- **decx-cli (unified command line)** — one generic engine compiles any set
+  of interfaces into the clap tree (`build_root` / `build_command`), routes
+  parsed matches back through `iface::run_command`, and applies the global
+  contract: JSON on stdout (`--format json|table`), notices/errors on
+  stderr, sysexits exit codes. Global args (`--format`) and group-level
+  argument inheritance (`Interface::materialize`) live here too.
+
+Adding a tool = write an `interface()` declaration + handlers, add one line
+to `ToolRegistry::builtins`. The CLI picks it up with zero CLI-side code.
+
 ## Unified configuration and self management
 
 Everything lives in one file, `DECX_HOME/config.json`:

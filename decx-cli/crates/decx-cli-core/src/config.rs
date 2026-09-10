@@ -154,25 +154,14 @@ impl Default for Config {
 }
 
 impl Config {
-    /// Load `config.json` from a home directory, falling back to defaults for
-    /// missing or malformed files. Migrates the legacy `tools.json` registry
-    /// into `tools` on first load.
+    /// Load `config.json` from a home directory, falling back to defaults
+    /// for missing or malformed files.
     pub fn load(home: &Path) -> Self {
         let path = home.join("config.json");
-        let mut config: Config = match fsx::read_json(&path) {
+        match fsx::read_json(&path) {
             Ok(Some(value)) => serde_json::from_value(value).unwrap_or_default(),
             _ => Self::default(),
-        };
-        if config.tools.is_empty() {
-            // Legacy tools.json migration (read-only; the unified file is
-            // written on the next config save).
-            if let Ok(Some(value)) = fsx::read_json(&home.join("tools.json")) {
-                if let Ok(tools) = serde_json::from_value::<Vec<ToolSpec>>(value) {
-                    config.tools = tools;
-                }
-            }
         }
-        config
     }
 
     /// The effective output format: explicit value > config > json.

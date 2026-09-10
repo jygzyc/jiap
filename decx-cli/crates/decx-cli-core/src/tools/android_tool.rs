@@ -1,280 +1,291 @@
-//! `android` tool — app analysis over the DECX HTTP API, live device
-//! inspection via adb, and framework jar project management.
+//! `android` tool — app analysis over the DECX contract, live device
+//! inspection via adb, and framework session management.
 
-use clap::{Arg, ArgAction, ArgMatches, Command};
 use serde_json::Value;
 
 use crate::error::{DecxError, DecxResult};
+use crate::iface::{ArgSpec as A, Args, CommandSpec, Interface};
 use crate::params::{ClassFilter, ComponentFilter};
-
-use super::{
-    adb::AdbClient,
-    matches_flag, matches_many, matches_u64, target_args, Tool, ToolContext,
+use crate::tools::{
+    adb::AdbClient, ToolContext,
 };
 
-pub struct AndroidTool;
-
-fn page_arg() -> Arg {
-    Arg::new("page").long("page").help("Result page number to fetch")
+pub fn interface() -> Interface {
+    Interface::new("android", "Android app, device, and framework analysis").commands(vec![
+        CommandSpec::group(
+            "app",
+            "Analyze the loaded Android app",
+            app_commands(),
+        ),
+        CommandSpec::group("device", "Inspect a connected Android device via adb", device_commands()),
+        CommandSpec::group(
+            "framework",
+            "Framework jar session management",
+            framework_commands(),
+        ),
+    ])
 }
 
-fn parse_class_filter(m: &ArgMatches) -> ClassFilter {
-    ClassFilter {
-        limit: matches_u64(m, "limit"),
-        includes: matches_many(m, "include-package"),
-        excludes: matches_many(m, "exclude-package"),
-        regex: if matches_flag(m, "no-regex") { Some(false) } else { None },
-    }
-}
-
-fn command() -> Command {
-    Command::new("android")
-        .about("Android app, device, and framework analysis")
-        .subcommand(
-            Command::new("app")
-                .about("Analyze the loaded Android app")
-                .subcommands([
-                    Command::new("manifest").about("Return the decoded AndroidManifest.xml").arg(page_arg()).args(target_args()),
-                    Command::new("launcher-activity").about("Return the launcher activity component").arg(page_arg()).args(target_args()),
-                    Command::new("application").about("Return the application class context").arg(page_arg()).args(target_args()),
-                    Command::new("exported-components")
-                        .about("List exported components from the manifest")
-                        .args([
-                            Arg::new("include").long("include").action(ArgAction::Append).num_args(1).help("Include names matching this pattern; repeatable"),
-                            Arg::new("exclude").long("exclude").action(ArgAction::Append).num_args(1).help("Exclude names matching this pattern; repeatable"),
-                            Arg::new("no-regex").long("no-regex").action(ArgAction::SetTrue).help("Treat patterns as literal text"),
-                        ])
-                        .args(target_args()),
-                    Command::new("deep-links").about("List deep links declared by the app").arg(page_arg()).args(target_args()),
-                    Command::new("dynamic-receivers").about("List dynamically registered receivers").arg(page_arg())
-                        .args([
-                            Arg::new("include-package").long("include-package").action(ArgAction::Append).num_args(1).help("Package filter; repeatable"),
-                            Arg::new("exclude-package").long("exclude-package").action(ArgAction::Append).num_args(1).help("Package exclusion filter; repeatable"),
-                            Arg::new("no-regex").long("no-regex").action(ArgAction::SetTrue).help("Treat patterns as literal text"),
-                        ])
-                        .args(target_args()),
-                    Command::new("framework-service-implementation")
-                        .about("Find the implementation of one framework system service")
-                        .arg(Arg::new("interface").required(true).value_name("INTERFACE"))
-                        .arg(page_arg())
-                        .args(target_args()),
-                    Command::new("resources")
-                        .about("List resource files inside the app")
-                        .args([Arg::new("include").long("include").action(ArgAction::Append).num_args(1).help("Resource file-name filter; repeatable"),
-                               Arg::new("no-regex").long("no-regex").action(ArgAction::SetTrue).help("Treat patterns as literal text")])
-                        .arg(page_arg())
-                        .args(target_args()),
-                    Command::new("resource-file")
-                        .about("Return one resource file entry")
-                        .arg(Arg::new("res").required(true).value_name("RES"))
-                        .arg(page_arg())
-                        .args(target_args()),
-                    Command::new("strings").about("Return app string resources").arg(page_arg()).args(target_args()),
-                    Command::new("aidl-interfaces")
-                        .about("List AIDL interfaces declared by the app")
-                        .args([
-                            Arg::new("include-package").long("include-package").action(ArgAction::Append).num_args(1).help("Package filter; repeatable"),
-                            Arg::new("exclude-package").long("exclude-package").action(ArgAction::Append).num_args(1).help("Package exclusion filter; repeatable"),
-                            Arg::new("no-regex").long("no-regex").action(ArgAction::SetTrue).help("Treat patterns as literal text"),
-                        ])
-                        .arg(page_arg())
-                        .args(target_args()),
-                ]),
-        )
-        .subcommand(
-            Command::new("device")
-                .about("Inspect a connected Android device via adb")
-                .subcommands([
-                    Command::new("system-services")
-                        .about("List live Binder/system services from the device")
-                        .args([
-                            Arg::new("serial").long("serial").num_args(1).help("adb device serial"),
-                            Arg::new("adb-path").long("adb-path").num_args(1).help("Path to the adb binary"),
-                            Arg::new("grep").long("grep").num_args(1).help("Case-insensitive substring filter over service names/interfaces"),
-                        ]),
-                    Command::new("permission-info")
-                        .about("Return structured metadata for one Android permission")
-                        .arg(Arg::new("permission").required(true).value_name("PERMISSION"))
-                        .args([
-                            Arg::new("serial").long("serial").num_args(1).help("adb device serial"),
-                            Arg::new("adb-path").long("adb-path").num_args(1).help("Path to the adb binary"),
-                        ]),
-                ]),
-        )
-        .subcommand(
-            Command::new("framework")
-                .about("Framework jar collection and project management")
-                .long_about(
-                    "Framework `open` manages a framework jar as a regular analysis project. \
-                     `collect`/`process`/`run` (device-side collection and image extraction) are \
-                     not ported to the Rust CLI yet.",
-                )
-                .subcommands([
-                    Command::new("open")
-                        .about("Open a framework jar as a DECX analysis project")
-                        .arg(Arg::new("jar").num_args(0..=1).value_name("JAR").help("Framework jar (default: auto-detected via device OEM)"))
-                        .args([
-                            Arg::new("engine").long("engine").help("Analysis engine backend (jvm | native)"),
-                            Arg::new("port").long("port").help("DECX HTTP server port to bind"),
-                            Arg::new("name").long("name").short('n').help("Session name"),
-                            Arg::new("force").long("force").action(ArgAction::SetTrue).help("Restart matching projects first"),
-                            Arg::new("timeout").long("timeout").help("Seconds to wait for server health (default 300)"),
-                            Arg::new("serial").long("serial").num_args(1).help("adb device serial (for OEM auto-detection)"),
-                        ])
-                        .arg(
-                            Arg::new("passthrough")
-                                .value_name("JADX_ARGS")
-                                .num_args(0..)
-                                .trailing_var_arg(true)
-                                .allow_hyphen_values(true)
-                                .help("Everything after JAR is forwarded to jadx-cli"),
-                        ),
-                    Command::new("collect").about("Collect framework files from a device (not ported to Rust yet)"),
-                    Command::new("process").about("Process collected framework files (not ported to Rust yet)"),
-                    Command::new("run").about("Collect + process + open in one step (not ported to Rust yet)"),
-                ]),
-        )
-}
-
-fn require(m: &ArgMatches, id: &str) -> String {
-    m.get_one::<String>(id).cloned().unwrap_or_default()
-}
-
-impl AndroidTool {
-    fn run_app(&self, ctx: &ToolContext, m: &ArgMatches) -> DecxResult<Value> {
-        let Some((name, m)) = m.subcommand() else {
-            return Err(DecxError::usage(
-                "No android app subcommand given (manifest | launcher-activity | application | \
-                 exported-components | deep-links | dynamic-receivers | framework-service-implementation | \
-                 resources | resource-file | strings | aidl-interfaces)",
-            ));
-        };
-        let client = super::analysis_client(ctx, m)?;
-        let page = matches_u64(m, "page").unwrap_or(1);
-        // Endpoint names mirror the DECX HTTP API; command-engine projects
-        // answer whichever endpoints they registered templates for.
-        match name {
-            "manifest" => super::call(&client, "get_app_manifest", None, |c| c.get_app_manifest(page)),
-            "launcher-activity" => super::call(&client, "get_main_activity", None, |c| c.get_main_activity(page)),
-            "application" => super::call(&client, "get_application", None, |c| c.get_application(page)),
-            "exported-components" => {
+fn app_commands() -> Vec<CommandSpec> {
+    let package_filter = || -> Vec<A> {
+        vec![
+            A::opt("limit", "limit", "Maximum number of returned items"),
+            A::multi("include-package", "include-package", "Include only names matching this pattern; repeatable"),
+            A::multi("exclude-package", "exclude-package", "Exclude names matching this pattern; repeatable"),
+            A::flag("no-regex", "no-regex", "Treat patterns as literal text"),
+        ]
+    };
+    vec![
+        CommandSpec::leaf("manifest", "Return the decoded AndroidManifest.xml", vec![], |ctx, a| {
+            page_query(ctx, a, |c, page| c.get_app_manifest(page))
+        }),
+        CommandSpec::leaf("launcher-activity", "Return the launcher activity component", vec![], |ctx, a| {
+            page_query(ctx, a, |c, page| c.get_main_activity(page))
+        }),
+        CommandSpec::leaf("application", "Return the application class context", vec![], |ctx, a| {
+            page_query(ctx, a, |c, page| c.get_application(page))
+        }),
+        CommandSpec::leaf(
+            "exported-components",
+            "List exported components from the manifest",
+            vec![
+                A::multi("include", "include", "Include names matching this pattern; repeatable"),
+                A::multi("exclude", "exclude", "Exclude names matching this pattern; repeatable"),
+                A::flag("no-regex", "no-regex", "Treat patterns as literal text"),
+            ],
+            |ctx, a| {
                 let filter = ComponentFilter {
-                    includes: matches_many(m, "include"),
-                    excludes: matches_many(m, "exclude"),
-                    regex: if matches_flag(m, "no-regex") { Some(false) } else { None },
+                    includes: a.strs("include").to_vec(),
+                    excludes: a.strs("exclude").to_vec(),
+                    regex: if a.flag("no-regex") { Some(false) } else { None },
                 };
-                super::call(&client, "get_exported_components", None, |c| {
+                let page = page_of(a);
+                query(ctx, a, |c| {
                     c.get_exported_components(&filter, page)
                 })
-            }
-            "deep-links" => super::call(&client, "get_deep_links", None, |c| c.get_deep_links(page)),
-            "dynamic-receivers" => {
-                let filter = parse_class_filter(m);
-                super::call(&client, "get_dynamic_receivers", None, |c| {
+            },
+        ),
+        CommandSpec::leaf("deep-links", "List deep links declared by the app", vec![], |ctx, a| {
+            page_query(ctx, a, |c, page| c.get_deep_links(page))
+        }),
+        CommandSpec::leaf(
+            "dynamic-receivers",
+            "List dynamically registered receivers",
+            package_filter(),
+            |ctx, a| {
+                let filter = class_filter(a);
+                let page = page_of(a);
+                query(ctx, a, |c| {
                     c.get_dynamic_receivers(&filter, page)
                 })
-            }
-            "framework-service-implementation" => {
-                let iface = require(m, "interface");
-                super::call(&client, "get_system_service_impl", Some(&iface), |c| {
-                    c.get_system_service_impl(&iface, page)
+            },
+        ),
+        CommandSpec::leaf(
+            "framework-service-implementation",
+            "Find the implementation of one framework system service",
+            vec![A::positional("interface", "System service interface name")],
+            |ctx, a| {
+                let key = a.str("interface").to_string();
+                let page = page_of(a);
+                query(ctx, a, |c| {
+                    c.get_system_service_impl(&key, page)
                 })
-            }
-            "resources" => {
-                let includes = matches_many(m, "include");
-                let regex = if matches_flag(m, "no-regex") { Some(false) } else { None };
-                super::call(&client, "get_all_resources", None, |c| {
+            },
+        ),
+        CommandSpec::leaf(
+            "resources",
+            "List resource files inside the app",
+            vec![
+                A::multi("include", "include", "Resource file-name filter; repeatable"),
+                A::flag("no-regex", "no-regex", "Treat patterns as literal text"),
+            ],
+            |ctx, a| {
+                let includes = a.strs("include").to_vec();
+                let regex = if a.flag("no-regex") { Some(false) } else { None };
+                let page = page_of(a);
+                query(ctx, a, |c| {
                     c.get_all_resources(&includes, regex, page)
                 })
-            }
-            "resource-file" => {
-                let res = require(m, "res");
-                super::call(&client, "get_resource_file", Some(&res), |c| c.get_resource_file(&res, page))
-            }
-            "strings" => super::call(&client, "get_strings", None, |c| c.get_strings(page)),
-            "aidl-interfaces" => {
-                let filter = parse_class_filter(m);
-                super::call(&client, "get_aidl_interfaces", None, |c| {
+            },
+        ),
+        CommandSpec::leaf(
+            "resource-file",
+            "Return one resource file entry",
+            vec![A::positional("res", "Resource file path")],
+            |ctx, a| {
+                let key = a.str("res").to_string();
+                let page = page_of(a);
+                query(ctx, a, |c| {
+                    c.get_resource_file(&key, page)
+                })
+            },
+        ),
+        CommandSpec::leaf("strings", "Return app string resources", vec![], |ctx, a| {
+            page_query(ctx, a, |c, page| c.get_strings(page))
+        }),
+        CommandSpec::leaf(
+            "aidl-interfaces",
+            "List AIDL interfaces declared by the app",
+            package_filter(),
+            |ctx, a| {
+                let filter = class_filter(a);
+                let page = page_of(a);
+                query(ctx, a, |c| {
                     c.get_aidl_interfaces(&filter, page)
                 })
-            }
-            other => Err(DecxError::usage(format!("Unknown android app subcommand '{other}'"))),
-        }
-    }
+            },
+        ),
+    ]
+}
 
-    fn run_device(&self, _ctx: &ToolContext, m: &ArgMatches) -> DecxResult<Value> {
-        let Some((name, m)) = m.subcommand() else {
-            return Err(DecxError::usage("No android device subcommand given (system-services | permission-info)"));
-        };
-        let mut adb = AdbClient::new(
-            m.get_one::<String>("adb-path").cloned(),
-            m.get_one::<String>("serial").cloned(),
-        );
-        adb.ensure_available()?;
-        match name {
-            "system-services" => {
+fn device_commands() -> Vec<CommandSpec> {
+    let adb_args = || -> Vec<A> {
+        vec![
+            A::opt("serial", "serial", "adb device serial"),
+            A::opt("adb-path", "adb-path", "Path to the adb binary"),
+        ]
+    };
+    vec![
+        CommandSpec::leaf(
+            "system-services",
+            "List live Binder/system services from the device",
+            {
+                let mut args = adb_args();
+                args.push(A::opt("grep", "grep", "Case-insensitive substring filter over service names/interfaces"));
+                args
+            },
+            |_ctx, a| {
+                let mut adb = adb_client(a);
+                adb.ensure_available()?;
                 let (total, services) = adb.list_system_services()?;
-                Ok(super::adb::filter_system_services(
+                Ok(crate::tools::adb::filter_system_services(
                     total,
                     &services,
-                    m.get_one::<String>("grep").map(String::as_str),
+                    a.opt_str("grep"),
                 ))
-            }
-            "permission-info" => adb.permission_info(&require(m, "permission")),
-            other => Err(DecxError::usage(format!("Unknown android device subcommand '{other}'"))),
-        }
-    }
+            },
+        ),
+        CommandSpec::leaf(
+            "permission-info",
+            "Return structured metadata for one Android permission",
+            {
+                let mut args = adb_args();
+                args.push(A::positional("permission", "Full permission name (android.permission.*)"));
+                args
+            },
+            |_ctx, a| {
+                let mut adb = adb_client(a);
+                adb.ensure_available()?;
+                adb.permission_info(a.str("permission"))
+            },
+        ),
+    ]
+}
 
-    fn run_framework(&self, ctx: &ToolContext, m: &ArgMatches) -> DecxResult<Value> {
-        let Some((name, m)) = m.subcommand() else {
-            return Err(DecxError::usage("No android framework subcommand given (open | collect | process | run)"));
-        };
-        match name {
-            "open" => {
-                let jar = m.get_one::<String>("jar").map(String::as_str).filter(|s| !s.is_empty());
-                let jar = match jar {
-                    Some(jar) => jar.to_string(),
-                    None => {
-                        // No jar given: auto-detect the device OEM and use its
-                        // collected framework jar when one exists.
-                        let oem = detect_device_oem(m)?;
-                        let path = ctx.home.join("framework").join(&oem).join("framework.jar");
-                        if !path.exists() {
-                            return Err(DecxError::file(
-                                format!(
-                                    "No processed framework jar for OEM '{oem}' at {}. Run the framework \
-                                     collect/process pipeline (TypeScript CLI) or pass a jar explicitly.",
-                                    path.display()
-                                ),
-                                Some(path.display().to_string()),
-                            ));
-                        }
-                        path.display().to_string()
-                    }
-                };
-                let config = crate::config::Config::load(&ctx.home);
-                let req = crate::session::lifecycle::OpenRequest {
-                    file: jar,
-                    engine_id: Some(config.effective_engine(m.get_one::<String>("engine").map(String::as_str))),
-                    port: m.get_one::<String>("port").cloned(),
-                    name: m.get_one::<String>("name").cloned(),
-                    force: matches_flag(m, "force"),
-                    scripts: vec![],
-                    passthrough: matches_many(m, "passthrough"),
-                    timeout_secs: matches_u64(m, "timeout").unwrap_or(config.session.open_timeout_secs),
-                    origin: "decx android framework open".into(),
-                };
-                crate::session::lifecycle::open_session(&ctx.manager, &ctx.engines, &req, |msg| ctx.notice(msg))
-            }
-            "collect" | "process" | "run" => Err(DecxError::not_ported(format!("android framework {name}"))),
-            other => Err(DecxError::usage(format!("Unknown android framework subcommand '{other}'"))),
-        }
+fn framework_commands() -> Vec<CommandSpec> {
+    vec![
+        CommandSpec::leaf(
+            "open",
+            "Open a framework jar as an analysis session",
+            vec![
+                A::pos_opt("jar", "Framework jar (default: auto-detected via device OEM)"),
+                A::one_of("engine", "engine", &["jvm", "native", "kuna"], "Engine backend (default: config / DECX_ENGINE / jvm)"),
+                A::opt("port", "port", "DECX HTTP server port to bind"),
+                A::opt("name", "name", "Session name"),
+                A::flag("force", "force", "Restart matching sessions first"),
+                A::opt("timeout", "timeout", "Seconds to wait for server health"),
+                A::opt("serial", "serial", "adb device serial (for OEM auto-detection)"),
+                A::trailing("jadx", "Everything after the jar is forwarded to jadx-cli"),
+            ],
+            run_framework_open,
+        ),
+        CommandSpec::leaf("collect", "Collect framework files from a device (not ported to Rust yet)", vec![], |_, _| {
+            Err(DecxError::not_ported("android framework collect"))
+        }),
+        CommandSpec::leaf("process", "Process collected framework files (not ported to Rust yet)", vec![], |_, _| {
+            Err(DecxError::not_ported("android framework process"))
+        }),
+        CommandSpec::leaf("run", "Collect + process + open in one step (not ported to Rust yet)", vec![], |_, _| {
+            Err(DecxError::not_ported("android framework run"))
+        }),
+    ]
+}
+
+// ── shared handler helpers ──────────────────────────────────────────────────
+
+fn page_of(a: &Args) -> u64 {
+    a.u64("page").unwrap_or(1)
+}
+
+fn class_filter(a: &Args) -> ClassFilter {
+    ClassFilter {
+        limit: a.u64("limit"),
+        includes: a.strs("include-package").to_vec(),
+        excludes: a.strs("exclude-package").to_vec(),
+        regex: if a.flag("no-regex") { Some(false) } else { None },
     }
+}
+
+fn page_query(
+    ctx: &ToolContext,
+    a: &Args,
+    http: impl FnOnce(&crate::client::DecxClient, u64) -> DecxResult<Value>,
+) -> DecxResult<Value> {
+    http(&super::analysis_client(ctx, a)?, page_of(a))
+}
+
+fn query(
+    ctx: &ToolContext,
+    a: &Args,
+    http: impl FnOnce(&crate::client::DecxClient) -> DecxResult<Value>,
+) -> DecxResult<Value> {
+    http(&super::analysis_client(ctx, a)?)
+}
+
+fn adb_client(a: &Args) -> AdbClient {
+    AdbClient::new(
+        a.opt_str("adb-path").map(str::to_string),
+        a.opt_str("serial").map(str::to_string),
+    )
+}
+
+fn run_framework_open(ctx: &ToolContext, a: &Args) -> DecxResult<Value> {
+    let jar = match a.opt_str("jar") {
+        Some(jar) => jar.to_string(),
+        None => {
+            let oem = detect_device_oem(a)?;
+            let path = ctx.home.join("framework").join(&oem).join("framework.jar");
+            if !path.exists() {
+                return Err(DecxError::file(
+                    format!(
+                        "No processed framework jar for OEM '{oem}' at {}. Run the framework collect/process \
+                         pipeline (TypeScript CLI) or pass a jar explicitly.",
+                        path.display()
+                    ),
+                    Some(path.display().to_string()),
+                ));
+            }
+            path.display().to_string()
+        }
+    };
+    let config = crate::config::Config::load(&ctx.home);
+    let req = crate::session::lifecycle::OpenRequest {
+        file: jar,
+        engine_id: Some(config.effective_engine(a.opt_str("engine"))),
+        port: a.opt_str("port").map(str::to_string),
+        name: a.opt_str("name").map(str::to_string),
+        force: a.flag("force"),
+        scripts: vec![],
+        passthrough: a.strs("jadx").to_vec(),
+        timeout_secs: a.u64("timeout").unwrap_or(config.session.open_timeout_secs),
+        origin: "decx android framework open".into(),
+    };
+    crate::session::lifecycle::open_session(&ctx.manager, &ctx.engines, &req, |msg| ctx.notice(msg))
 }
 
 /// Auto-detect the framework OEM from a connected device's brand property.
-fn detect_device_oem(m: &ArgMatches) -> DecxResult<String> {
-    let mut adb = AdbClient::new(None, m.get_one::<String>("serial").cloned());
+fn detect_device_oem(a: &Args) -> DecxResult<String> {
+    let mut adb = AdbClient::new(None, a.opt_str("serial").map(str::to_string));
     adb.ensure_available()?;
     let mut brand = String::new();
     for prop in ["ro.product.vendor.brand", "ro.product.brand", "ro.product.manufacturer"] {
@@ -285,27 +296,5 @@ fn detect_device_oem(m: &ArgMatches) -> DecxResult<String> {
             }
         }
     }
-    super::adb::detect_framework_oem_from_brand(&brand)
-}
-
-impl Tool for AndroidTool {
-    fn id(&self) -> &'static str {
-        "android"
-    }
-
-    fn commands(&self) -> Vec<Command> {
-        vec![command()]
-    }
-
-    fn run(&self, ctx: &ToolContext, matches: &ArgMatches) -> DecxResult<Value> {
-        let Some((name, m)) = matches.subcommand() else {
-            return Err(DecxError::usage("No android subcommand given (app | device | framework)"));
-        };
-        match name {
-            "app" => self.run_app(ctx, m),
-            "device" => self.run_device(ctx, m),
-            "framework" => self.run_framework(ctx, m),
-            other => Err(DecxError::usage(format!("Unknown android subcommand '{other}'"))),
-        }
-    }
+    crate::tools::adb::detect_framework_oem_from_brand(&brand)
 }

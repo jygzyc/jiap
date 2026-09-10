@@ -125,7 +125,6 @@ mod tests {
             hash: "deadbeef".into(),
             file: PathBuf::from("/tmp/demo.apk"),
             engine: "jvm".into(),
-            engine_kind: "server".into(),
             pid: 4242,
             port: 30001,
             scripts: vec![],

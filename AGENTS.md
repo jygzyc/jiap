@@ -72,9 +72,18 @@ The JADX plugin does more than just expose the server:
 redesigned around three pieces, following the opencli adapter/registry model:
 
 - **Tool layer** (`decx-cli-core::tools`) — capabilities and interfaces:
-  every command group is an internal, self-implemented `Tool` (`id`,
-  `commands`, `run`) registered in the `ToolRegistry`, which assembles the
-  clap tree and routes dispatch; external CLI tools register through
+  every command group declares an `interface()` (see the standard interface
+  protocol below);
+- **Standard interface protocol (tool layer ⇄ CLI layer)**: tools declare
+  their surface as an `Interface` in `decx-cli-core::iface` (pure data:
+  `CommandSpec` tree, `ArgSpec` descriptors, one `Handler` per leaf); the
+  CLI (`crates/decx-cli`) is a generic engine that compiles declarations
+  into the clap tree (`build_root`/`build_command`) and dispatches matches
+  via `iface::run_command` (`Args` accessors). Tools contain no CLI code;
+  registration is one line in `ToolRegistry::builtins`. Global `--format`,
+  group-level argument inheritance (`Interface::materialize`), and sysexits
+  exit codes are CLI-side.
+ external CLI tools register through
   `decx tools register <name> -- <command...>` (stored in
   `DECX_HOME/tools.json`) and become reachable as top-level
   `decx <name> [args...]` passthrough with inherited stdio and propagated

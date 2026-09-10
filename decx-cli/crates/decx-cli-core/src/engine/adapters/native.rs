@@ -6,7 +6,7 @@ use std::process::Command;
 
 use crate::error::{DecxError, DecxResult};
 
-use crate::engine::{Engine, EngineKind, TargetSpec};
+use crate::engine::{Engine, TargetSpec};
 
 pub struct NativeEngine;
 
@@ -65,9 +65,6 @@ impl Engine for NativeEngine {
         "decx-native-server (pure-Rust engine, no JVM; --script unsupported)"
     }
 
-    fn kind(&self) -> EngineKind {
-        EngineKind::Server
-    }
 
     fn resolve_binary(&self, home: &Path) -> DecxResult<PathBuf> {
         find_decx_native_server(home).ok_or_else(|| {
